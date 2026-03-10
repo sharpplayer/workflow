@@ -1,0 +1,10 @@
+{
+  "workspaceFolder": "/app",
+  "remoteUser": "root",
+  "image": "node:20-alpine",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/app,type=bind"
+  ],
+  "postCreateCommand": "npm install -g @angular/cli@21",
+  "forwardPorts": [4200]
+}

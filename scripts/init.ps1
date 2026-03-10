@@ -136,6 +136,6 @@ else {
     Write-Host "Password already exists in Vault."
 }
 
-docker run -d --name postgres-db -p 5432:5432 -e POSTGRES_PASSWORD=$dbPassword -v ${dbRootPath}:/var/lib/postgresql postgres:18.3
+docker run -d --name postgres-db -p 5432:5432 -e POSTGRES_PASSWORD=$dbPassword -e POSTGRES_DB=matchboard -v ${dbRootPath}:/var/lib/postgresql postgres:18.3
 
 Log "Bootstrap completed."

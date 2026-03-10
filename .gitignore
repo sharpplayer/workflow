@@ -10,3 +10,11 @@ build
 /app/bin
 /vault/cert
 vault/data
+/client/package-lock.json
+/client/node_modules
+/client/matchboard-client/package-lock.json
+/client/matchboard-client/.editorconfig
+/app/src/main/java/uk/co/matchboard/generated
+/client/matchboard-client/.gitignore
+/client/matchboard-client/.prettierrc
+/client/matchboard-client/.vscode
