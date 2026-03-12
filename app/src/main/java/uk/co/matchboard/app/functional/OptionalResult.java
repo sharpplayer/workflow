@@ -1,6 +1,7 @@
 package uk.co.matchboard.app.functional;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class OptionalResult<T> {
 
@@ -40,9 +41,13 @@ public class OptionalResult<T> {
         return new OptionalResult<>(function.apply(value), null);
     }
 
-    public <R> R fold(Function<T, R> onSuccess, Function<Exception, R> onFailure) {
+    public <R> R fold(Function<T, R> onSuccess, Function<Exception, R> onFailure,
+            Supplier<R> onNone) {
         if (isFaulted()) {
             return onFailure.apply(exception);
+        }
+        if (value == null) {
+            return onNone.get();
         }
         return onSuccess.apply(value);
     }

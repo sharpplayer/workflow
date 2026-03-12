@@ -6,6 +6,10 @@ logging:
     org.springframework.cloud.vault: DEBUG
     org.springframework.vault: DEBUG
 
+server:
+  servlet:
+    context-path: /api
+
 spring:
   config:
     import: vault://

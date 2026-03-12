@@ -2,7 +2,6 @@ package uk.co.matchboard.app.service;
 
 import static uk.co.matchboard.generated.Tables.USERS;
 
-import java.util.Arrays;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.springframework.dao.TransientDataAccessException;
@@ -16,6 +15,7 @@ import uk.co.matchboard.app.model.User;
 
 @Service
 public class DatabaseServiceImpl implements DatabaseService {
+
     private final DSLContext dsl;
 
     public DatabaseServiceImpl(DSLContext dsl) {
@@ -36,5 +36,20 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         List.of(rec.getRoles()),
                                         rec.getPasswordReset(),
                                         rec.getEnabled()))));
+    }
+
+    @Override
+    public Result<User> addUser(User user) {
+        return TryUtils.tryCatch(() -> dsl.insertInto(USERS)
+                        .set(USERS.USERNAME, user.username())
+                        .set(USERS.PASSWORD_HASH, user.passwordHash())
+                        .set(USERS.PIN_HASH, user.pinHash())
+                        .set(USERS.ROLES, user.roles().toArray(new String[0]))
+                        .set(USERS.PASSWORD_RESET, user.passwordReset())
+                        .set(USERS.ENABLED, user.enabled())
+                        .returning(USERS.ID)
+                        .fetchOne(USERS.ID))
+                .map(id -> new User(id, user.username(), user.passwordHash(), user.pinHash(),
+                        user.roles(), user.passwordReset(), user.enabled()));
     }
 }

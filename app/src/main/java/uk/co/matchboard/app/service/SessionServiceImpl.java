@@ -2,7 +2,6 @@ package uk.co.matchboard.app.service;
 
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
@@ -15,13 +14,14 @@ import uk.co.matchboard.app.model.SessionUsers;
 public class SessionServiceImpl implements SessionService {
 
     public static final String MODE_NONE = "none";
+
+    private final Map<String, Map<String, Session>> sessions = new ConcurrentHashMap<>();
+
     private final UserService userService;
 
     public SessionServiceImpl(UserService userService) {
         this.userService = userService;
     }
-
-    private final Map<String, Map<String, Session>> sessions = new ConcurrentHashMap<>();
 
     @Override
     public SessionUsers getUsersOn(String id) {
@@ -45,7 +45,7 @@ public class SessionServiceImpl implements SessionService {
     public Result<Session> startSession(String deviceId, String user, String password,
             boolean asAdmin) {
         endSession(deviceId, user);
-        return userService.login(user, password).mapResult(_ -> {
+        return userService.login(user, password, asAdmin).mapResult(_ -> {
             var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), asAdmin);
             addSession(deviceId, newSession);
             return Result.of(newSession);
@@ -56,9 +56,8 @@ public class SessionServiceImpl implements SessionService {
         var sessions = getSessionsOn(deviceId);
         if (session.admin()) {
             sessions.clear();
-        } else {
-            getSessionsOn(deviceId).put(session.userId(), session);
         }
+        getSessionsOn(deviceId).put(session.userId(), session);
     }
 
     @Override

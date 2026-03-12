@@ -1,27 +1,29 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { API_BASE_URL } from '../../app.config';
+import { HttpClient } from "@angular/common/http";
+import { inject, Injectable } from "@angular/core";
+import { BehaviorSubject, firstValueFrom } from "rxjs";
+import { API_BASE_URL } from "../../app.config";
 
-export interface DeviceStatus {
-  deviceId: string;
-  users: string[];
-  mode: string;
-}
+export interface DeviceStatus { deviceId: string; users: string[]; mode: string; }
 
 @Injectable({ providedIn: 'root' })
 export class DeviceService {
+  private http = inject(HttpClient);
+
   private statusSubject = new BehaviorSubject<DeviceStatus | undefined>(undefined);
   status$ = this.statusSubject.asObservable();
 
-  constructor(private http: HttpClient) { }
-
   async registerDevice(): Promise<DeviceStatus> {
     const status = await firstValueFrom(
-      this.http.post<DeviceStatus>(`${API_BASE_URL}/device`, {}, { withCredentials: true })
+      this.http.post<DeviceStatus>(`${API_BASE_URL}/api/device`, {}, { withCredentials: true })
     );
-    this.statusSubject.next(status);
+
+    this.setStatus(status);
     return status;
+  }
+
+  setStatus(status: DeviceStatus) {
+    console.log(status)
+    this.statusSubject.next(status);
   }
 
   getStatus(): DeviceStatus {

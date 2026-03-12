@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { Router, UrlTree } from '@angular/router';
-import { DeviceService } from '../device.service';
+import { DeviceService } from '../services/device.service';
 
 export const jobGuard = (): boolean | UrlTree => {
   const router = inject(Router);

@@ -1,8 +1,8 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
-import { StatusLine } from './core/components/StatusLine';
-import { DeviceService, DeviceStatus } from './core/device.service';
 import { filter, take } from 'rxjs';
+import { DeviceService, DeviceStatus } from './core/services/device.service';
+import { StatusLine } from './core/components/status-line/status-line.component';
 
 @Component({
   selector: 'app-root',

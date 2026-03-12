@@ -5,20 +5,22 @@ import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.DisabledUserException;
+import uk.co.matchboard.app.exception.DuplicateUserException;
 import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.LoginOptions;
 import uk.co.matchboard.app.model.User;
 
 @Service
 public class UserServiceImpl implements UserService {
 
-    private final String ROLE_ADMIN = "admin";
+    private static final String ROLE_ADMIN = "ADMIN";
 
-    private final String LOGIN_OPT_ADMIN = "admin";
-    private final String LOGIN_OPT_PASSWORD = "password";
-    private final String LOGIN_OPT_PIN = "pin";
-    private final String LOGIN_OPT_RESET = "reset";
+    private static final String LOGIN_OPT_ADMIN = "admin";
+    private static final String LOGIN_OPT_PASSWORD = "password";
+    private static final String LOGIN_OPT_PIN = "pin";
+    private static final String LOGIN_OPT_RESET = "reset";
 
     private final PasswordEncoder passwordEncoder;
 
@@ -30,11 +32,35 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result<Boolean> login(String user, String password) {
+    public Result<User> registerUser(String username, String password, List<String> roles) {
+        System.out.println(System.currentTimeMillis());
+        OptionalResult<User> userRecord = databaseService.findUser(username);
+        System.out.println(System.currentTimeMillis());
+        return userRecord.fold(u -> Result.failure(new DuplicateUserException(u.username())),
+                Result::failure,
+                () -> {
+                    System.out.println(System.currentTimeMillis());
+                    var passwordHash = passwordEncoder.encode(password);
+                    System.out.println(System.currentTimeMillis());
+                    return databaseService.addUser(
+                            new User(0, username, passwordHash, null, roles, true, true));
+                }
+        );
+    }
+
+    @Override
+    public Result<Boolean> login(String user, String password, boolean adminMode) {
+        System.out.println("l:" + System.currentTimeMillis());
         OptionalResult<User> userRecord = databaseService.findUser(user);
+        System.out.println("l:" + System.currentTimeMillis());
         return userRecord.mapResult(data -> {
             if (data.enabled()) {
+                System.out.println("m:" + System.currentTimeMillis());
                 if (!passwordEncoder.matches(password, data.passwordHash())) {
+                    return Result.failure(new InvalidUserException());
+                }
+                System.out.println("n:" + System.currentTimeMillis());
+                if (adminMode && !data.roles().contains(ROLE_ADMIN)) {
                     return Result.failure(new InvalidUserException());
                 }
                 return Result.of(true);
@@ -60,16 +86,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result<List<String>> loginOptions(String user) {
+    public LoginOptions getOptions(String user, boolean loggedInOnDevice) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        return Result.of(userRecord.fold(data -> {
+        var x = new LoginOptions(userRecord.fold(data -> {
             List<String> opts = new ArrayList<>();
             if (data.enabled()) {
+                opts.add(LOGIN_OPT_PASSWORD);
                 if (data.roles().contains(ROLE_ADMIN)) {
                     opts.add(LOGIN_OPT_ADMIN);
                 }
-                // Only if already logged in
-                if (data.pinHash() != null) {
+                // Only if already logged in on device (probably should check session length)
+                if (loggedInOnDevice && data.pinHash() != null) {
                     opts.add(LOGIN_OPT_PIN);
                 }
                 if (data.passwordReset()) {
@@ -79,6 +106,8 @@ public class UserServiceImpl implements UserService {
                 opts.add(LOGIN_OPT_PASSWORD);
             }
             return opts;
-        }, _ -> List.of(LOGIN_OPT_PASSWORD)));
+        }, _ -> List.of(LOGIN_OPT_PASSWORD), () -> List.of(LOGIN_OPT_PASSWORD)));
+        System.out.println(x);
+        return x;
     }
 }
