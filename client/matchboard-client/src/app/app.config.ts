@@ -1,6 +1,8 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+// app.config.ts
+import { ApplicationConfig, provideAppInitializer, inject } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { DeviceService } from './core/device.service';
 import { provideRouter } from '@angular/router';
-
 import { routes } from './app.routes';
 
 export const API_CONFIG = {
@@ -14,7 +16,13 @@ export const API_BASE_URL = `${API_CONFIG.protocol}//${API_CONFIG.host}:${API_CO
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideBrowserGlobalErrorListeners(),
-    provideRouter(routes)
-  ]
+    provideRouter(routes), 
+    provideHttpClient(),
+    provideAppInitializer(() => {
+      const deviceService = inject(DeviceService);
+      return deviceService.registerDevice().catch(err => {
+        console.error('Device registration failed', err);
+      });
+    }),
+  ],
 };

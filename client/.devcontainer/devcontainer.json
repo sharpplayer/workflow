@@ -1,5 +1,5 @@
 {
-  "workspaceFolder": "/app",
+  "workspaceFolder": "/app/matchboard-client",
   "remoteUser": "root",
   "image": "node:20-alpine",
   "mounts": [

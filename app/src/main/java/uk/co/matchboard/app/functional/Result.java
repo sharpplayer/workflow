@@ -1,6 +1,6 @@
 package uk.co.matchboard.app.functional;
 
-import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 public class Result<T> {
@@ -9,16 +9,16 @@ public class Result<T> {
     private final Exception exception;
 
     private Result(T value, Exception exception) {
-        this.value = Objects.requireNonNull(value, "Result must have non-null value");
         this.exception = exception;
+        this.value = value;
     }
 
-    public Result(T value) {
-        this(value, null);
+    public static <T> Result<T> of(T value) {
+        return new Result<>(value, null);
     }
 
-    public Result(Exception exception) {
-        this(null, exception);
+    public static <T> Result<T> failure(Exception ex) {
+        return new Result<>(null, ex);
     }
 
     public boolean isFaulted() {
@@ -28,14 +28,10 @@ public class Result<T> {
     @SuppressWarnings("unchecked")
     public <S> Result<S> cast() {
         if (isFaulted()) {
-            return new Result<>(exception);
+            return new Result<>(null, exception);
         }
 
-        try {
-            return new Result<>((S) value);
-        } catch (ClassCastException ex) {
-            return new Result<>(ex);
-        }
+        return new Result<>((S) value, null);
 
     }
 
@@ -44,6 +40,25 @@ public class Result<T> {
             return cast();
         }
 
-        return new Result<>(function.apply(value));
+        return new Result<>(function.apply(value), null);
+    }
+
+    public <R> Result<R> mapResult(Function<T, Result<R>> function) {
+        if (isFaulted()) {
+            return cast();
+        }
+
+        return function.apply(value);
+    }
+
+    public <R> R fold(Function<T, R> onSuccess, Function<Exception, R> onFailure) {
+        if (isFaulted()) {
+            return onFailure.apply(exception);
+        }
+        return onSuccess.apply(value);
+    }
+
+    public static <T> OptionalResult<T> toOptionalResult(Result<Optional<T>> result) {
+        return result.fold(value -> OptionalResult.of(value.orElse(null)), OptionalResult::failure);
     }
 }

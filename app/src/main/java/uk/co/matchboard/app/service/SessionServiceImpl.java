@@ -1,24 +1,40 @@
 package uk.co.matchboard.app.service;
 
-import org.springframework.stereotype.Service;
-import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Session;
-
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.Session;
+import uk.co.matchboard.app.model.SessionUsers;
 
 @Service
 public class SessionServiceImpl implements SessionService {
 
+    public static final String MODE_NONE = "none";
+    private final UserService userService;
+
+    public SessionServiceImpl(UserService userService) {
+        this.userService = userService;
+    }
+
     private final Map<String, Map<String, Session>> sessions = new ConcurrentHashMap<>();
 
     @Override
-    public List<String> getUsersOn(String id) {
-        return getSessionsOn(id).values().stream().map(Session::userId).toList();
+    public SessionUsers getUsersOn(String id) {
+        var sessions = getSessionsOn(id).values();
+        String mode;
+        if (sessions.isEmpty()) {
+            mode = MODE_NONE;
+        } else if (sessions.size() == 1 && sessions.iterator().next().admin()) {
+            mode = "admin";
+        } else {
+            mode = "job";
+        }
+        return new SessionUsers(sessions.stream().map(Session::userId).toList(), mode);
     }
 
     private Map<String, Session> getSessionsOn(String id) {
@@ -26,18 +42,28 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public Result<Session> startSession(String deviceId, String user, String password) {
+    public Result<Session> startSession(String deviceId, String user, String password,
+            boolean asAdmin) {
         endSession(deviceId, user);
-        // query db session for user
-        // check password hash
-        var newSession = new Session(user, Instant.now().plusSeconds(60 * 30));
-        getSessionsOn(deviceId).put(user, newSession);
-        return new Result<>(newSession);
+        return userService.login(user, password).mapResult(_ -> {
+            var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), asAdmin);
+            addSession(deviceId, newSession);
+            return Result.of(newSession);
+        });
+    }
+
+    private void addSession(String deviceId, Session session) {
+        var sessions = getSessionsOn(deviceId);
+        if (session.admin()) {
+            sessions.clear();
+        } else {
+            getSessionsOn(deviceId).put(session.userId(), session);
+        }
     }
 
     @Override
     public OptionalResult<Session> endSession(String deviceId, String user) {
         var deviceSessions = getSessionsOn(deviceId);
-        return new OptionalResult<>(deviceSessions.remove(user));
+        return OptionalResult.of(deviceSessions.remove(user));
     }
 }

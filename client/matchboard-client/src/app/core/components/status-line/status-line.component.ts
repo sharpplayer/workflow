@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DeviceService, DeviceStatus } from '../core/device.service';
 import { AsyncPipe } from '@angular/common';
+import { DeviceService } from '../../services/device.service';
 
 @Component({
   selector: 'status-line',

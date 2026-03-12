@@ -1,11 +1,11 @@
 package uk.co.matchboard.app.service;
 
-import org.springframework.stereotype.Service;
-import uk.co.matchboard.app.model.Device;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.model.Device;
+import uk.co.matchboard.app.model.SessionUsers;
 
 @Service
 public class DeviceServiceImpl implements DeviceService {
@@ -19,9 +19,10 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     public Device registerDevice(String id) {
         if (id != null && !id.isBlank()) {
-            List<String> deviceUsers = sessionService.getUsersOn(id);
-            return new Device(id, deviceUsers);
+            SessionUsers deviceUsers = sessionService.getUsersOn(id);
+            return new Device(id, deviceUsers.users(), deviceUsers.mode());
         }
-        return new Device(UUID.randomUUID().toString(), Collections.emptyList());
+        return new Device(UUID.randomUUID().toString(), Collections.emptyList(),
+                SessionServiceImpl.MODE_NONE);
     }
 }

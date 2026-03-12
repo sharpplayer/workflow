@@ -1,15 +1,15 @@
 package uk.co.matchboard.app.service;
 
+import java.util.List;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.Session;
-
-import java.util.List;
+import uk.co.matchboard.app.model.SessionUsers;
 
 public interface SessionService {
-    List<String> getUsersOn(String id);
+    SessionUsers getUsersOn(String id);
 
-    Result<Session> startSession(String deviceId, String user, String password);
+    Result<Session> startSession(String deviceId, String user, String password, boolean asAdmin);
 
     OptionalResult<Session> endSession(String deviceId, String user);
 }

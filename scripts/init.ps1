@@ -6,10 +6,8 @@ param(
     [string]$VaultPassword
 )
 
-Write-Host "HEY"
-Write-Host $PSBoundParameters
-
 $vaultContainerName = "vault-prod"
+$dbContainerName = "postgres-db"
 $dbRootPath = "c:/Matchboard/db"
 $vaultRootPath = "c:/Matchboard/workflow/vault"
 $vaultDataPath = "${vaultRootPath}/data"
@@ -35,7 +33,7 @@ $isAdmin = [Security.Principal.WindowsPrincipal] `
 if (-not $isAdmin.IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)) {
 
-    Write-Host "This script must be run as Administrator."
+    Log "This script must be run as Administrator."
     exit 1
 }
 
@@ -64,78 +62,104 @@ Log "Docker is running."
 $firstRun = $false
 if (!(Test-Path $vaultCertsPath)) {
 
-    Write-Host "Creating certs folder..."
+    Log "Creating certs folder..."
     New-Item -ItemType Directory -Path $vaultCertsPath -Force | Out-Null
     $firstRun = $true
 }
 
 if (!(Test-Path $crtFile)) {
 
-    Write-Host "Certificate not found. Generating self-signed certificate..."
+    Log "Certificate not found. Generating self-signed certificate..."
     & "C:\Program Files\OpenSSL-Win64\bin\openssl" req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes -keyout ${vaultCertsPath}/vault.key -out ${vaultCertsPath}/vault.pem -subj "/CN=${dnsName}" -addext "subjectAltName=DNS:${dnsName},DNS:localhost,IP:${dnsName}"
-    Write-Host "Certificate exported to $crtFile"
+    Log "Certificate exported to $crtFile"
 }
 
 # ------------------------------------------------------------
-# Step 3. Remove Existing Container If Needed (Safe Restart Pattern)
+# Step 3. Start Vault Container
 # ------------------------------------------------------------
-if (docker ps -a --format "{{.Names}}" | Select-String $vaultContainerName) {
-    Log "Keeping existing Vault container..."
+$existingContainer = docker ps -a --format "{{.Names}}" | Select-String "^$vaultContainerName$"
+$runningContainer  = docker ps --format "{{.Names}}" | Select-String "^$vaultContainerName$"
+
+if ($runningContainer) {
+    Log "Vault container already running..."
+}
+elseif ($existingContainer) {
+    Log "Vault container exists but is stopped. Starting it..."
+    docker start $vaultContainerName
+    if (-not ($PSBoundParameters.ContainsKey("VaultPassword") -and $PSBoundParameters.ContainsKey("Key1") -and $PSBoundParameters.ContainsKey("Key2") -and $PSBoundParameters.ContainsKey("Key3")))
+    {
+        Log "Rerun init.ps1 with -VaultPassword -Key1 -Key2 and -Key3 options to unseal"
+        return
+    }
 }
 else
 {
-    # ------------------------------------------------------------
-    # Step 5. Start Vault Container
-    # ------------------------------------------------------------
     Log "Starting Vault container..."
     docker run -d --name $vaultContainerName --cap-add=IPC_LOCK -p 8200:8200 -v ${vaultDataPath}:/vault/data -v ${vaultConfigPath}:/vault/config -v ${vaultCertsPath}:/vault/certs -e VAULT_ADDR="https://${dnsName}:8200" hashicorp/vault:latest vault server -config=/vault/config
 
     # Wait for Vault boot sequence
     Start-Sleep -Seconds 15
+
+    if ($firstRun) {
+        Log "Performing Vault initialization..."
+        docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault operator init
+        docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault secrets enable -path=secret kv-v2
+        Log "Rerun init.ps1 with -VaultPassword -Key1 -Key2 and -Key3 options"
+        return
+    }
 }
 
-# ------------------------------------------------------------
-# Step 5. Initialize Vault ONLY if First Run
-# ------------------------------------------------------------
-if ($firstRun) {
-    Log "Performing Vault initialization..."
-    docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault operator init
-    docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault secrets enable -path=secret kv-v2
-}
-else {
-    Log "Skipping initialization (Vault already initialized)."
-}
-
-if ($PSBoundParameters.ContainsKey("VaultPassword"))
-{
-    docker exec -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://127.0.0.1:8200" -it vault-prod vault login $VaultPassword
-}
-
-if ($PSBoundParameters.ContainsKey("Key1"))
+Log "Skipping initialization (Vault already initialized)."
+if ($PSBoundParameters.ContainsKey("VaultPassword") -and $PSBoundParameters.ContainsKey("Key1") -and $PSBoundParameters.ContainsKey("Key2") -and $PSBoundParameters.ContainsKey("Key3"))
 {
     Log "Unsealing vault."
     docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault operator unseal ${Key1}
     docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault operator unseal ${Key2}
     docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault operator unseal ${Key3}
+    docker exec -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://127.0.0.1:8200" -it vault-prod vault login $VaultPassword
+}
+else
+{
+    Log "Skipping unsealing vault."
 }
 
+# ------------------------------------------------------------
+# Step 4. Get db password
+# ------------------------------------------------------------
 docker exec -it -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault status
 
-Write-Host "(docker exec  -e VAULT_SKIP_VERIFY=true -e VAULT_ADDR=https://${dnsName}:8200 $vaultContainerName vault kv get -field=password secret/postgres).Trim()"
 $dbPassword = (docker exec  -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault kv get -field=password secret/postgres).Trim()
 if ($LASTEXITCODE -ne 0) {
 
     if(-not $PSBoundParameters.ContainsKey("DbPassword")) {
-        throw "Db password not supplied."
+        Log "-DbPassword is required to establish db."
+        return
     }
     docker exec  -e VAULT_SKIP_VERIFY="true" -e VAULT_ADDR="https://${dnsName}:8200" $vaultContainerName vault kv put $dbSecretPath password=$DbPassword
     $dbPassword = $DbPassword
-    Write-Host "Password created and stored in Vault."
+    Log "Password created and stored in Vault."
 }
 else {
-    Write-Host "Password already exists in Vault."
+    Log "Password already exists in Vault."
 }
 
-docker run -d --name postgres-db -p 5432:5432 -e POSTGRES_PASSWORD=$dbPassword -e POSTGRES_DB=matchboard -v ${dbRootPath}:/var/lib/postgresql postgres:18.3
+# ------------------------------------------------------------
+# Step 5. Start Db Container
+# ------------------------------------------------------------
+$existingContainer = docker ps -a --format "{{.Names}}" | Select-String "^$dbContainerName$"
+$runningContainer  = docker ps --format "{{.Names}}" | Select-String "^$dbContainerName$"
+
+if ($runningContainer) {
+    Log "Db already running..."
+}
+elseif ($existingContainer) {
+    Log "Db exists but is stopped. Starting it..."
+    docker start $dbContainerName
+}
+else
+{
+    Log "Starting db container..."
+    docker run -d --name $dbContainerName -p 5432:5432 -e POSTGRES_PASSWORD=$dbPassword -e POSTGRES_DB=matchboard -v ${dbRootPath}:/var/lib/postgresql postgres:18.3
+}
 
 Log "Bootstrap completed."

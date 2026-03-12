@@ -1,6 +1,5 @@
 package uk.co.matchboard.app.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -9,8 +8,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.model.Device;
 import uk.co.matchboard.app.service.DeviceService;
-
-import java.util.UUID;
 
 @RestController
 public class DeviceController {
@@ -36,9 +33,6 @@ public class DeviceController {
                 .sameSite("Strict")
                 .build();
 
-        return ResponseEntity
-                .ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(device);
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie.toString()).body(device);
     }
 }

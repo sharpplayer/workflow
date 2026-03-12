@@ -12,12 +12,12 @@ public class OptionalResult<T> {
         this.exception = exception;
     }
 
-    public OptionalResult(T value) {
-        this(value, null);
+    public static <T> OptionalResult<T> of(T value) {
+        return new OptionalResult<>(value, null);
     }
 
-    public OptionalResult(Exception exception) {
-        this(null, exception);
+    public static <T> OptionalResult<T> failure(Exception ex) {
+        return new OptionalResult<>(null, ex);
     }
 
     public boolean isFaulted() {
@@ -27,15 +27,9 @@ public class OptionalResult<T> {
     @SuppressWarnings("unchecked")
     public <S> OptionalResult<S> cast() {
         if (isFaulted()) {
-            return new OptionalResult<>(exception);
+            return new OptionalResult<>(null, exception);
         }
-
-        try {
-            return new OptionalResult<>((S) value);
-        } catch (ClassCastException ex) {
-            return new OptionalResult<>(ex);
-        }
-
+        return new OptionalResult<>((S) value, null);
     }
 
     public <R> OptionalResult<R> map(Function<T, R> function) {
@@ -43,6 +37,22 @@ public class OptionalResult<T> {
             return cast();
         }
 
-        return new OptionalResult<>(function.apply(value));
+        return new OptionalResult<>(function.apply(value), null);
+    }
+
+    public <R> R fold(Function<T, R> onSuccess, Function<Exception, R> onFailure) {
+        if (isFaulted()) {
+            return onFailure.apply(exception);
+        }
+        return onSuccess.apply(value);
+    }
+
+    public <R> Result<R> mapResult(Function<T, Result<R>> function) {
+        if (isFaulted()) {
+            return Result.failure(exception);
+        }
+
+        return function.apply(value);
     }
 }
+
