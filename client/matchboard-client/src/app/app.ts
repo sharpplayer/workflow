@@ -1,30 +1,41 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
-import { filter, take } from 'rxjs';
-import { DeviceService, DeviceStatus } from './core/services/device.service';
+import { Component, effect, inject, signal } from '@angular/core';
 import { StatusLine } from './core/components/status-line/status-line.component';
+import { DeviceService } from './core/services/device.service';
+import { AuthService } from './core/services/auth.service';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, StatusLine],
-  templateUrl: './app.html',
+  template: `
+  <header class="app-header">
+    <h1>Matchboard</h1>
+  </header>
+  <div class="main-content">
+    <router-outlet />
+  </div>
+  <footer class="status-bar">
+    <status-line />
+  </footer>
+  `,
   styleUrl: './app.css'
 })
-export class App implements OnInit {
+export class App {
+
   private deviceService = inject(DeviceService);
-  private router = inject(Router);
+  private authService = inject(AuthService);
+
   protected readonly title = signal('matchboard-client');
 
-  ngOnInit(): void {
-    this.deviceService.status$.pipe(
-      filter((status): status is DeviceStatus => !!status),
-      take(1)
-    ).subscribe(status => {
-      switch (status.mode) {
-        case 'job': this.router.navigate(['/job']); break;
-        case 'admin': this.router.navigate(['/admin']); break;
-        default: this.router.navigate(['/login']); break;
-      }
+  constructor() {
+    let initialized = false;
+
+    effect(() => {
+      if (initialized) return;
+      const status = this.deviceService.status();
+      if (!status) return;
+      initialized = true;
+      this.authService.redirectAfterLogin(status);
     });
   }
 }

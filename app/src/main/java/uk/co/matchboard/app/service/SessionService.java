@@ -11,4 +11,5 @@ public interface SessionService {
     Result<Session> startSession(String deviceId, String user, String password, boolean asAdmin);
 
     OptionalResult<Session> endSession(String deviceId, String user);
+
 }

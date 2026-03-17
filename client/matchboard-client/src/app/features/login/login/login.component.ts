@@ -11,12 +11,15 @@ import { Subject, switchMap, catchError, of, map } from "rxjs";
 import { API_BASE_URL } from "../../../app.config";
 
 export type LoginMode = 'pin' | 'password';
-export type LoginOption = 'admin' | 'password' | 'pin' | 'reset';
+export type LoginOption = 'admin' | 'password' | 'pin' | 'reset' | 'pinreset';
 
 export interface LoginResult {
   username: string;
   credential: string;
   adminMode: boolean;
+  pin: boolean;
+  pinReset: boolean;
+  passwordReset: boolean;
 }
 
 @Component({
@@ -30,36 +33,27 @@ export interface LoginResult {
       <!-- Username: dropdown if users supplied, else free text -->
       <div class="field">
         <label>Username</label>
-        <select *ngIf="users.length; else freeText"
+        <input type="text"
                 [(ngModel)]="username"
-                (blur)="onUsernameBlur()">
-          <option value="" disabled>Select user…</option>
-          <option *ngFor="let u of users" [value]="u">{{ u }}</option>
-        </select>
-
-        <ng-template #freeText>
-          <input type="text"
-                 [(ngModel)]="username"
-                 placeholder="Username"
-                 (blur)="onUsernameBlur()" />
-        </ng-template>
+                placeholder="Username"
+                (blur)="onUsernameBlur()"
+                [disabled]="usernameProvided" />
       </div>
 
       <!-- Credential input — always visible -->
       <div class="field">
         <label>{{ credentialLabel }}</label>
-        <input [type]="credentialInputType"
+        <input type="password"
                [(ngModel)]="credential"
                [placeholder]="credentialLabel"
-               [maxlength]="isPin ? 4 : 524288"
-               [pattern]="isPin ? '[0-9]*' : ''"
-               (input)="isPin && sanitisePin($event)"
-               autocomplete="current-password" />
-        <span class="hint" *ngIf="isPin">4-digit PIN</span>
+               [maxlength]="isPinAvailable ? 4 : 30"
+               [pattern]="isPinAvailable ? '[0-9]*' : ''"
+               (input)="isPinAvailable && sanitisePin($event)"
+                autocomplete="one-time-code" />
+        <span class="hint">{{ isPinAvailable ? '4-digit PIN' : 'Password' }}</span>
       </div>
 
-      <!-- Admin checkbox — always visible, enabled only when admin option present -->
-      <div class="field checkbox-field">
+      <div class="field checkbox-field" *ngIf="!isPin">
         <label [class.disabled]="!isAdminAvailable">
           <input type="checkbox"
                  [(ngModel)]="adminMode"
@@ -71,11 +65,12 @@ export interface LoginResult {
       <div class="loading-hint" *ngIf="loadingOptions">Fetching login options…</div>
       <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
-      <button [disabled]="!canSubmit" (click)="submit()">Login</button>
+      <button (click)="cancel()" *ngIf="isPin">Cancel</button>
+      <button [disabled]="!canSubmit" (click)="submit()">{{ isPinAvailable ? 'Sign' : (isPin ? 'Login and Sign' : 'Login') }}</button>
     </div>
   `,
   styles: [`
-    .modal-card { display:flex; flex-direction:column; gap:1rem; padding:2rem; max-width:360px; }
+    .modal-card { display:flex; flex-direction:column; gap:1rem; padding:2rem; max-width:360px; background-color: #ffffff;}
     .field { display:flex; flex-direction:column; gap:.4rem; }
     .checkbox-field { flex-direction:row; align-items:center; }
     .hint { font-size:.75rem; color:#888; }
@@ -84,15 +79,16 @@ export interface LoginResult {
     label.disabled { opacity:.4; cursor:not-allowed; }
   `]
 })
-export class LoginComponent implements OnChanges, OnDestroy {
+export class LoginComponent implements OnInit, OnDestroy {
 
-  @Input() users: string[] = [];
+  @Input() username: string = '';
   @Input() mode: LoginMode = 'password';
   @Output() loginSubmit = new EventEmitter<LoginResult>();
+  @Output() cancelled = new EventEmitter<void>();
 
-  username = '';
   credential = '';
   adminMode = false;
+  usernameProvided = false;
 
   loginOptions: LoginOption[] = [];
   loadingOptions = false;
@@ -111,10 +107,9 @@ export class LoginComponent implements OnChanges, OnDestroy {
       }
       this.loadingOptions = true;
       this.errorMsg = '';
-      return this.http.get<{ options: string[] }>(`${API_BASE_URL}/api/login-options?username=${encodeURIComponent(u)}`).pipe(
+      return this.http.get<{ options: string[] }>(`${API_BASE_URL}/api/login-options?username=${encodeURIComponent(u)}`, { withCredentials: true }).pipe(
         map(response => {
           this.loadingOptions = false;
-          console.log('API responded at', new Date().toISOString(), response);
           this.changeRef.detectChanges();
           return response.options as LoginOption[]
         }),
@@ -128,17 +123,17 @@ export class LoginComponent implements OnChanges, OnDestroy {
       );
     })
   ).subscribe(opts => {
-    const valid: LoginOption[] = ['admin', 'password', 'pin', 'reset'];
-    this.loginOptions = opts.filter(o => valid.includes(o));
+    this.loginOptions = opts;
     this.loadingOptions = false;
     if (!this.isAdminAvailable) this.adminMode = false;
     this.changeRef.detectChanges();
   });
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['users'] && this.users.length === 1) {
-      this.username = this.users[0];
-      this.onUsernameBlur();
+
+  ngOnInit(): void {
+    this.usernameProvided = !!this.username;
+    if (this.usernameProvided) {
+      this.usernameSubject.next(this.username);
     }
   }
 
@@ -154,16 +149,16 @@ export class LoginComponent implements OnChanges, OnDestroy {
     return this.loginOptions.includes('admin');
   }
 
+  get isPinAvailable(): boolean {
+    return this.isPin && this.loginOptions.includes('pin');
+  }
+
   get isPin(): boolean {
-    return this.mode === 'pin' && this.loginOptions.includes('pin');
+    return this.mode === 'pin';
   }
 
   get credentialLabel(): string {
-    return this.isPin ? 'PIN' : 'Password';
-  }
-
-  get credentialInputType(): string {
-    return 'password';
+    return this.isPinAvailable ? 'PIN' : 'Password';
   }
 
   sanitisePin(event: Event) {
@@ -175,7 +170,7 @@ export class LoginComponent implements OnChanges, OnDestroy {
   get canSubmit(): boolean {
     if (!this.username) return false;
     if (!this.credential) return false;
-    if (this.isPin && this.credential.length !== 4) return false;
+    if (this.isPinAvailable && this.credential.length !== 4) return false;
     return true;
   }
 
@@ -183,7 +178,14 @@ export class LoginComponent implements OnChanges, OnDestroy {
     this.loginSubmit.emit({
       username: this.username,
       credential: this.credential,
-      adminMode: this.adminMode
+      adminMode: this.adminMode,
+      pin: this.isPinAvailable,
+      pinReset: this.loginOptions.includes('pinreset'),
+      passwordReset: this.loginOptions.includes('reset')
     });
+  }
+
+  cancel() {
+    this.cancelled.emit();
   }
 }

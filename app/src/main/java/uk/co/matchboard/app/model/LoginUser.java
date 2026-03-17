@@ -1,3 +1,3 @@
 package uk.co.matchboard.app.model;
 
-public record LoginUser(String username, String password, boolean admin){}
+public record LoginUser(String username, String password, boolean admin, boolean pin){}

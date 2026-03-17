@@ -18,6 +18,10 @@ public class ExceptionHandler {
                     .status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("DUPLICATE_USER", e.getMessage()));
 
+            case InvalidUserException e -> ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("UNAUTHORIZED", e.getMessage()));
+
             case ValidationException e -> ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(new ErrorResponse("VALIDATION_ERROR", e.getMessage()));

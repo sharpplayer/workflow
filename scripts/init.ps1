@@ -86,6 +86,7 @@ if ($runningContainer) {
 elseif ($existingContainer) {
     Log "Vault container exists but is stopped. Starting it..."
     docker start $vaultContainerName
+    Start-Sleep -Seconds 15
     if (-not ($PSBoundParameters.ContainsKey("VaultPassword") -and $PSBoundParameters.ContainsKey("Key1") -and $PSBoundParameters.ContainsKey("Key2") -and $PSBoundParameters.ContainsKey("Key3")))
     {
         Log "Rerun init.ps1 with -VaultPassword -Key1 -Key2 and -Key3 options to unseal"

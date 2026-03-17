@@ -21,6 +21,7 @@ public class UserServiceImpl implements UserService {
     private static final String LOGIN_OPT_PASSWORD = "password";
     private static final String LOGIN_OPT_PIN = "pin";
     private static final String LOGIN_OPT_RESET = "reset";
+    private static final String LOGIN_OPT_PIN_RESET = "pinreset";
 
     private final PasswordEncoder passwordEncoder;
 
@@ -33,41 +34,63 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Result<User> registerUser(String username, String password, List<String> roles) {
-        System.out.println(System.currentTimeMillis());
         OptionalResult<User> userRecord = databaseService.findUser(username);
-        System.out.println(System.currentTimeMillis());
         return userRecord.fold(u -> Result.failure(new DuplicateUserException(u.username())),
                 Result::failure,
                 () -> {
-                    System.out.println(System.currentTimeMillis());
                     var passwordHash = passwordEncoder.encode(password);
-                    System.out.println(System.currentTimeMillis());
                     return databaseService.addUser(
-                            new User(0, username, passwordHash, null, roles, true, true));
+                            new User(0, username, passwordHash, null, roles, true, true, true));
                 }
         );
     }
 
     @Override
-    public Result<Boolean> login(String user, String password, boolean adminMode) {
-        System.out.println("l:" + System.currentTimeMillis());
+    public Result<User> login(String user, String password, boolean adminMode) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        System.out.println("l:" + System.currentTimeMillis());
         return userRecord.mapResult(data -> {
             if (data.enabled()) {
-                System.out.println("m:" + System.currentTimeMillis());
                 if (!passwordEncoder.matches(password, data.passwordHash())) {
                     return Result.failure(new InvalidUserException());
                 }
-                System.out.println("n:" + System.currentTimeMillis());
                 if (adminMode && !data.roles().contains(ROLE_ADMIN)) {
                     return Result.failure(new InvalidUserException());
                 }
-                return Result.of(true);
+                return Result.of(data);
             } else {
                 return Result.failure(new DisabledUserException(user));
             }
         });
+    }
+
+    @Override
+    public Result<User> updatePassword(String username, String password) {
+        OptionalResult<User> userRecord = databaseService.findUser(username);
+        return userRecord.fold(u -> {
+                    var passwordHash = passwordEncoder.encode(password);
+                    return databaseService.updateUser(
+                            new User(u.id(), username, passwordHash, u.pinHash(), u.roles(), false,
+                                    u.pinReset(),
+                                    u.enabled()));
+                },
+                Result::failure,
+                () -> Result.failure(new InvalidUserException())
+        );
+    }
+
+    @Override
+    public Result<User> updatePin(String username, String pin) {
+        OptionalResult<User> userRecord = databaseService.findUser(username);
+        return userRecord.fold(u -> {
+                    var pinHash = passwordEncoder.encode(pin);
+                    return databaseService.updateUser(
+                            new User(u.id(), username, u.passwordHash(), pinHash, u.roles(), u.passwordReset(),
+                                    false,
+                                    u.enabled()));
+                },
+                Result::failure,
+                () -> Result.failure(new InvalidUserException())
+        );
     }
 
     @Override
@@ -98,6 +121,9 @@ public class UserServiceImpl implements UserService {
                 // Only if already logged in on device (probably should check session length)
                 if (loggedInOnDevice && data.pinHash() != null) {
                     opts.add(LOGIN_OPT_PIN);
+                }
+                if (data.pinReset()) {
+                    opts.add(LOGIN_OPT_PIN_RESET);
                 }
                 if (data.passwordReset()) {
                     opts.add(LOGIN_OPT_RESET);

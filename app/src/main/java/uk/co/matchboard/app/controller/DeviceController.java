@@ -4,13 +4,19 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
+import uk.co.matchboard.app.exception.JobNotFoundException;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.Device;
+import uk.co.matchboard.app.model.JobComplete;
 import uk.co.matchboard.app.model.LoginOptions;
 import uk.co.matchboard.app.model.LoginUser;
 import uk.co.matchboard.app.service.DeviceService;
@@ -53,10 +59,42 @@ public class DeviceController {
                         () -> ResponseEntity.ok().body(registerDevice(deviceId)));
     }
 
+    @PutMapping("/session")
+    public ResponseEntity<?> updatePassword(
+            @CookieValue(value = DEVICE_COOKIE, required = false) String deviceId, @RequestBody
+            LoginUser loginUser) {
+
+        return deviceService.updatePassword(deviceId, loginUser)
+                .fold(d -> ResponseEntity.ok().body(d),
+                        ExceptionHandler::toResponse,
+                        () -> ResponseEntity.ok().body(registerDevice(deviceId)));
+    }
+
+    @DeleteMapping("/session/{username}")
+    public ResponseEntity<?> deleteSession(
+            @CookieValue(value = DEVICE_COOKIE, required = false) String deviceId, @PathVariable
+            String username) {
+
+        return deviceService.deleteSession(deviceId, username)
+                .fold(d -> ResponseEntity.ok().body(d),
+                        ExceptionHandler::toResponse,
+                            () -> ResponseEntity.ok().body(registerDevice(deviceId)));
+    }
+
     @GetMapping("/login-options")
     public ResponseEntity<LoginOptions> loginOptions(
             @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
             @RequestParam String username) {
         return ResponseEntity.ok().body(deviceService.getOptions(deviceId, username));
+    }
+
+    @PostMapping("/complete-job")
+    public ResponseEntity<?> completeJob(
+            @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
+            @RequestBody JobComplete completion) {
+        return deviceService.completeJob(deviceId, completion)
+                .fold(b -> ResponseEntity.ok().build(),
+                        ExceptionHandler::toResponse,
+                        () -> ExceptionHandler.toResponse(new JobNotFoundException(completion.jobId())));
     }
 }

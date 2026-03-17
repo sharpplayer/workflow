@@ -18,3 +18,4 @@ vault/data
 /client/matchboard-client/.gitignore
 /client/matchboard-client/.prettierrc
 /client/matchboard-client/.vscode
+/app/src/generated/

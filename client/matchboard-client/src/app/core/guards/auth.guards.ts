@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { Router, UrlTree } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { DeviceService } from '../services/device.service';
 
 export const jobGuard = (): boolean | UrlTree => {
@@ -10,10 +10,16 @@ export const jobGuard = (): boolean | UrlTree => {
   return true;
 };
 
-export const adminGuard = (): boolean | UrlTree => {
+export const adminGuard: CanActivateFn = () => {
+  const device = inject(DeviceService);
   const router = inject(Router);
-  const status = inject(DeviceService).getStatus();
 
-  if (status?.mode !== 'admin') return router.createUrlTree(['/login']);
+  const status = device.status();
+
+  if (!status || status.mode !== 'admin') {
+    router.navigate(['/login']);
+    return false;
+  }
+
   return true;
 };

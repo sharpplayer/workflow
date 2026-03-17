@@ -1,5 +1,6 @@
 package uk.co.matchboard.app.service;
 
+import static uk.co.matchboard.generated.Tables.CONFIGURATION;
 import static uk.co.matchboard.generated.Tables.USERS;
 
 import java.util.List;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.Config;
 import uk.co.matchboard.app.model.User;
 
 @Service
@@ -35,6 +37,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         rec.getPinHash(),
                                         List.of(rec.getRoles()),
                                         rec.getPasswordReset(),
+                                        rec.getPinReset(),
                                         rec.getEnabled()))));
     }
 
@@ -46,10 +49,38 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(USERS.PIN_HASH, user.pinHash())
                         .set(USERS.ROLES, user.roles().toArray(new String[0]))
                         .set(USERS.PASSWORD_RESET, user.passwordReset())
+                        .set(USERS.PIN_RESET, user.pinReset())
                         .set(USERS.ENABLED, user.enabled())
                         .returning(USERS.ID)
                         .fetchOne(USERS.ID))
                 .map(id -> new User(id, user.username(), user.passwordHash(), user.pinHash(),
-                        user.roles(), user.passwordReset(), user.enabled()));
+                        user.roles(), user.passwordReset(), user.pinReset(), user.enabled()));
     }
+
+    @Override
+    public Result<User> updateUser(User user) {
+        return TryUtils.tryCatch(() -> dsl.update(USERS)
+                        .set(USERS.USERNAME, user.username())
+                        .set(USERS.PASSWORD_HASH, user.passwordHash())
+                        .set(USERS.PIN_HASH, user.pinHash())
+                        .set(USERS.ROLES, user.roles().toArray(new String[0]))
+                        .set(USERS.PASSWORD_RESET, user.passwordReset())
+                        .set(USERS.PIN_RESET, user.pinReset())
+                        .set(USERS.ENABLED, user.enabled())
+                        .where(USERS.ID.eq(user.id()))
+                        .execute())
+                .map(_ -> user);
+    }
+
+    @Override
+    public OptionalResult<Config> findConfig(String config) {
+        return Result.toOptionalResult(TryUtils.tryCatch(() ->
+                dsl.selectFrom(CONFIGURATION).where(CONFIGURATION.ID.eq(config))
+                        .fetchOptional(rec ->
+                                new Config(rec.getId(),
+                                        rec.getType(),
+                                        rec.getValue()))));
+    }
+
+
 }
