@@ -49,4 +49,11 @@ export class UserService {
     );
     await this.loadUsers();
   }
+
+  async updateUser(user: Partial<User>): Promise<void> {
+    await firstValueFrom(
+      this.http.patch(`${API_BASE_URL}/api/users`, user, { withCredentials: true })
+    );
+    await this.loadUsers();
+  }
 }

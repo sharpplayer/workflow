@@ -3,6 +3,7 @@ package uk.co.matchboard.app.service;
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
 import static uk.co.matchboard.generated.Tables.USERS;
 
+import java.util.Comparator;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.springframework.dao.TransientDataAccessException;
@@ -86,7 +87,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         dsl.selectFrom(USERS)
                                 .fetch(DatabaseServiceImpl::getUser)).map(list -> list.stream()
                         .map(user -> new UserView(user.username(), user.roles(), user.enabled())))
-                .map(list -> new Users(list.toList()));
+                .map(list -> new Users(
+                        list.sorted(Comparator.comparing(UserView::username)).toList()));
 
     }
 

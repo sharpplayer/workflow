@@ -74,7 +74,7 @@ export class AuthService {
   async resetPassword(reset: ResetResult): Promise<DeviceStatus> {
 
     const status = await firstValueFrom(
-      this.http.put<DeviceStatus>(
+      this.http.patch<DeviceStatus>(
         `${API_BASE_URL}/api/session`,
         { 'username': reset.username, 'password': reset.credential, 'pin': reset.pin },
         { withCredentials: true }

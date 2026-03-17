@@ -1,5 +1,4 @@
-// src/app/user-list/user-list.component.ts
-import { ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
+import { Component, EventEmitter, inject, Output, signal } from '@angular/core';
 import { User, UserService } from '../../../core/services/user.service';
 import { CommonModule } from '@angular/common';
 
@@ -20,6 +19,9 @@ import { CommonModule } from '@angular/common';
                 <td>{{ user.username }}</td>
                 <td>{{ user.roles.join(', ') }}</td>
                 <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                <td>
+                    <button (click)="editUser(user)">Edit</button>
+                </td>
             </tr>
         </tbody>
     </table>
@@ -29,26 +31,31 @@ import { CommonModule } from '@angular/common';
     styleUrls: ['./admin-users-list.component.css']
 })
 export class AdminUserListComponent {
-  private userService = inject(UserService);
+    private userService = inject(UserService);
+     @Output() edit = new EventEmitter<User>();
 
-  users = this.userService.users;
-  loading = signal(true);
-  error = signal('');
+    users = this.userService.users;
+    loading = signal(true);
+    error = signal('');
 
-  constructor() {
-    this.loadUsers();
-  }
-
-  async loadUsers() {
-    this.loading.set(true);
-    this.error.set('');
-    try {
-      await this.userService.loadUsers();
-    } catch (err) {
-      console.error(err);
-      this.error.set('Failed to load users');
-    } finally {
-      this.loading.set(false);
+    constructor() {
+        this.loadUsers();
     }
-  }
+
+    async loadUsers() {
+        this.loading.set(true);
+        this.error.set('');
+        try {
+            await this.userService.loadUsers();
+        } catch (err) {
+            console.error(err);
+            this.error.set('Failed to load users');
+        } finally {
+            this.loading.set(false);
+        }
+    }
+
+    editUser(user: User) {
+        this.edit.emit(user);
+    }
 }

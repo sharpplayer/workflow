@@ -65,8 +65,8 @@ export interface LoginResult {
       <div class="loading-hint" *ngIf="loadingOptions">Fetching login options…</div>
       <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
-      <button (click)="cancel()" *ngIf="isPin">Cancel</button>
       <button [disabled]="!canSubmit" (click)="submit()">{{ isPinAvailable ? 'Sign' : (isPin ? 'Login and Sign' : 'Login') }}</button>
+      <button (click)="cancel()" *ngIf="isPin">Cancel</button>
     </div>
   `,
   styles: [`

@@ -1,9 +1,7 @@
 import { CanDeactivateFn } from '@angular/router';
 
-export interface DirtyComponent {
-  canSubmit(): boolean;
-}
+export const unsavedChangesGuard: CanDeactivateFn<any> = (component) => {
+  if (typeof component.isDirty !== 'function') return true;
 
-export const unsavedChangesGuard: CanDeactivateFn<DirtyComponent> = (component) => {
-  return !component.canSubmit() || confirm('You have unsaved changes. Leave anyway?');
+  return !component.isDirty() || confirm('You have unsaved changes. Leave anyway?');
 };

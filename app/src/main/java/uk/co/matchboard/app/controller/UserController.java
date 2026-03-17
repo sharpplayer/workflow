@@ -2,7 +2,9 @@ package uk.co.matchboard.app.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
@@ -20,6 +22,12 @@ public class UserController {
 
     @PostMapping("/users")
     public ResponseEntity<?> createUser(@RequestBody CreateUser user) {
+        return userService.registerUser(user.username(), user.password(), user.roles())
+                .fold(_ -> ResponseEntity.ok().build(), ExceptionHandler::toResponse);
+    }
+
+    @PatchMapping("/users")
+    public ResponseEntity<?> updateUser(@RequestBody CreateUser user) {
         return userService.registerUser(user.username(), user.password(), user.roles())
                 .fold(_ -> ResponseEntity.ok().build(), ExceptionHandler::toResponse);
     }

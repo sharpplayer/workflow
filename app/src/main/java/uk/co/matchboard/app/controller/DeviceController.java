@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -59,7 +60,7 @@ public class DeviceController {
                         () -> ResponseEntity.ok().body(registerDevice(deviceId)));
     }
 
-    @PutMapping("/session")
+    @PatchMapping("/session")
     public ResponseEntity<?> updatePassword(
             @CookieValue(value = DEVICE_COOKIE, required = false) String deviceId, @RequestBody
             LoginUser loginUser) {
