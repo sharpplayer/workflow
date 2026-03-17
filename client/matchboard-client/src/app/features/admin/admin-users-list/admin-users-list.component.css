@@ -1,0 +1,56 @@
+/* Container styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  margin-top: 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Header styling */
+thead {
+  background-color: #4a90e2; /* nice blue title bar */
+  color: white;
+}
+
+thead th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 1rem;
+}
+
+/* Body rows */
+tbody td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Alternating row colors */
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Hover effect */
+tbody tr:hover {
+  background-color: #e6f2ff;
+}
+
+/* Optional: highlight enabled column */
+tbody td:last-child {
+  font-weight: bold;
+  color: #2d862d; /* green for Yes */
+}
+
+tbody td:last-child:contains("No") {
+  color: #d9534f; /* red for No */
+}
+
+/* Loading/Error messages */
+div[ng-reflect-ng-if="true"] {
+  font-size: 1rem;
+  margin-top: 1rem;
+}

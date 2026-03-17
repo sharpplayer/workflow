@@ -2,6 +2,7 @@ import { ApplicationRef, ChangeDetectorRef, Component, createComponent, Environm
 import { LoginComponent, LoginResult } from "../../login/login/login.component";
 import { LoginResetComponent } from "../../login/reset/reset.component";
 import { AuthService, ResetResult } from "../../../core/services/auth.service";
+import { Router } from "@angular/router";
 
 @Component({
   selector: 'job',
@@ -16,6 +17,7 @@ export class JobComponent {
   private appRef = inject(ApplicationRef);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private router = inject(Router);
 
   jobCompleted = false
 
@@ -121,5 +123,9 @@ export class JobComponent {
     };
 
     showLogin();
+  }
+
+  logout(){
+    this.router.navigate(['/login']);
   }
 }

@@ -6,6 +6,7 @@ import static uk.co.matchboard.generated.Tables.USERS;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.springframework.dao.TransientDataAccessException;
+import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,9 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.Config;
 import uk.co.matchboard.app.model.User;
+import uk.co.matchboard.app.model.UserView;
+import uk.co.matchboard.app.model.Users;
+import uk.co.matchboard.generated.tables.records.UsersRecord;
 
 @Service
 public class DatabaseServiceImpl implements DatabaseService {
@@ -30,15 +34,19 @@ public class DatabaseServiceImpl implements DatabaseService {
     public OptionalResult<User> findUser(String user) {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
                 dsl.selectFrom(USERS).where(USERS.USERNAME.eq(user))
-                        .fetchOptional(rec ->
-                                new User(rec.getId(),
-                                        rec.getUsername(),
-                                        rec.getPasswordHash(),
-                                        rec.getPinHash(),
-                                        List.of(rec.getRoles()),
-                                        rec.getPasswordReset(),
-                                        rec.getPinReset(),
-                                        rec.getEnabled()))));
+                        .fetchOptional(DatabaseServiceImpl::getUser)));
+    }
+
+    @NonNull
+    private static User getUser(UsersRecord rec) {
+        return new User(rec.getId(),
+                rec.getUsername(),
+                rec.getPasswordHash(),
+                rec.getPinHash(),
+                List.of(rec.getRoles()),
+                rec.getPasswordReset(),
+                rec.getPinReset(),
+                rec.getEnabled());
     }
 
     @Override
@@ -70,6 +78,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .where(USERS.ID.eq(user.id()))
                         .execute())
                 .map(_ -> user);
+    }
+
+    @Override
+    public Result<Users> getUsers() {
+        return TryUtils.tryCatch(() ->
+                        dsl.selectFrom(USERS)
+                                .fetch(DatabaseServiceImpl::getUser)).map(list -> list.stream()
+                        .map(user -> new UserView(user.username(), user.roles(), user.enabled())))
+                .map(list -> new Users(list.toList()));
+
     }
 
     @Override

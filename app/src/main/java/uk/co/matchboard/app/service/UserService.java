@@ -5,6 +5,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.LoginOptions;
 import uk.co.matchboard.app.model.User;
+import uk.co.matchboard.app.model.Users;
 
 public interface UserService {
 
@@ -19,4 +20,6 @@ public interface UserService {
     Result<User> updatePassword(String username, String password);
 
     Result<User> updatePin(String username, String pin);
+
+    Result<Users> getUsers();
 }

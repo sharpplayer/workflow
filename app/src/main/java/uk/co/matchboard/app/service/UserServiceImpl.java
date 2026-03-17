@@ -11,6 +11,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.LoginOptions;
 import uk.co.matchboard.app.model.User;
+import uk.co.matchboard.app.model.Users;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -91,6 +92,11 @@ public class UserServiceImpl implements UserService {
                 Result::failure,
                 () -> Result.failure(new InvalidUserException())
         );
+    }
+
+    @Override
+    public Result<Users> getUsers() {
+        return databaseService.getUsers();
     }
 
     @Override

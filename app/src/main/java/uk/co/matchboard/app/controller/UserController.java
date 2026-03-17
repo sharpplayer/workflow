@@ -1,6 +1,7 @@
 package uk.co.matchboard.app.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,10 +18,16 @@ public class UserController {
         this.userService = userService;
     }
 
-    @PostMapping("/create-user")
+    @PostMapping("/users")
     public ResponseEntity<?> createUser(@RequestBody CreateUser user) {
         return userService.registerUser(user.username(), user.password(), user.roles())
                 .fold(_ -> ResponseEntity.ok().build(), ExceptionHandler::toResponse);
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> getUser() {
+        return userService.getUsers()
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
 }
