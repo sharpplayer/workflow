@@ -2,9 +2,9 @@ package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Config;
-import uk.co.matchboard.app.model.User;
-import uk.co.matchboard.app.model.Users;
+import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.user.Users;
 
 public interface DatabaseService {
     OptionalResult<User> findUser(String user);

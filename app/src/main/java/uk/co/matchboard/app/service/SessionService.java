@@ -2,8 +2,8 @@ package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Session;
-import uk.co.matchboard.app.model.SessionUsers;
+import uk.co.matchboard.app.model.session.Session;
+import uk.co.matchboard.app.model.session.SessionUsers;
 
 public interface SessionService {
     SessionUsers getUsersOn(String id);

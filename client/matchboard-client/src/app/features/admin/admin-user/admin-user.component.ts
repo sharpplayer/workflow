@@ -1,42 +1,77 @@
-import { Component, inject, signal, computed, Input } from '@angular/core';
-import { UserService } from '../../../core/services/user.service';
+import { Component, inject, signal, computed, Input, Output, EventEmitter } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { UserService } from '../../../core/services/user.service';
 
 export interface UserForm {
     username: string;
     password: string;
     roles: string[];
+    resetPin?: boolean;
 }
 
 @Component({
     selector: 'admin-user',
     standalone: true,
-    imports: [CommonModule],
+    imports: [CommonModule, FormsModule],
     template: `
-    <h2>{{ isEdit ? 'Edit User' : 'Create User' }}</h2>
+    <div class="modal-card">
+      <h2>{{ isEdit ? 'Edit User' : 'Create User' }}</h2>
 
-    <form (submit)="save($event)">
-        <label>Username
-            <input [value]="form().username" (input)="update('username', $any($event.target).value)">
-        </label>
+      <form (ngSubmit)="save()">
 
-        <label>Password
-            <input type="password" [value]="form().password" (input)="update('password', $any($event.target).value)">
-        </label>
-
-        <label>Roles</label>
-        <div class="roles-container">
-            <div *ngFor="let role of roles()" class="role-item">
-            <input type="checkbox"
-                    [checked]="form().roles.includes(role)"
-                    (change)="toggleRole(role)">
-            {{ role }}
-            </div>
+        <div class="field">
+          <label>Username</label>
+          <input type="text"
+                 [(ngModel)]="form().username"
+                 name="username"
+                 (ngModelChange)="update('username', $event)"
+                 placeholder="Enter username" />
         </div>
 
-        <button type="submit" [disabled]="!canSubmit()"> {{ isEdit ? 'Update' : 'Create' }} </button>
-        <button type="button" (click)="cancel()">Cancel</button>
+        <div class="field">
+          <label>Password</label>
+          <input type="password"
+                 [(ngModel)]="form().password"
+                 name="password"
+                 (ngModelChange)="update('password', $event)"
+                 placeholder="Enter password" />
+        </div>
+
+        <div class="field checkbox-field" *ngIf="isEdit">
+          <label>
+            <input type="checkbox"
+                   [(ngModel)]="form().resetPin"
+                   name="resetPin"
+                   (ngModelChange)="update('resetPin', $event)" />
+            Reset PIN
+          </label>
+        </div>
+
+        <div class="field">
+          <label>Roles</label>
+          <div class="roles-container">
+            <div *ngFor="let role of roles()" class="field checkbox-field">
+              <label>
+                <input type="checkbox"
+                       [ngModel]="form().roles.includes(role)"
+                       [name]="'role-' + role"
+                       (ngModelChange)="toggleRole(role)" />
+                {{ role }}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button type="submit" [disabled]="!canSubmit()">
+            {{ isEdit ? 'Update' : 'Create' }}
+          </button>
+          <button type="button" (click)="cancel()">Cancel</button>
+        </div>
+
       </form>
+    </div>
   `,
     styleUrl: './admin-user.component.css'
 })
@@ -46,21 +81,22 @@ export class AdminUserComponent {
     @Input() roles = signal<string[]>([]);
     @Input() set initialData(data: UserForm | null) {
         if (data) {
-            this.form.set({ ...data });
+            this.form.set({ ...data, resetPin: false });
+            this.initialForm.set({ ...data, resetPin: false });
             this.isEdit = true;
         } else {
-            this.form.set({ username: '', password: '', roles: [] });
+            const empty = { username: '', password: '', roles: [], resetPin: false };
+            this.form.set(empty);
+            this.initialForm.set(empty);
             this.isEdit = false;
         }
     }
+    @Output() saved = new EventEmitter<void>();
+    @Output() cancelled = new EventEmitter<void>();
 
-    form = signal<UserForm>({ username: '', password: '', roles: [] });
+    form = signal<UserForm>({ username: '', password: '', roles: [], resetPin: false });
     isEdit = false;
-    private initialForm = signal<UserForm>({
-        username: '',
-        password: '',
-        roles: []
-    });
+    private initialForm = signal<UserForm>({ username: '', password: '', roles: [], resetPin: false });
 
     canSubmit = computed(() => {
         const f = this.form();
@@ -72,7 +108,6 @@ export class AdminUserComponent {
     isDirty = computed(() => {
         const current = this.form();
         const initial = this.initialForm();
-
         return (
             current.username !== initial.username ||
             current.password !== initial.password ||
@@ -81,34 +116,37 @@ export class AdminUserComponent {
         );
     });
 
-    update(field: keyof UserForm, value: string) {
+    update(field: keyof UserForm, value: string | boolean) {
         this.form.update(f => ({ ...f, [field]: value }));
     }
 
-    toggleRole(roleId: string) {
+    toggleRole(role: string) {
         this.form.update(f => {
-            const roles = f.roles.includes(roleId)
-                ? f.roles.filter(r => r !== roleId)
-                : [...f.roles, roleId];
+            const roles = f.roles.includes(role)
+                ? f.roles.filter(r => r !== role)
+                : [...f.roles, role];
             return { ...f, roles };
         });
     }
 
-    async save(event: Event) {
-        event.preventDefault();
+    async save() {
         if (this.isEdit) {
-            // TODO: implement update logic
+            await this.userService.updateUser(this.form());
         } else {
             await this.userService.createUser(this.form());
-            this.form.set({ username: '', password: '', roles: [] });
         }
-        const current = this.form();
-        this.initialForm.set({ ...current });
-    }
-    cancel() {
-        const empty = { username: '', password: '', roles: [] };
+        const empty = { username: '', password: '', roles: [], resetPin: false };
         this.form.set(empty);
         this.initialForm.set(empty);
         this.isEdit = false;
+        this.saved.emit();
+    }
+
+    cancel() {
+        const empty = { username: '', password: '', roles: [], resetPin: false };
+        this.form.set(empty);
+        this.initialForm.set(empty);
+        this.isEdit = false;
+        this.cancelled.emit();
     }
 }

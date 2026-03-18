@@ -37,12 +37,12 @@ export class AuthService {
     return status;
   }
 
-  async completeJob(jobId: string, loginResult: LoginResult): Promise<boolean> {
+  async completeJob(phaseId: string, loginResult: LoginResult): Promise<boolean> {
     try {
       await firstValueFrom(
         this.http.post<void>(
-          `${API_BASE_URL}/api/complete-job`,
-          { jobId, user: loginResult.username, password: loginResult.credential, pin: loginResult.pin },
+          `${API_BASE_URL}/api/phase`,
+          { phaseId, user: loginResult.username, password: loginResult.credential, pin: loginResult.pin },
           { withCredentials: true }
         )
       );

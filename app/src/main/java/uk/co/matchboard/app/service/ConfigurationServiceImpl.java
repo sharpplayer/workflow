@@ -4,8 +4,8 @@ import java.util.Arrays;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.UnknownConfigException;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Config;
-import uk.co.matchboard.app.model.ConfigItem;
+import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.ConfigItem;
 
 @Service
 public class ConfigurationServiceImpl implements ConfigurationService {

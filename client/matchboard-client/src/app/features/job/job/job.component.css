@@ -3,7 +3,6 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'IBM Plex Sans', sans-serif;
     background: #f0ede8;
     padding: 32px 16px;
     color: #1a1a1a;
@@ -57,7 +56,6 @@
   .landscape-badge {
     background: #f5a623;
     color: #fff;
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 22px;
     font-weight: 700;
     padding: 8px 18px;
@@ -68,7 +66,6 @@
   .zone-badge {
     background: #1a1a1a;
     color: #fff;
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 28px;
     font-weight: 700;
     padding: 8px 14px;
@@ -88,7 +85,6 @@
   .dims-val {
     background: #f5a623;
     color: #fff;
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 22px;
     font-weight: 700;
     padding: 8px 18px;
@@ -144,7 +140,6 @@
     font-weight: 700;
     text-align: center;
     width: 28px;
-    font-family: 'IBM Plex Mono', monospace;
   }
 
   .process-table .row-label {
@@ -195,13 +190,11 @@
     padding: 6px 8px;
     font-weight: 700;
     text-align: center;
-    font-family: 'IBM Plex Mono', monospace;
   }
 
   .wastage-table .sub-th {
     background: #f5f5f5;
     font-weight: 500;
-    font-family: 'IBM Plex Sans', sans-serif;
   }
 
   .wastage-table td {

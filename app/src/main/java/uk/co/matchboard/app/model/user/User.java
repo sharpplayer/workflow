@@ -1,4 +1,4 @@
-package uk.co.matchboard.app.model;
+package uk.co.matchboard.app.model.user;
 
 import java.util.List;
 

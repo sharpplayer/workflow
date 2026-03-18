@@ -9,17 +9,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.exception.JobNotFoundException;
-import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Device;
-import uk.co.matchboard.app.model.JobComplete;
-import uk.co.matchboard.app.model.LoginOptions;
-import uk.co.matchboard.app.model.LoginUser;
+import uk.co.matchboard.app.model.device.Device;
+import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.user.LoginOptions;
+import uk.co.matchboard.app.model.user.LoginUser;
 import uk.co.matchboard.app.service.DeviceService;
 
 @RestController
@@ -89,13 +87,13 @@ public class DeviceController {
         return ResponseEntity.ok().body(deviceService.getOptions(deviceId, username));
     }
 
-    @PostMapping("/complete-job")
+    @PatchMapping("/phase")
     public ResponseEntity<?> completeJob(
             @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
-            @RequestBody JobComplete completion) {
-        return deviceService.completeJob(deviceId, completion)
+            @RequestBody PhaseComplete completion) {
+        return deviceService.completePhase(deviceId, completion)
                 .fold(b -> ResponseEntity.ok().build(),
                         ExceptionHandler::toResponse,
-                        () -> ExceptionHandler.toResponse(new JobNotFoundException(completion.jobId())));
+                        () -> ExceptionHandler.toResponse(new JobNotFoundException(completion.phaseId())));
     }
 }

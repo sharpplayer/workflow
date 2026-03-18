@@ -1,11 +1,10 @@
 package uk.co.matchboard.app.service;
 
-import java.util.Optional;
 import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.model.Device;
-import uk.co.matchboard.app.model.JobComplete;
-import uk.co.matchboard.app.model.LoginOptions;
-import uk.co.matchboard.app.model.LoginUser;
+import uk.co.matchboard.app.model.device.Device;
+import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.user.LoginOptions;
+import uk.co.matchboard.app.model.user.LoginUser;
 
 public interface DeviceService {
 
@@ -19,5 +18,5 @@ public interface DeviceService {
 
     OptionalResult<Device> updatePassword(String deviceId, LoginUser loginUser);
 
-    OptionalResult<Boolean> completeJob(String deviceId, JobComplete completion);
+    OptionalResult<Boolean> completePhase(String deviceId, PhaseComplete completion);
 }

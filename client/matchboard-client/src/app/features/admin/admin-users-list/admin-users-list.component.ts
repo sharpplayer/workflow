@@ -7,32 +7,42 @@ import { CommonModule } from '@angular/common';
     standalone: true,
     imports: [CommonModule],
     template: `
-    <div *ngIf="loading()">Loading users...</div>
-    <div *ngIf="error()">{{ error() }}</div>
+    <div class="list-container">
 
-    <table *ngIf="!loading() && !error() && users().length > 0">
-        <thead>
-            <tr><th>Username</th><th>Roles</th><th>Enabled</th></tr>
-        </thead>
-        <tbody>
-            <tr *ngFor="let user of users()">
-                <td>{{ user.username }}</td>
-                <td>{{ user.roles.join(', ') }}</td>
-                <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
-                <td>
-                    <button (click)="editUser(user)">Edit</button>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+      <div class="list-header">
+        <button (click)="create.emit()">Create User</button>
+      </div>
 
-    <div *ngIf="!loading() && !error() && users().length === 0">No users found.</div>
-`,
+      <div *ngIf="loading()">Loading users...</div>
+      <div *ngIf="error()">{{ error() }}</div>
+
+      <table *ngIf="!loading() && !error() && users().length > 0">
+          <thead>
+              <tr><th>Username</th><th>Roles</th><th>Enabled</th></tr>
+          </thead>
+          <tbody>
+              <tr *ngFor="let user of users()">
+                  <td>{{ user.username }}</td>
+                  <td>{{ user.roles.join(', ') }}</td>
+                  <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                  <td>
+                      <button (click)="edit.emit(user)">Edit</button>
+                  </td>
+              </tr>
+          </tbody>
+      </table>
+
+      <div *ngIf="!loading() && !error() && users().length === 0">No users found.</div>
+
+    </div>
+  `,
     styleUrls: ['./admin-users-list.component.css']
 })
 export class AdminUserListComponent {
     private userService = inject(UserService);
-     @Output() edit = new EventEmitter<User>();
+
+    @Output() edit = new EventEmitter<User>();
+    @Output() create = new EventEmitter<void>();
 
     users = this.userService.users;
     loading = signal(true);
@@ -53,9 +63,5 @@ export class AdminUserListComponent {
         } finally {
             this.loading.set(false);
         }
-    }
-
-    editUser(user: User) {
-        this.edit.emit(user);
     }
 }

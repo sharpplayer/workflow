@@ -1,7 +1,7 @@
 package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.ConfigItem;
+import uk.co.matchboard.app.model.config.ConfigItem;
 
 public interface ConfigurationService {
 

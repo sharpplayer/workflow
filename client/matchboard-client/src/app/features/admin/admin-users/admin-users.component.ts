@@ -1,7 +1,7 @@
 import { CommonModule } from "@angular/common";
 import { AdminUserListComponent } from "../admin-users-list/admin-users-list.component";
 import { AdminUserComponent, UserForm } from "../admin-user/admin-user.component";
-import { Component, inject, signal, ViewChild } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { User, UserService } from "../../../core/services/user.service";
 
 @Component({
@@ -9,14 +9,24 @@ import { User, UserService } from "../../../core/services/user.service";
     standalone: true,
     imports: [CommonModule, AdminUserListComponent, AdminUserComponent],
     template: `
-    <admin-users-list 
-      (edit)="onEditUser($event)">
-    </admin-users-list>
+     <div class="user-container">
 
-    <admin-user 
-      [roles]="roles" 
-      [initialData]="selectedUser()">
-    </admin-user>
+        <admin-users-list 
+            (edit)="openEdit($event)"
+            (create)="openCreate()">
+        </admin-users-list>
+
+        <div class="backdrop" *ngIf="showModal()" (click)="closeModal()"></div>
+
+        <admin-user
+            *ngIf="showModal()"
+            [roles]="roles"
+            [initialData]="selectedUser()"
+            (saved)="closeModal()"
+            (cancelled)="closeModal()">
+        </admin-user>
+
+    </div>
   `
 })
 export class AdminUsersComponent {
@@ -24,24 +34,28 @@ export class AdminUsersComponent {
 
     roles = this.userService.roles;
     selectedUser = signal<UserForm | null>(null);
-
-    @ViewChild(AdminUserComponent)
-    userForm?: AdminUserComponent;
+    showModal = signal(false);
 
     constructor() {
         this.userService.loadRoles();
     }
 
-    onEditUser(user: User) {
-        const formData: UserForm = {
+    openCreate() {
+        this.selectedUser.set(null);
+        this.showModal.set(true);
+    }
+
+    openEdit(user: User) {
+        this.selectedUser.set({
             username: user.username,
             password: '',
             roles: user.roles
-        };
-        this.selectedUser.set(formData);
+        });
+        this.showModal.set(true);
     }
 
-    isDirty(): boolean {
-        return this.userForm?.isDirty() ?? false;
+    closeModal() {
+        this.showModal.set(false);
+        this.selectedUser.set(null);
     }
 }

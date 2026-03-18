@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.Session;
-import uk.co.matchboard.app.model.SessionUsers;
+import uk.co.matchboard.app.model.session.Session;
+import uk.co.matchboard.app.model.session.SessionUsers;
 
 @Service
 public class SessionServiceImpl implements SessionService {

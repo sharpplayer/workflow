@@ -1,11 +1,10 @@
 package uk.co.matchboard.app.service;
 
 import java.util.List;
-import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.LoginOptions;
-import uk.co.matchboard.app.model.User;
-import uk.co.matchboard.app.model.Users;
+import uk.co.matchboard.app.model.user.LoginOptions;
+import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.user.Users;
 
 public interface UserService {
 
@@ -22,4 +21,6 @@ public interface UserService {
     Result<User> updatePin(String username, String pin);
 
     Result<Users> getUsers();
+
+    Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset);
 }

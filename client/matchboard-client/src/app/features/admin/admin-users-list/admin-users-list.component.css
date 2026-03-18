@@ -2,7 +2,6 @@
 table {
   width: 100%;
   border-collapse: collapse;
-  font-family: Arial, sans-serif;
   margin-top: 1rem;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
@@ -53,4 +52,15 @@ tbody td:last-child:contains("No") {
 div[ng-reflect-ng-if="true"] {
   font-size: 1rem;
   margin-top: 1rem;
+}
+
+.list-header {
+    margin-bottom: 1rem;
+}
+
+.backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
 }

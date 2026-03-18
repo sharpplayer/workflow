@@ -45,6 +45,30 @@ form {
     gap: .5rem;
 }
 
+.hint {
+    font-size: .75rem;
+    color: #888;
+}
+
+.loading-hint {
+    font-size: 0.8rem;
+    color: #aaa;
+    height: 1em;
+    visibility: hidden;
+    transition: opacity 0.2s ease;
+    opacity: 0;
+}
+
+.loading-hint.visible {
+    visibility: visible;
+    opacity: 1;
+}
+
+.error {
+    color: red;
+    font-size: .85rem;
+}
+
 label.disabled {
     opacity: .4;
     cursor: not-allowed;

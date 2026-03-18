@@ -9,9 +9,9 @@ import uk.co.matchboard.app.exception.DuplicateUserException;
 import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.LoginOptions;
-import uk.co.matchboard.app.model.User;
-import uk.co.matchboard.app.model.Users;
+import uk.co.matchboard.app.model.user.LoginOptions;
+import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.user.Users;
 
 @Service
 public class UserServiceImpl implements UserService {

@@ -1,0 +1,53 @@
+/* container is full height */
+.admin-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem;
+    height: 60px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ccc;
+    flex-shrink: 0; /* keep header height */
+}
+
+/* Body: sidebar + content side by side */
+.admin-body {
+    display: flex;
+    flex: 1;           /* take remaining vertical space */
+    overflow: hidden;   /* prevent overflow issues */
+}
+
+/* Sidebar */
+.admin-sidebar {
+    width: 200px;
+    padding: 1rem;
+    background-color: #eee;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;     /* prevent shrinking */
+}
+
+.admin-sidebar a {
+    margin-bottom: 1rem;
+    text-decoration: none;
+    color: #333;
+}
+
+.admin-sidebar a:hover {
+    text-decoration: underline;
+}
+
+/* Main content area */
+.admin-content {
+    flex: 1;            /* take all remaining horizontal space */
+    padding: 1rem;
+    overflow-y: auto;   /* scroll if content is tall */
+    background-color: #fff;
+}

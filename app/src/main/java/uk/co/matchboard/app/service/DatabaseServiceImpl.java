@@ -14,10 +14,10 @@ import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
-import uk.co.matchboard.app.model.Config;
-import uk.co.matchboard.app.model.User;
-import uk.co.matchboard.app.model.UserView;
-import uk.co.matchboard.app.model.Users;
+import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.user.UserView;
+import uk.co.matchboard.app.model.user.Users;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
 
 @Service

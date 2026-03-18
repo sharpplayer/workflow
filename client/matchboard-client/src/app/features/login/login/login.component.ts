@@ -1,8 +1,6 @@
 import {
   Component, EventEmitter, Input, Output, OnInit, OnDestroy,
-  SimpleChanges, OnChanges,
-  inject,
-  ChangeDetectorRef
+  inject, signal
 } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { FormsModule } from "@angular/forms";
@@ -30,54 +28,56 @@ export interface LoginResult {
     <div class="modal-card">
       <h2>Sign In</h2>
 
-      <!-- Username: dropdown if users supplied, else free text -->
-      <div class="field">
-        <label>Username</label>
-        <input type="text"
-                [(ngModel)]="username"
-                placeholder="Username"
-                (blur)="onUsernameBlur()"
-                [disabled]="usernameProvided" />
-      </div>
+      <form (ngSubmit)="submit()">
 
-      <!-- Credential input — always visible -->
-      <div class="field">
-        <label>{{ credentialLabel }}</label>
-        <input type="password"
-               [(ngModel)]="credential"
-               [placeholder]="credentialLabel"
-               [maxlength]="isPinAvailable ? 4 : 30"
-               [pattern]="isPinAvailable ? '[0-9]*' : ''"
-               (input)="isPinAvailable && sanitisePin($event)"
-                autocomplete="one-time-code" />
-        <span class="hint">{{ isPinAvailable ? '4-digit PIN' : 'Password' }}</span>
-      </div>
+        <div class="field">
+          <label>Username</label>
+          <input type="text"
+                 [(ngModel)]="username"
+                 name="username"
+                 placeholder="Username"
+                 (blur)="onUsernameBlur()"
+                 [disabled]="usernameProvided" />
+        </div>
 
-      <div class="field checkbox-field" *ngIf="!isPin">
-        <label [class.disabled]="!isAdminAvailable">
-          <input type="checkbox"
-                 [(ngModel)]="adminMode"
-                 [disabled]="!isAdminAvailable" />
-          Admin mode
-        </label>
-      </div>
+        <div class="field">
+          <label>{{ credentialLabel }}</label>
+          <input type="password"
+                 [(ngModel)]="credential"
+                 name="credential"
+                 [placeholder]="credentialLabel"
+                 [maxlength]="isPinAvailable ? 4 : 30"
+                 [pattern]="isPinAvailable ? '[0-9]*' : ''"
+                 (input)="isPinAvailable && sanitisePin($event)"
+                 autocomplete="one-time-code" />
+          <span class="hint">{{ isPinAvailable ? '4-digit PIN' : 'Password' }}</span>
+        </div>
 
-      <div class="loading-hint" *ngIf="loadingOptions">Fetching login options…</div>
-      <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+        <div class="field checkbox-field" *ngIf="!isPin">
+          <label [class.disabled]="!isAdminAvailable">
+            <input type="checkbox"
+                   [(ngModel)]="adminMode"
+                   name="adminMode"
+                   [disabled]="!isAdminAvailable" />
+            Admin mode
+          </label>
+        </div>
 
-      <button [disabled]="!canSubmit" (click)="submit()">{{ isPinAvailable ? 'Sign' : (isPin ? 'Login and Sign' : 'Login') }}</button>
-      <button (click)="cancel()" *ngIf="isPin">Cancel</button>
+        <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+
+        <div class="button-group">
+          <button type="submit" [disabled]="!canSubmit">
+            {{ isPinAvailable ? 'Sign' : (isPin ? 'Login and Sign' : 'Login') }}
+          </button>
+          <button type="button" (click)="cancel()" *ngIf="isPin">Cancel</button>
+        </div>
+
+        <div class="loading-hint" [class.visible]="loadingOptions()">Fetching login options…</div>
+
+      </form>
     </div>
   `,
-  styles: [`
-    .modal-card { display:flex; flex-direction:column; gap:1rem; padding:2rem; max-width:360px; background-color: #ffffff;}
-    .field { display:flex; flex-direction:column; gap:.4rem; }
-    .checkbox-field { flex-direction:row; align-items:center; }
-    .hint { font-size:.75rem; color:#888; }
-    .loading-hint { font-size:.8rem; color:#aaa; }
-    .error { color:red; font-size:.85rem; }
-    label.disabled { opacity:.4; cursor:not-allowed; }
-  `]
+  styleUrls: ['./login.component.css']
 })
 export class LoginComponent implements OnInit, OnDestroy {
 
@@ -89,14 +89,11 @@ export class LoginComponent implements OnInit, OnDestroy {
   credential = '';
   adminMode = false;
   usernameProvided = false;
-
   loginOptions: LoginOption[] = [];
-  loadingOptions = false;
+  loadingOptions = signal(false);
   errorMsg = '';
 
   private http = inject(HttpClient);
-  private changeRef = inject(ChangeDetectorRef);
-
   private usernameSubject = new Subject<string>();
   private sub = this.usernameSubject.pipe(
     switchMap(u => {
@@ -105,30 +102,29 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.adminMode = false;
         return of([] as LoginOption[]);
       }
-      this.loadingOptions = true;
+      this.loadingOptions.set(true);
       this.errorMsg = '';
-      return this.http.get<{ options: string[] }>(`${API_BASE_URL}/api/login-options?username=${encodeURIComponent(u)}`, { withCredentials: true }).pipe(
+      return this.http.get<{ options: string[] }>(
+        `${API_BASE_URL}/api/login-options?username=${encodeURIComponent(u)}`,
+        { withCredentials: true }
+      ).pipe(
         map(response => {
-          this.loadingOptions = false;
-          this.changeRef.detectChanges();
-          return response.options as LoginOption[]
+          this.loadingOptions.set(false);
+          return response.options as LoginOption[];
         }),
         catchError(err => {
           console.error('Login options error:', err);
-          this.loadingOptions = false;
+          this.loadingOptions.set(false);
           this.errorMsg = 'Could not fetch login options.';
-          this.changeRef.detectChanges();
           return of([] as LoginOption[]);
         })
       );
     })
   ).subscribe(opts => {
     this.loginOptions = opts;
-    this.loadingOptions = false;
+    this.loadingOptions.set(false);
     if (!this.isAdminAvailable) this.adminMode = false;
-    this.changeRef.detectChanges();
   });
-
 
   ngOnInit(): void {
     this.usernameProvided = !!this.username;
