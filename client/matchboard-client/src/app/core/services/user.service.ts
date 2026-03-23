@@ -13,18 +13,12 @@ interface UsersResponse {
   users: User[];
 }
 
-interface RolesResponse {
-  value: string[];
-}
-
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private http = inject(HttpClient);
 
   // Signal for users
   users = signal<User[]>([]);
-  // Signal for roles
-  roles = signal<string[]>([]);
 
   // Load all users from API
   async loadUsers(): Promise<void> {
@@ -32,14 +26,6 @@ export class UserService {
       this.http.get<UsersResponse>(`${API_BASE_URL}/api/users`, { withCredentials: true })
     );
     this.users.set(res.users);
-  }
-
-  // Load roles from API
-  async loadRoles(): Promise<void> {
-    const res = await firstValueFrom(
-      this.http.get<RolesResponse>(`${API_BASE_URL}/api/config/roles`)
-    );
-    this.roles.set(res.value ?? []);
   }
 
   // Create user and refresh users

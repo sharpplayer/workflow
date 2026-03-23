@@ -45,7 +45,7 @@ public class SessionServiceImpl implements SessionService {
     public Result<Session> startSession(String deviceId, String user, String password,
             boolean asAdmin) {
         endSession(deviceId, user);
-        return userService.login(user, password, asAdmin).mapResult(u -> {
+        return userService.login(user, password, asAdmin).flatMap(u -> {
             var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), asAdmin, u.passwordReset());
             addSession(deviceId, newSession);
             return Result.of(newSession);

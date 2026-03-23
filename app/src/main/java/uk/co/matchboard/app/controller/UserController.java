@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.user.CreateUser;
+import uk.co.matchboard.app.model.user.UpdateUser;
 import uk.co.matchboard.app.service.UserService;
 
 @RestController
@@ -26,13 +27,13 @@ public class UserController {
     }
 
     @PatchMapping("/users")
-    public ResponseEntity<?> updateUser(@RequestBody CreateUser user) {
-        return userService.updateUser(user.username(), user.password(), user.roles())
+    public ResponseEntity<?> updateUser(@RequestBody UpdateUser user) {
+        return userService.updateUser(user.username(), user.password(), user.roles(), user.pinReset(), user.enabled())
                 .fold(_ -> ResponseEntity.ok().build(), ExceptionHandler::toResponse);
     }
 
     @GetMapping("/users")
-    public ResponseEntity<?> getUser() {
+    public ResponseEntity<?> getUsers() {
         return userService.getUsers()
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }

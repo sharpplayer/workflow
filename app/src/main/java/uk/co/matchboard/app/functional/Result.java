@@ -1,7 +1,11 @@
 package uk.co.matchboard.app.functional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import uk.co.matchboard.app.exception.AggregateException;
 
 public class Result<T> {
 
@@ -21,8 +25,62 @@ public class Result<T> {
         return new Result<>(null, ex);
     }
 
+    public static <T> Result<List<T>> sequence(
+            List<Result<T>> results) {
+        List<T> collected = new ArrayList<>();
+        List<Exception> errors = new java.util.ArrayList<>();
+
+        for (Result<T> r : results) {
+            if (r.isFaulted()) {
+                errors.add(r.exception);
+            } else {
+                collected.add(r.value);
+            }
+        }
+
+        if (errors.isEmpty()) {
+            return Result.of(collected);
+
+        }
+        return Result.failure(new AggregateException(errors));
+    }
+
     public boolean isFaulted() {
         return exception != null;
+    }
+
+    public static <A, B, R> Result<R> combine(
+            Result<A> ra,
+            Result<B> rb,
+            BiFunction<A, B, R> mapper
+    ) {
+        if (ra.isFaulted()) {
+            return Result.failure(ra.exception);
+        }
+        if (rb.isFaulted()) {
+            return Result.failure(rb.exception);
+        }
+
+        return Result.of(mapper.apply(ra.value, rb.value));
+    }
+
+    public static <A, B, C, R> Result<R> combine(
+            Result<A> ra,
+            Result<B> rb,
+            Result<C> rc,
+            TriFunction<A, B, C, R> mapper
+    ) {
+        if (ra.isFaulted()) {
+            return Result.failure(ra.exception);
+        }
+        if (rb.isFaulted()) {
+            return Result.failure(rb.exception);
+        }
+        if (rc.isFaulted()) {
+            return Result.failure(rc.exception);
+        }
+
+        return Result.of(mapper.apply(ra.value, rb.value, rc.value));
     }
 
     @SuppressWarnings("unchecked")
@@ -43,7 +101,23 @@ public class Result<T> {
         return new Result<>(function.apply(value), null);
     }
 
-    public <R> Result<R> mapResult(Function<T, Result<R>> function) {
+    public <R> Result<R> mapTry(ThrowingFunction<T, R> function) {
+        if (isFaulted()) {
+            return cast();
+        }
+
+        return TryUtils.tryCatch(() -> function.apply(value));
+    }
+
+    public Result<T> mapException(Function<Exception, Exception> function) {
+        if (isFaulted()) {
+            return Result.failure(function.apply(exception));
+        }
+
+        return this;
+    }
+
+    public <R> Result<R> flatMap(Function<T, Result<R>> function) {
         if (isFaulted()) {
             return cast();
         }
@@ -61,4 +135,12 @@ public class Result<T> {
     public static <T> OptionalResult<T> toOptionalResult(Result<Optional<T>> result) {
         return result.fold(value -> OptionalResult.of(value.orElse(null)), OptionalResult::failure);
     }
+
+    public OptionalResult<T> toOptional() {
+        if (isFaulted()) {
+            return OptionalResult.failure(exception);
+        }
+        return OptionalResult.of(value);
+    }
+
 }

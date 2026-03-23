@@ -1,6 +1,6 @@
 import { Component, EventEmitter, inject, Output, signal } from '@angular/core';
-import { User, UserService } from '../../../core/services/user.service';
 import { CommonModule } from '@angular/common';
+import { User, UserService } from '../../../core/services/user.service';
 
 @Component({
     selector: 'admin-users-list',

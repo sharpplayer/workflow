@@ -2,7 +2,8 @@ import { CommonModule } from "@angular/common";
 import { AdminUserListComponent } from "../admin-users-list/admin-users-list.component";
 import { AdminUserComponent, UserForm } from "../admin-user/admin-user.component";
 import { Component, inject, signal } from "@angular/core";
-import { User, UserService } from "../../../core/services/user.service";
+import { User } from "../../../core/services/user.service";
+import { ConfigService } from "../../../core/services/config.service";
 
 @Component({
     selector: 'admin-users-page',
@@ -18,26 +19,26 @@ import { User, UserService } from "../../../core/services/user.service";
 
         <div class="backdrop" *ngIf="showModal()" (click)="closeModal()"></div>
 
-        <admin-user
-            *ngIf="showModal()"
-            [roles]="roles"
-            [initialData]="selectedUser()"
-            (saved)="closeModal()"
-            (cancelled)="closeModal()">
-        </admin-user>
-
+        @if(showModal()){
+            <admin-user
+                [roles]="roles()"
+                [initialData]="selectedUser()"
+                (saved)="closeModal()"
+                (cancelled)="closeModal()">
+            </admin-user>
+        }
     </div>
   `
 })
 export class AdminUsersComponent {
-    private userService = inject(UserService);
+    private configService = inject(ConfigService);
 
-    roles = this.userService.roles;
+    roles = this.configService.roles;
     selectedUser = signal<UserForm | null>(null);
     showModal = signal(false);
 
     constructor() {
-        this.userService.loadRoles();
+        this.configService.loadRoles();
     }
 
     openCreate() {
@@ -49,7 +50,9 @@ export class AdminUsersComponent {
         this.selectedUser.set({
             username: user.username,
             password: '',
-            roles: user.roles
+            roles: user.roles,
+            resetPin: false,
+            enabled: user.enabled
         });
         this.showModal.set(true);
     }

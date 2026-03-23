@@ -1,9 +1,9 @@
 package uk.co.matchboard.app.service;
 
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
+import static uk.co.matchboard.generated.Tables.PRODUCTS;
 import static uk.co.matchboard.generated.Tables.USERS;
 
-import java.util.Comparator;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.springframework.dao.TransientDataAccessException;
@@ -15,9 +15,9 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
-import uk.co.matchboard.app.model.user.UserView;
-import uk.co.matchboard.app.model.user.Users;
+import uk.co.matchboard.generated.tables.records.ProductsRecord;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
 
 @Service
@@ -50,8 +50,27 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.getEnabled());
     }
 
+    @NonNull
+    private static Product getProduct(ProductsRecord rec) {
+        return new Product(rec.getId(),
+                rec.getName(),
+                rec.getOldName(),
+                rec.getWidth(),
+                rec.getLength(),
+                rec.getThickness(),
+                rec.getPitch(),
+                rec.getEdge(),
+                rec.getFinish(),
+                rec.getProfile(),
+                rec.getMaterial(),
+                rec.getOwner(),
+                rec.getRackType(),
+                List.of(rec.getMachinery()),
+                rec.getEnabled());
+    }
+
     @Override
-    public Result<User> addUser(User user) {
+    public Result<User> createUser(User user) {
         return TryUtils.tryCatch(() -> dsl.insertInto(USERS)
                         .set(USERS.USERNAME, user.username())
                         .set(USERS.PASSWORD_HASH, user.passwordHash())
@@ -82,14 +101,45 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     @Override
-    public Result<Users> getUsers() {
+    public Result<List<User>> getUsers() {
         return TryUtils.tryCatch(() ->
-                        dsl.selectFrom(USERS)
-                                .fetch(DatabaseServiceImpl::getUser)).map(list -> list.stream()
-                        .map(user -> new UserView(user.username(), user.roles(), user.enabled())))
-                .map(list -> new Users(
-                        list.sorted(Comparator.comparing(UserView::username)).toList()));
+                dsl.selectFrom(USERS)
+                        .fetch(DatabaseServiceImpl::getUser));
 
+    }
+
+    @Override
+    public Result<List<Product>> getProducts() {
+        return TryUtils.tryCatch(() ->
+                dsl.selectFrom(PRODUCTS)
+                        .fetch(DatabaseServiceImpl::getProduct));
+
+    }
+
+    @Override
+    public Result<Product> createProduct(Product product) {
+        return TryUtils.tryCatch(() -> dsl.insertInto(PRODUCTS)
+                        .set(PRODUCTS.NAME, product.name())
+                        .set(PRODUCTS.OLD_NAME, product.oldName())
+                        .set(PRODUCTS.WIDTH, product.width())
+                        .set(PRODUCTS.LENGTH, product.length())
+                        .set(PRODUCTS.THICKNESS, product.thickness())
+                        .set(PRODUCTS.PROFILE, product.profile())
+                        .set(PRODUCTS.MATERIAL, product.material())
+                        .set(PRODUCTS.OWNER, product.owner())
+                        .set(PRODUCTS.EDGE, product.edge())
+                        .set(PRODUCTS.PITCH, product.pitch())
+                        .set(PRODUCTS.RACK_TYPE, product.rackType())
+                        .set(PRODUCTS.FINISH, product.finish())
+                        .set(PRODUCTS.MACHINERY, product.machinery().toArray(new String[0]))
+                        .set(USERS.ENABLED, product.enabled())
+                        .returning(PRODUCTS.ID)
+                        .fetchOne(PRODUCTS.ID))
+                .map(id -> new Product(id, product.name(), product.oldName(),
+                        product.width(), product.length(), product.thickness(), product.pitch(),
+                        product.edge(), product.finish(), product.profile(), product.material(),
+                        product.owner(), product.rackType(), product.machinery(),
+                        product.enabled()));
     }
 
     @Override
@@ -101,6 +151,4 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         rec.getType(),
                                         rec.getValue()))));
     }
-
-
 }

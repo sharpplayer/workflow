@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.session.SessionUsers;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
-import uk.co.matchboard.app.model.session.SessionUsers;
 
 @Service
 public class DeviceServiceImpl implements DeviceService {

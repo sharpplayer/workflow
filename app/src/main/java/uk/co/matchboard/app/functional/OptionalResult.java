@@ -1,12 +1,35 @@
 package uk.co.matchboard.app.functional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import uk.co.matchboard.app.exception.AggregateException;
 
 public class OptionalResult<T> {
 
     private final T value;
     private final Exception exception;
+
+    public static <T> Result<List<T>> sequence(
+            List<OptionalResult<T>> results) {
+        List<T> collected = new ArrayList<>();
+        List<Exception> errors = new java.util.ArrayList<>();
+
+        for (OptionalResult<T> r : results) {
+            if (r.isFaulted()) {
+                errors.add(r.exception);
+            } else if (r.value != null) {
+                collected.add(r.value);
+            }
+        }
+
+        if (errors.isEmpty()) {
+            return Result.of(collected);
+
+        }
+        return Result.failure(new AggregateException(errors));
+    }
 
     private OptionalResult(T value, Exception exception) {
         this.value = value;
@@ -15,6 +38,10 @@ public class OptionalResult<T> {
 
     public static <T> OptionalResult<T> of(T value) {
         return new OptionalResult<>(value, null);
+    }
+
+    public static <T> OptionalResult<T> empty() {
+        return new OptionalResult<>(null, null);
     }
 
     public static <T> OptionalResult<T> failure(Exception ex) {
@@ -58,6 +85,16 @@ public class OptionalResult<T> {
         }
 
         return function.apply(value);
+    }
+
+    public <R> OptionalResult<R> flatMap(Function<T, Result<R>> function) {
+        if (isFaulted()) {
+            return cast();
+        }
+        if (value == null) {
+            return OptionalResult.empty();
+        }
+        return function.apply(value).toOptional();
     }
 }
 

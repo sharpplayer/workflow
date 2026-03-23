@@ -43,6 +43,7 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-vault-config")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-csv")
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     implementation("org.springframework.retry:spring-retry")
     implementation("org.springframework.boot:spring-boot-starter-aop")

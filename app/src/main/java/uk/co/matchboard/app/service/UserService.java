@@ -22,5 +22,5 @@ public interface UserService {
 
     Result<Users> getUsers();
 
-    Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset);
+    Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset, boolean enabled);
 }

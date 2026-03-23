@@ -80,7 +80,8 @@ label.disabled {
 }
 
 ::ng-deep .modal-card input[type="text"],
-::ng-deep .modal-card input[type="password"] {
+::ng-deep .modal-card input[type="password"], 
+::ng-deep .modal-card select {
     box-sizing: border-box;
     width: 100%;
     padding: .4rem .6rem;

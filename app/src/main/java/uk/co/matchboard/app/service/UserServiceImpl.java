@@ -1,6 +1,7 @@
 package uk.co.matchboard.app.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.user.UserView;
 import uk.co.matchboard.app.model.user.Users;
 
 @Service
@@ -40,7 +42,7 @@ public class UserServiceImpl implements UserService {
                 Result::failure,
                 () -> {
                     var passwordHash = passwordEncoder.encode(password);
-                    return databaseService.addUser(
+                    return databaseService.createUser(
                             new User(0, username, passwordHash, null, roles, true, true, true));
                 }
         );
@@ -85,7 +87,8 @@ public class UserServiceImpl implements UserService {
         return userRecord.fold(u -> {
                     var pinHash = passwordEncoder.encode(pin);
                     return databaseService.updateUser(
-                            new User(u.id(), username, u.passwordHash(), pinHash, u.roles(), u.passwordReset(),
+                            new User(u.id(), username, u.passwordHash(), pinHash, u.roles(),
+                                    u.passwordReset(),
                                     false,
                                     u.enabled()));
                 },
@@ -96,7 +99,36 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Result<Users> getUsers() {
-        return databaseService.getUsers();
+        return databaseService.getUsers().map(list -> list.stream()
+                        .map(user -> new UserView(user.username(), user.roles(), user.enabled())))
+                .map(list -> new Users(
+                        list.sorted(Comparator.comparing(UserView::username)).toList()));
+    }
+
+    @Override
+    public Result<User> updateUser(String username, String password, List<String> roles,
+            boolean pinReset, boolean enabled) {
+        return databaseService.findUser(username).fold(
+                user -> {
+                    String passwordHash = user.passwordHash();
+                    boolean passwordReset = user.passwordReset();
+                    if (password != null && !password.isEmpty()) {
+                        passwordHash = passwordEncoder.encode(password);
+                        passwordReset = true;
+                    }
+                    String pinHash = user.pinHash();
+                    boolean pinResetFlag = user.pinReset();
+                    if (pinReset) {
+                        pinHash = null;
+                        pinResetFlag = true;
+                    }
+                    return databaseService.updateUser(
+                            new User(user.id(), user.username(), passwordHash, pinHash, roles,
+                                    passwordReset, pinResetFlag, enabled));
+                },
+                Result::failure,
+                () -> Result.failure(new InvalidUserException())
+        );
     }
 
     @Override
@@ -117,7 +149,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public LoginOptions getOptions(String user, boolean loggedInOnDevice) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        var x = new LoginOptions(userRecord.fold(data -> {
+        return new LoginOptions(userRecord.fold(data -> {
             List<String> opts = new ArrayList<>();
             if (data.enabled()) {
                 opts.add(LOGIN_OPT_PASSWORD);
@@ -139,7 +171,5 @@ public class UserServiceImpl implements UserService {
             }
             return opts;
         }, _ -> List.of(LOGIN_OPT_PASSWORD), () -> List.of(LOGIN_OPT_PASSWORD)));
-        System.out.println(x);
-        return x;
     }
 }
