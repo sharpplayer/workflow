@@ -19,13 +19,16 @@ interface ProductsResponse {
 export class ProductService {
   private http = inject(HttpClient);
 
-  products = signal<Product[]>([]);
+  products = signal<ProductsResponse>({
+    products: [],
+    validationErrors: ''
+  });
 
   async loadProducts(): Promise<void> {
     const res = await firstValueFrom(
       this.http.get<ProductsResponse>(`${API_BASE_URL}/api/products`, { withCredentials: true })
     );
-    this.products.set(res.products);
+    this.products.set(res);
   }
 
   async createProduct(product: Partial<Product>): Promise<void> {

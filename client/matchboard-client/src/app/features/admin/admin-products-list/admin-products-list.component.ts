@@ -13,13 +13,13 @@ import { Product, ProductService } from '../../../core/services/product.service'
         } @else {
         <div>Products here</div>
         }
-        @if(!loading() && !error() && products().length > 0){
+        @if(!loading() && !error() && products().products.length > 0){
             <table>
                 <thead>
                     <tr><th>Product</th><th>Name</th><th>Old Name</th><th>Enabled</th></tr>
                 </thead>
                 <tbody>
-                    @for (product of products(); track product) {
+                    @for (product of products().products; track product) {
                     <tr>
                         <td>{{ product.id }}</td>
                         <td>{{ product.name }}</td>
@@ -31,11 +31,19 @@ import { Product, ProductService } from '../../../core/services/product.service'
             </table>
         }
 
+        @if(products().validationErrors){
+            @for (err of products().validationErrors.split(';').filter(e => e.trim() !== ''); track err) {
+             <div>{{ err }}</div>
+            }
+            <button type="button" (click)="loadProducts()">Re-validate</button>
+        }
+
         @if(error()){
             <div>{{ error() }}</div>
         }
 
-        @if(!loading() && !error() && products().length === 0){
+
+        @if(!loading() && !error() && products().products.length === 0){
             <div>No products found.</div>
         }
     </div>
@@ -45,7 +53,6 @@ import { Product, ProductService } from '../../../core/services/product.service'
 export class AdminProductListComponent {
     private productService = inject(ProductService);
 
-    @Output() edit = new EventEmitter<Product>();
     @Output() create = new EventEmitter<void>();
 
     products = this.productService.products;
@@ -53,10 +60,10 @@ export class AdminProductListComponent {
     error = signal('');
 
     constructor() {
-        this.loadUsers();
+        this.loadProducts();
     }
 
-    async loadUsers() {
+    async loadProducts() {
         this.loading.set(true);
         this.error.set('');
         try {
