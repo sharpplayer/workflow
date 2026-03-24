@@ -1,5 +1,5 @@
 import { CommonModule } from "@angular/common";
-import { Component, inject, signal } from "@angular/core";
+import { Component } from "@angular/core";
 import { AdminProductListComponent } from "../admin-products-list/admin-products-list.component";
 
 @Component({

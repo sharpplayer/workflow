@@ -38,15 +38,17 @@ dependencyManagement {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
-    implementation("org.flywaydb:flyway-core:11.7.0")
-    implementation("org.flywaydb:flyway-database-postgresql:11.7.0")
     implementation("org.springframework.cloud:spring-cloud-starter-vault-config")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-csv")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     implementation("org.springframework.retry:spring-retry")
     implementation("org.springframework.boot:spring-boot-starter-aop")
+
+    implementation("org.flywaydb:flyway-core:11.7.0")
+    implementation("org.flywaydb:flyway-database-postgresql:11.7.0")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+
     runtimeOnly("org.postgresql:postgresql")
     jooqGenerator("org.postgresql:postgresql")
     jooqGenerator("org.jooq:jooq-meta:3.19.0")

@@ -1,6 +1,10 @@
 package uk.co.matchboard.app.model.sage;
 
 import java.util.Map;
+import uk.co.matchboard.app.exception.BadValueException;
+import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.functional.ThrowingTriFunction;
+import uk.co.matchboard.app.functional.TryUtils;
 
 public record SageProduct(
         String number,
@@ -18,21 +22,40 @@ public record SageProduct(
         String enabled
 ) {
 
-    public static SageProduct fromMap(Map<String, String> row, Map<String, String> headerMapping) {
-        return new SageProduct(
-                row.get(headerMapping.get("part")).trim(),
-                row.get(headerMapping.get("owner")).trim(),
-                row.get(headerMapping.get("material")).trim(),
-                row.get(headerMapping.get("profile")).trim(),
-                row.get(headerMapping.get("edge")).trim(),
-                row.get(headerMapping.get("format")).trim(),
-                row.get(headerMapping.get("dimensions")).trim(),
-                row.get(headerMapping.get("thickness")).trim(),
-                row.get(headerMapping.get("pitch")).trim(),
-                row.get(headerMapping.get("racktype")).trim(),
-                row.get(headerMapping.get("finish")).trim(),
-                row.get(headerMapping.get("machinery")).trim(),
-                row.get(headerMapping.get("enabled")).trim()
+    private static final ThrowingTriFunction<String, Map<String, String>, String, String> getRequired = (p, r, key) -> {
+        String value = r.get(key);
+        if (value == null) {
+            throw new BadValueException(
+                    p,
+                    key,
+                    null,
+                    "Value required"
+            );
+        }
+        return value.trim();
+    };
+
+
+    public static Result<SageProduct> fromMap(Map<String, String> row,
+            Map<String, String> headerMapping) {
+
+        return TryUtils.tryCatch(() -> {
+                    String part = getRequired.apply("(Unspecified)", row, headerMapping.get("part"));
+                    return new SageProduct(
+                            part,
+                            getRequired.apply(part, row, headerMapping.get("owner")),
+                            getRequired.apply(part, row, headerMapping.get("material")),
+                            getRequired.apply(part, row, headerMapping.get("profile")),
+                            getRequired.apply(part, row, headerMapping.get("edge")),
+                            getRequired.apply(part, row, headerMapping.get("format")),
+                            getRequired.apply(part, row, headerMapping.get("dimensions")),
+                            getRequired.apply(part, row, headerMapping.get("thickness")),
+                            getRequired.apply(part, row, headerMapping.get("pitch")),
+                            getRequired.apply(part, row, headerMapping.get("racktype")),
+                            getRequired.apply(part, row, headerMapping.get("finish")),
+                            getRequired.apply(part, row, headerMapping.get("machinery")),
+                            getRequired.apply(part, row, headerMapping.get("enabled")));
+                }
         );
     }
 }

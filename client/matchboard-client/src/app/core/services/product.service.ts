@@ -10,9 +10,27 @@ export interface Product {
   enabled: boolean
 }
 
+export interface PhaseParam {
+  phaseParamId: number,
+  paramName: string,
+  paramConfig: string,
+  input: boolean
+}
+
+export interface Phase {
+  id: number,
+  description: string,
+  params: PhaseParam[],
+  order: number
+}
+
 interface ProductsResponse {
   products: Product[];
   validationErrors: string;
+}
+
+interface PhasesResponse {
+  phases: Phase[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -23,12 +41,21 @@ export class ProductService {
     products: [],
     validationErrors: ''
   });
+  phases = signal<Phase[]>([]);
 
   async loadProducts(): Promise<void> {
     const res = await firstValueFrom(
       this.http.get<ProductsResponse>(`${API_BASE_URL}/api/products`, { withCredentials: true })
     );
     this.products.set(res);
+  }
+
+  async loadPhases(productId: number): Promise<void> {
+    const res = await firstValueFrom(
+      this.http.get<PhasesResponse>(`${API_BASE_URL}/api/phases/${productId}`, { withCredentials: true })
+    );
+    console.log(res.phases);
+    this.phases.set(res.phases);
   }
 
   async createProduct(product: Partial<Product>): Promise<void> {

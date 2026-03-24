@@ -101,12 +101,12 @@ public class Result<T> {
         return new Result<>(function.apply(value), null);
     }
 
-    public <R> Result<R> mapTry(ThrowingFunction<T, R> function) {
+    public <R> Result<R> flatMapTry(ThrowingFunction<T, Result<R>> function) {
         if (isFaulted()) {
             return cast();
         }
 
-        return TryUtils.tryCatch(() -> function.apply(value));
+        return TryUtils.tryCatchResult(() -> function.apply(value));
     }
 
     public Result<T> mapException(Function<Exception, Exception> function) {

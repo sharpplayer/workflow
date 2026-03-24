@@ -1,15 +1,20 @@
 package uk.co.matchboard.app.service;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.BadValueException;
-import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.product.Phase;
+import uk.co.matchboard.app.model.product.PhaseParamData;
+import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.Phases;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.product.ProductView;
 import uk.co.matchboard.app.model.product.Products;
@@ -21,10 +26,6 @@ public class ProductServiceImpl implements ProductService {
     private static final List<String> BOOLEANS = Arrays.asList("", "Y", "y", "Yes", "YES", "True",
             "true",
             "T");
-
-    private record ProductUpdate(List<Product> products, boolean change) {
-
-    }
 
     private final DatabaseService databaseService;
 
@@ -42,30 +43,38 @@ public class ProductServiceImpl implements ProductService {
                 "products.csv");
         Result<List<Product>> dbResult = databaseService.getProducts();
 
-        Result<ProductUpdate> updateResult = sageResult.flatMap(sageList ->
+        AtomicBoolean changeFlag = new AtomicBoolean(false);
+        Result<List<Product>> updateResult = sageResult.flatMap(sageList ->
                 dbResult.flatMap(dbList -> {
 
                     Map<String, Product> dbMap = dbList.stream()
                             .collect(Collectors.toMap(Product::name, p -> p));
 
-                    return OptionalResult.sequence(sageList.stream()
+                    return Result.sequence(sageList.stream()
                             .map(sage -> {
                                 Product existing = dbMap.get(sage.number());
+                                Result<Product> expected = createProduct(sage);
 
                                 if (existing != null) {
-                                    return OptionalResult.of(existing);
+                                    return expected.flatMap(e -> {
+                                        if (existing.equals(e)) {
+                                            return Result.of(existing);
+                                        } else {
+                                            changeFlag.set(true);
+                                            return databaseService.updateProduct(e);
+                                        }
+                                    });
                                 } else {
-                                    return createProduct(sage).flatMap(
+                                    changeFlag.set(true);
+                                    return expected.flatMap(
                                             databaseService::createProduct);
                                 }
                             })
-                            .toList()).map(list -> new ProductUpdate(list, true));
+                            .toList());
                 })
         );
 
-        Result<List<Product>> latest = updateResult.fold(
-                res -> res.change ? databaseService.getProducts()    : dbResult,
-                _ -> databaseService.getProducts());
+        Result<List<Product>> latest = changeFlag.get() ? databaseService.getProducts() : dbResult;
 
         return latest.map(list -> list.stream()
                         .map(product -> new ProductView(
@@ -76,39 +85,79 @@ public class ProductServiceImpl implements ProductService {
                         ))
                         .sorted(Comparator.comparing(ProductView::name))
                         .toList())
-                .map(list -> new Products(list, updateResult.fold(_ -> "", Throwable::getMessage)));
+                .map(list -> new Products(list,
+                        updateResult.fold(_ -> "", Throwable::getMessage)));
+    }
+
+    @Override
+    public Result<Phases> getPhases(int productId) {
+        return databaseService.findProduct(productId).fold(
+                product -> databaseService.getPhases(productId)
+                        .map(list -> buildPhases(product, list)).map(Phases::new),
+                Result::failure,
+                () -> Result.failure(new BadValueException(Integer.toString(productId), "ProductId",
+                        Integer.toString(productId), "Not found")
+                ));
+    }
+
+    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams) {
+        return phaseParams.stream()
+                .collect(Collectors.groupingBy(PhaseParam::id))
+                .values().stream()
+                .map(params -> {
+                    PhaseParam first = params.getFirst();
+
+                    List<PhaseParamData> phaseDataList = params.stream()
+                            .sorted(Comparator.comparingInt(PhaseParam::paramOrder))
+                            .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
+                                    resolveConfig(product, pp.paramConfig()), pp.input()))
+                            .collect(Collectors.toList());
+
+                    return new Phase(first.id(), first.description(), phaseDataList, first.order());
+                })
+                .sorted(Comparator.comparingInt(Phase::order))
+                .collect(Collectors.toList());
+    }
+
+    private String resolveConfig(Product product, String config) {
+        if (config.startsWith("PRODUCT(")) {
+            String prop = config.substring(8, config.length() - 1).toLowerCase();
+            return TryUtils.tryCatch(() -> {
+                Method accessor = Product.class.getMethod(prop);
+                return accessor.invoke(product);
+            }).fold(Object::toString, _ -> "");
+        }
+        return config;
     }
 
     private Result<Integer> parseDimension(String value, String field, SageProduct product) {
         return TryUtils.tryCatch(() -> Integer.parseInt(value.trim()))
                 .mapException(
-                        ex -> new BadValueException(product.number(), field, product.dimensions(),
+                        ex -> new BadValueException(product.number(), field,
+                                product.dimensions(),
                                 ex.getMessage()));
     }
 
-    private OptionalResult<Product> createProduct(SageProduct product) {
-        if (!BOOLEANS.contains(product.enabled())) {
-            return OptionalResult.empty();
-        }
+    private Result<Product> createProduct(SageProduct product) {
         var dims = product.dimensions().split("x");
         if (dims.length != 2) {
-            return OptionalResult.failure(
+            return Result.failure(
                     new BadValueException(product.number(), "Dimension", product.dimensions(),
                             "2 dimensions required"));
         }
         var rack = parseDimension(product.rackType(), "Rack Type", product);
         if (rack.isFaulted()) {
-            return OptionalResult.failure(
+            return Result.failure(
                     new BadValueException(product.number(), "Rack type", product.rackType(),
                             "Integer required"));
         }
         if (product.machinery().isEmpty()) {
-            return OptionalResult.failure(
+            return Result.failure(
                     new BadValueException(product.number(), "Machinery", product.machinery(),
                             "Machinery required"));
         }
         if (product.finish().isEmpty()) {
-            return OptionalResult.failure(
+            return Result.failure(
                     new BadValueException(product.number(), "Finish", product.finish(),
                             "Finish required"));
         }
@@ -130,10 +179,11 @@ public class ProductServiceImpl implements ProductService {
                         product.material(),
                         product.owner(),
                         product.rackType(),
-                        Arrays.stream(product.machinery().split(";")).map(String::trim).toList(),
+                        Arrays.stream(product.machinery().split(";")).map(String::trim)
+                                .toList(),
                         BOOLEANS.contains(product.enabled())
                 )
-        ).toOptional();
+        );
     }
 
     private String deriveNameFrom(SageProduct product) {

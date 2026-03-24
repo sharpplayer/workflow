@@ -1,11 +1,15 @@
 package uk.co.matchboard.app.service;
 
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
+import static uk.co.matchboard.generated.Tables.PHASE;
+import static uk.co.matchboard.generated.Tables.PHASE_PARAM;
 import static uk.co.matchboard.generated.Tables.PRODUCTS;
+import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
 import java.util.List;
 import org.jooq.DSLContext;
+import org.jooq.Record;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
@@ -15,6 +19,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
@@ -67,6 +72,13 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.getRackType(),
                 List.of(rec.getMachinery()),
                 rec.getEnabled());
+    }
+
+    @NonNull
+    private static PhaseParam getPhase(Record record) {
+        return new PhaseParam(record.get(PHASE.ID), record.get(PHASE.DESCRIPTION),
+                record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
+                record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), record.get(PRODUCT_PHASE.ORDER), record.get(PHASE_PARAM.ORDER));
     }
 
     @Override
@@ -132,7 +144,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(PRODUCTS.RACK_TYPE, product.rackType())
                         .set(PRODUCTS.FINISH, product.finish())
                         .set(PRODUCTS.MACHINERY, product.machinery().toArray(new String[0]))
-                        .set(USERS.ENABLED, product.enabled())
+                        .set(PRODUCTS.ENABLED, product.enabled())
                         .returning(PRODUCTS.ID)
                         .fetchOne(PRODUCTS.ID))
                 .map(id -> new Product(id, product.name(), product.oldName(),
@@ -140,6 +152,50 @@ public class DatabaseServiceImpl implements DatabaseService {
                         product.edge(), product.finish(), product.profile(), product.material(),
                         product.owner(), product.rackType(), product.machinery(),
                         product.enabled()));
+    }
+
+    @Override
+    public Result<Product> updateProduct(Product product) {
+        return TryUtils.tryCatch(() -> dsl.update(PRODUCTS)
+                        .set(PRODUCTS.NAME, product.name())
+                        .set(PRODUCTS.OLD_NAME, product.oldName())
+                        .set(PRODUCTS.WIDTH, product.width())
+                        .set(PRODUCTS.LENGTH, product.length())
+                        .set(PRODUCTS.THICKNESS, product.thickness())
+                        .set(PRODUCTS.PROFILE, product.profile())
+                        .set(PRODUCTS.MATERIAL, product.material())
+                        .set(PRODUCTS.OWNER, product.owner())
+                        .set(PRODUCTS.EDGE, product.edge())
+                        .set(PRODUCTS.PITCH, product.pitch())
+                        .set(PRODUCTS.RACK_TYPE, product.rackType())
+                        .set(PRODUCTS.FINISH, product.finish())
+                        .set(PRODUCTS.MACHINERY, product.machinery().toArray(new String[0]))
+                        .set(USERS.ENABLED, product.enabled())
+                        .where(PRODUCTS.NAME.eq(product.name()))
+                        .execute())
+                .map(_ -> product);
+    }
+
+    @Override
+    public Result<List<PhaseParam>> getPhases(int productId) {
+        return TryUtils.tryCatch(() ->
+                dsl.select(PHASE.ID, PHASE.DESCRIPTION)
+                        .select(PRODUCT_PHASE.ORDER)
+                        .select(PHASE_PARAM.fields())
+                        .from(PRODUCT_PHASE)
+                        .join(PHASE).on(PHASE.ID.eq(PRODUCT_PHASE.PHASE_ID))
+                        .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                        .where(PRODUCT_PHASE.PRODUCT_ID.eq(productId)
+                                .and(PHASE.ENABLED.eq(true)))
+                        .orderBy(PRODUCT_PHASE.ORDER.asc())
+                        .fetch(DatabaseServiceImpl::getPhase));
+    }
+
+    @Override
+    public OptionalResult<Product> findProduct(int productId) {
+        return Result.toOptionalResult(TryUtils.tryCatch(() ->
+                dsl.selectFrom(PRODUCTS).where(PRODUCTS.ID.eq(productId))
+                        .fetchOptional(DatabaseServiceImpl::getProduct)));
     }
 
     @Override

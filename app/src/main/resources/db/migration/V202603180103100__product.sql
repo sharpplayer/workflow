@@ -27,15 +27,24 @@ CREATE UNIQUE INDEX idx_products_old_name
 CREATE TABLE phase
 (
     id          SERIAL PRIMARY KEY,
-    description CHAR(100) NOT NULL,
-    enabled     BOOLEAN   NOT NULL DEFAULT TRUE
+    description VARCHAR(100) NOT NULL,
+    enabled     BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE product_phase
+(
+    product_id INTEGER NOT NULL,
+    phase_id   INTEGER NOT NULL,
+    "order"    INTEGER NOT NULL,
+    CONSTRAINT product_phase_pkey PRIMARY KEY (product_id, phase_id)
 );
 
 CREATE TABLE phase_param
 (
     id       SERIAL PRIMARY KEY,
-    phase_id INTEGER  NOT NULL REFERENCES phase (id),
-    name     CHAR(50) NOT NULL,
-    config   CHAR(20) NOT NULL,
-    input    BOOLEAN  NOT NULL
+    phase_id INTEGER     NOT NULL,
+    name     VARCHAR(50) NOT NULL,
+    config   VARCHAR(20) NOT NULL,
+    input    BOOLEAN     NOT NULL,
+    "order"  INTEGER     NOT NULL
 );

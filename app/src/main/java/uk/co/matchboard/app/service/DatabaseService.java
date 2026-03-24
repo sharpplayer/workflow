@@ -4,6 +4,7 @@ import java.util.List;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
 
@@ -21,4 +22,10 @@ public interface DatabaseService {
     Result<List<Product>> getProducts();
 
     Result<Product> createProduct(Product product);
+
+    Result<Product> updateProduct(Product product);
+
+    Result<List<PhaseParam>> getPhases(int productId);
+
+    OptionalResult<Product> findProduct(int productId);
 }

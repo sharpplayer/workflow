@@ -44,11 +44,10 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                                 .collect(Collectors.toMap(
                                         arr -> arr[0].trim(),
                                         arr -> arr[1].trim()
-                                ))).mapTry(headerMapping ->
+                                ))).flatMapTry(headerMapping ->
 
-                                it.readAll().stream()
-                                        .map(row -> SageProduct.fromMap(row, headerMapping))
-                                        .toList());
+                                Result.sequence(it.readAll().stream()
+                                        .map(row -> SageProduct.fromMap(row, headerMapping)).toList()));
 
             }
         });

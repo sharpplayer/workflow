@@ -6,6 +6,4 @@ public class BadValueException extends Exception implements ValidationException 
         super("Bad value " + (value == null || value.isEmpty() ? "(blank)" : value) + " for " + name
                 + " on item " + id + "(" + message + ")");
     }
-
-    ;
 }
