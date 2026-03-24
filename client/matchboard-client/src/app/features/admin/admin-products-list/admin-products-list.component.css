@@ -8,7 +8,7 @@ table {
 
 /* Header styling */
 thead {
-  background-color: #4a90e2; /* nice blue title bar */
+  background-color: #4a90e2;
   color: white;
 }
 
@@ -16,6 +16,25 @@ thead th {
   padding: 12px 15px;
   text-align: left;
   font-size: 1rem;
+}
+
+/* Required for max-height transition to work on tbody */
+thead, tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+tbody {
+  display: block;
+  overflow: hidden;
+  max-height: 2000px;
+  transition: max-height 0.35s ease;
+}
+
+tbody.collapsed {
+  max-height: 41px; /* padding-top + padding-bottom + font-size = 10+10+~16 = ~41px, tweak if needed */
+  transition: max-height 0.25s ease-in;
 }
 
 /* Body rows */
@@ -38,14 +57,10 @@ tbody tr:hover {
   background-color: #e6f2ff;
 }
 
-/* Optional: highlight enabled column */
+/* Highlight enabled column */
 tbody td:last-child {
   font-weight: bold;
-  color: #2d862d; /* green for Yes */
-}
-
-tbody td:last-child:contains("No") {
-  color: #d9534f; /* red for No */
+  color: #2d862d;
 }
 
 /* Loading/Error messages */
@@ -55,12 +70,12 @@ div[ng-reflect-ng-if="true"] {
 }
 
 .list-header {
-    margin-bottom: 1rem;
+  margin-bottom: 1rem;
 }
 
 .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 1000;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
 }

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, inject, Output, signal, computed } from '@angular/core';
+import { Component, EventEmitter, inject, Output, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Product, ProductService } from '../../../core/services/product.service';
@@ -14,7 +14,7 @@ import { Product, ProductService } from '../../../core/services/product.service'
                 type="text"
                 placeholder="Filter by name..."
                 [ngModel]="filterText()"
-                (ngModelChange)="filterText.set($event)"
+                (ngModelChange)="onFilterChange($event)"
             />
         </div>
 
@@ -22,7 +22,7 @@ import { Product, ProductService } from '../../../core/services/product.service'
             <div>Loading...</div>
         } @else {
             @if (!error()) {
-                @if (filteredProducts().length > 0) {
+                @if (filteredProducts().length > 0 || (collapsed() && selectedProduct())) {
                     <table>
                         <thead>
                             <tr>
@@ -31,27 +31,32 @@ import { Product, ProductService } from '../../../core/services/product.service'
                                 <th>Enabled</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @for (product of filteredProducts(); track product.name) {
-                                <tr
-                                    [class.selectable]="hasSelectionListener"
-                                    [class.selected]="selectedProduct() === product"
-                                    (click)="selectProduct(product)"
-                                >
+                        <tbody [class.collapsed]="collapsed()">
+                            @if (collapsed() && selectedProduct(); as product) {
+                                <tr class="selected">
                                     <td>{{ product.name }}</td>
                                     <td>{{ product.oldName }}</td>
                                     <td>{{ product.enabled ? 'Yes' : 'No' }}</td>
                                 </tr>
+                            } @else {
+                                @for (product of filteredProducts(); track product.name) {
+                                    <tr
+                                        [class.selectable]="hasSelectionListener"
+                                        [class.selected]="selectedProduct() === product"
+                                        (click)="selectProduct(product)"
+                                    >
+                                        <td>{{ product.name }}</td>
+                                        <td>{{ product.oldName }}</td>
+                                        <td>{{ product.enabled ? 'Yes' : 'No' }}</td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
                 } @else {
-                    @if(hasSelectionListener && filterText().length === 0)
-                    {
+                    @if (hasSelectionListener && filterText().length === 0) {
                         <div>Select a product.</div>
-                    }
-                    @else
-                    {
+                    } @else {
                         <div>No products match "{{ filterText() }}".</div>
                     }
                 }
@@ -66,8 +71,7 @@ import { Product, ProductService } from '../../../core/services/product.service'
             }
         }
 
-        @if(!hasSelectionListener)
-        {
+        @if (!hasSelectionListener) {
             <button type="button" (click)="loadProducts()">Reload</button>
         }
     </div>
@@ -77,14 +81,16 @@ import { Product, ProductService } from '../../../core/services/product.service'
 export class AdminProductListComponent {
     private productService = inject(ProductService);
 
-    @Output() create = new EventEmitter<void>();
     @Output() productSelected = new EventEmitter<Product>();
+    @Output() hasResults = new EventEmitter<boolean>();
+    @Output() selectionCleared = new EventEmitter<void>();
 
     products = this.productService.products;
     loading = signal(true);
     error = signal('');
     filterText = signal('');
     selectedProduct = signal<Product | null>(null);
+    collapsed = signal(false);
 
     filteredProducts = computed(() => {
         const term = this.filterText().toLowerCase().trim();
@@ -100,12 +106,24 @@ export class AdminProductListComponent {
 
     constructor() {
         this.loadProducts();
+        effect(() => {
+            this.hasResults.emit(this.filteredProducts().length > 0);
+        });
+    }
+
+    onFilterChange(value: string): void {
+        this.filterText.set(value);
+        if (this.collapsed()) {
+            this.collapsed.set(false);
+            this.selectionCleared.emit();
+        }
     }
 
     selectProduct(product: Product): void {
         if (!this.productSelected.observed) return;
         this.selectedProduct.set(product);
         this.productSelected.emit(product);
+        this.collapsed.set(true);
     }
 
     async loadProducts() {

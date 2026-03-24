@@ -11,11 +11,12 @@ import { AdminPhasesComponent } from '../admin-phases-list/admin-phases-list.com
     template: `
         <div class="jobs-container">
             <admin-products-list
-                (productSelected)="onProductSelected($event)"
+              (productSelected)="onProductSelected($event)"
+              (hasResults)="hasResults = $event"
+              (selectionCleared)="selectedProduct.set(null)"
             />
-
-            @if (selectedProduct()) {
-                <admin-phases-list />
+            @if (selectedProduct() && hasResults) {
+              <admin-phases-list />
             }
         </div>
     `,
@@ -24,6 +25,7 @@ import { AdminPhasesComponent } from '../admin-phases-list/admin-phases-list.com
 export class AdminJobsComponent {
     protected productService = inject(ProductService);
     selectedProduct = signal<Product | null>(null);
+    hasResults = true;
 
     async onProductSelected(product: Product): Promise<void> {
         this.selectedProduct.set(product);

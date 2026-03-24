@@ -39,11 +39,7 @@ import { ResetResult } from "../../../core/services/auth.service";
       <button [disabled]="!canSubmit" (click)="submit()">Reset {{ isPin ? 'PIN' : 'Password' }}</button>
     </div>
   `,
-  styles: [`
-    .modal-card { display:flex; flex-direction:column; gap:1rem; padding:2rem; max-width:360px; background-color: #ffffff; }
-    .field { display:flex; flex-direction:column; gap:.4rem; }
-    .error { color:red; font-size:.85rem; }
-  `]
+  styleUrls: ['./reset.component.css']
 })
 export class LoginResetComponent implements OnInit {
 
