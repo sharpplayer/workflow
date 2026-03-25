@@ -36,7 +36,7 @@ CREATE TABLE product_phase
     product_id INTEGER NOT NULL,
     phase_id   INTEGER NOT NULL,
     "order"    INTEGER NOT NULL,
-    CONSTRAINT product_phase_pkey PRIMARY KEY (product_id, phase_id)
+    CONSTRAINT product_phase_pkey PRIMARY KEY (product_id, phase_id, "order")
 );
 
 CREATE TABLE phase_param

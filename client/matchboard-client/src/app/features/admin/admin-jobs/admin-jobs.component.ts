@@ -16,7 +16,7 @@ import { AdminPhasesComponent } from '../admin-phases-list/admin-phases-list.com
               (selectionCleared)="selectedProduct.set(null)"
             />
             @if (selectedProduct() && hasResults) {
-              <admin-phases-list />
+              <admin-phases-list [productId]="selectedProduct()!.id"/>
             }
         </div>
     `,
@@ -29,7 +29,6 @@ export class AdminJobsComponent {
 
     async onProductSelected(product: Product): Promise<void> {
         this.selectedProduct.set(product);
-        console.log("Selected:" + product.id);
-        this.productService.loadPhases(product.id);
+        this.productService.loadProductPhases(product.id);
     }
 }

@@ -5,6 +5,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
 
@@ -25,7 +26,13 @@ public interface DatabaseService {
 
     Result<Product> updateProduct(Product product);
 
+    Result<List<PhaseParam>> updatePhases(PhasesUpdate phasesUpdate);
+
     Result<List<PhaseParam>> getPhases(int productId);
 
+    Result<List<PhaseParam>> getPhases();
+
     OptionalResult<Product> findProduct(int productId);
+
+    Result<List<PhaseParam>> getPhaseParams(int phaseId);
 }

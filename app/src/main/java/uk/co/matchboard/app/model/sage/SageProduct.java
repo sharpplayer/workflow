@@ -35,7 +35,6 @@ public record SageProduct(
         return value.trim();
     };
 
-
     public static Result<SageProduct> fromMap(Map<String, String> row,
             Map<String, String> headerMapping) {
 

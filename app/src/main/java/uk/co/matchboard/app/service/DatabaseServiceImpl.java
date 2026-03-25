@@ -10,6 +10,7 @@ import static uk.co.matchboard.generated.Tables.USERS;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.impl.DSL;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
@@ -20,6 +21,7 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
@@ -75,10 +77,18 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     @NonNull
-    private static PhaseParam getPhase(Record record) {
+    private static PhaseParam getPhaseParamWithPhase(Record record, int productPhaseOrder) {
         return new PhaseParam(record.get(PHASE.ID), record.get(PHASE.DESCRIPTION),
                 record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
-                record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), record.get(PRODUCT_PHASE.ORDER), record.get(PHASE_PARAM.ORDER));
+                record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), productPhaseOrder,
+                record.get(PHASE_PARAM.ORDER));
+    }
+
+    private static PhaseParam getPhaseParam(Record record) {
+        return new PhaseParam(record.get(PHASE_PARAM.PHASE_ID), "resolution only",
+                record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
+                record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), 0,
+                record.get(PHASE_PARAM.ORDER));
     }
 
     @Override
@@ -155,6 +165,31 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     @Override
+    public Result<List<PhaseParam>> updatePhases(PhasesUpdate phasesUpdate) {
+        return TryUtils.tryCatchResult(() -> {
+            dsl.transaction(configuration -> {
+                DSLContext dsl = DSL.using(configuration);
+                dsl.deleteFrom(PRODUCT_PHASE)
+                        .where(PRODUCT_PHASE.PRODUCT_ID.eq(phasesUpdate.productId()))
+                        .execute();
+
+                List<Integer> phaseIds = phasesUpdate.phaseIds();
+                for (int i = 0; i < phaseIds.size(); i++) {
+                    Integer phaseId = phaseIds.get(i);
+                    int index = i + 1; // 1-based index
+                    dsl.insertInto(PRODUCT_PHASE)
+                            .set(PRODUCT_PHASE.PRODUCT_ID, phasesUpdate.productId())
+                            .set(PRODUCT_PHASE.PHASE_ID, phaseId)
+                            .set(PRODUCT_PHASE.ORDER, index)
+                            .execute();
+                }
+            });
+
+            return getPhases(phasesUpdate.productId()); // required by TryUtils.tryCatch
+        });
+    }
+
+    @Override
     public Result<Product> updateProduct(Product product) {
         return TryUtils.tryCatch(() -> dsl.update(PRODUCTS)
                         .set(PRODUCTS.NAME, product.name())
@@ -188,7 +223,19 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .where(PRODUCT_PHASE.PRODUCT_ID.eq(productId)
                                 .and(PHASE.ENABLED.eq(true)))
                         .orderBy(PRODUCT_PHASE.ORDER.asc())
-                        .fetch(DatabaseServiceImpl::getPhase));
+                        .fetch(r -> getPhaseParamWithPhase(r, r.get(PRODUCT_PHASE.ORDER))));
+    }
+
+    @Override
+    public Result<List<PhaseParam>> getPhases() {
+        return TryUtils.tryCatch(() ->
+                dsl.select(PHASE.fields())
+                        .select(PHASE_PARAM.fields())
+                        .from(PHASE)
+                        .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                        .where(PHASE.ENABLED.eq(true))
+                        .orderBy(PHASE_PARAM.ORDER.asc())
+                        .fetch(r -> getPhaseParamWithPhase(r, 0)));
     }
 
     @Override
@@ -196,6 +243,15 @@ public class DatabaseServiceImpl implements DatabaseService {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
                 dsl.selectFrom(PRODUCTS).where(PRODUCTS.ID.eq(productId))
                         .fetchOptional(DatabaseServiceImpl::getProduct)));
+    }
+
+    @Override
+    public Result<List<PhaseParam>> getPhaseParams(int phaseId) {
+        return TryUtils.tryCatch(() ->
+                dsl.select(PHASE_PARAM.fields())
+                        .from(PHASE_PARAM)
+                        .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
+                        .orderBy(PHASE_PARAM.ORDER).fetch(DatabaseServiceImpl::getPhaseParam));
     }
 
     @Override
