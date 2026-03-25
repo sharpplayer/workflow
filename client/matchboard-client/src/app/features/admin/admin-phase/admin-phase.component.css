@@ -1,105 +1,115 @@
-/* Container styling */
+/* ===== MAIN TABLE ===== */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  table-layout: fixed;
 }
 
-/* Header styling */
 thead {
-  background-color: #4a90e2; /* nice blue title bar */
+  background-color: #4a90e2;
   color: white;
 }
 
 thead th {
-  padding: 12px 15px;
+  padding: 10px;
   text-align: left;
-  font-size: 1rem;
 }
 
-/* Body rows */
 tbody td {
-  padding: 10px 15px;
+  padding: 10px;
   border-bottom: 1px solid #ddd;
-}
-
-/* Alternating row colors */
-tbody tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-tbody tr:nth-child(odd) {
-  background-color: #ffffff;
-}
-
-.phase-param-table {
-  width: auto;
-  box-shadow: none;
-  margin-top: 0;
-  border-collapse: collapse;
-}
-
-.phase-param-table thead th {
-  padding: 4px 10px;
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: center;
-  border: 1px solid #e0e0e0;
-  background-color: #e8f0fb;
-}
-
-.phase-param-table tbody td {
-  padding: 8px 10px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #222;
-  text-align: center;
-  border: 1px solid #e0e0e0;
-  background-color: #ffffff;
-}
-
-/* Override alternating row colors for inner table */
-.phase-param-table tbody tr:nth-child(even),
-.phase-param-table tbody tr:nth-child(odd) {
-  background-color: #ffffff;
-}
-
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-}
-
-.modal-card {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding: 2rem;
-    max-width: 700px;  /* wider than your usual 360px to fit the table */
-    width: 90%;
-    background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 1001;
-    overflow-y: auto;
-    max-height: 90vh;
-}
-
-tbody tr {
-    cursor: pointer;
+  vertical-align: top;
 }
 
 tbody tr.selected {
-    background-color: #cce0ff !important;
-    outline: 2px solid #4a90e2 !important;
-    outline-offset: -2px;
+  background-color: #cce0ff;
+}
+
+/* ===== PARAM TABLE ===== */
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.param-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #666;
+  background: #eef4ff;
+  padding: 6px;
+  border: 1px solid #ddd;
+}
+
+.param-table td {
+  padding: 6px;
+  border: 1px solid #ddd;
+}
+
+/* Inputs stay inside cells */
+.param-table input,
+td input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* Add row */
+.add-param-row input {
+  background-color: #f5faff;
+}
+
+/* ===== ACTIONS ===== */
+.actions-col {
+  width: 150px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* ===== BUTTONS ===== */
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+/* ===== FOOTER ===== */
+.add-phase-row {
+  cursor: pointer;
+  color: #4a90e2;
+  font-weight: bold;
+}
+
+.footer-actions {
+  text-align: right;
+}
+
+/* ===== MODAL ===== */
+.modal-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 2rem;
+  width: 90%;
+  max-width: 800px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  max-height: 90vh;
+  overflow-y: auto;
 }
