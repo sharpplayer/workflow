@@ -191,6 +191,13 @@ public class ProductServiceImpl implements ProductService {
         } else if (input == INPUT_JOB_CREATE) {
             if (config.startsWith("PRODUCT(")) {
                 String prop = config.substring(8, config.length() - 1);
+                if (prop.equals("orientation")) {
+                        if (product.width() > product.length()) {
+                        return "PORTRAIT";
+                    } else {
+                        return "LANDSCAPE";
+                    }
+                }
                 return TryUtils.tryCatch(() -> {
                     Method accessor = Product.class.getMethod(prop);
                     return accessor.invoke(product);

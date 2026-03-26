@@ -205,11 +205,8 @@ export class AdminPhaseComponent {
   // LOAD
   // =========================
   async loadAllPhases() {
-    await this.productService.loadAllPhases();
-
-    const mapped: EditablePhase[] =
-      this.productService.allPhases().map(p => this.fromPhase(p));
-
+    const phases = await this.productService.loadAllPhases()
+    const mapped: EditablePhase[] = phases.map(p => this.fromPhase(p));
     this.editablePhases.set(mapped);
   }
 
@@ -354,7 +351,6 @@ export class AdminPhaseComponent {
   }
 
   getInputLabel(value: number): string {
-    console.log("LABEL:" + value);
     const found = this.inputOptions.find(opt => opt.value === value);
     return found?.label || '';
   }

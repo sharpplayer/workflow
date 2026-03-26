@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Output, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Product, ProductService } from '../../../core/services/product.service';
+import { Product, ProductService, ProductsResponse } from '../../../core/services/product.service';
 
 @Component({
     selector: 'admin-products-list',
@@ -85,7 +85,10 @@ export class AdminProductListComponent {
     @Output() hasResults = new EventEmitter<boolean>();
     @Output() selectionCleared = new EventEmitter<void>();
 
-    products = this.productService.products;
+    products = signal<ProductsResponse>({
+        products: [],
+        validationErrors: ''
+    });
     loading = signal(true);
     error = signal('');
     filterText = signal('');
@@ -130,7 +133,8 @@ export class AdminProductListComponent {
         this.loading.set(true);
         this.error.set('');
         try {
-            await this.productService.loadProducts();
+            const res = await this.productService.loadProducts();
+            this.products.set(res);
         } catch (err) {
             console.error(err);
             this.error.set('Failed to load products');

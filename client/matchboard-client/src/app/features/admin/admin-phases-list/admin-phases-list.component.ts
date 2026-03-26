@@ -1,6 +1,6 @@
-import { Component, effect, inject, Input, signal } from '@angular/core';
+import { Component, effect, inject, Input, OnInit, output, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Phase, ProductService } from '../../../core/services/product.service';
+import { Phase, PhaseParam, ProductService } from '../../../core/services/product.service';
 import { AdminPhaseComponent } from '../admin-phase/admin-phase.component';
 
 interface JobPhase {
@@ -83,11 +83,9 @@ interface JobPhase {
 
             <tfoot>
                 <tr>
-                    <td colspan="3" class="add-phase-row" (click)="openModal()">
-                        + Add Phase
-                    </td>
-                    <td colspan="3" class="add-phase-row" (click)="savePhases()">
-                        + Save
+                    <td colspan="5" class="add-phase-row">
+                        <button (click)="addPhase()">Add Phase</button>
+                        <button (click)="savePhases()">Save Phases</button>
                     </td>
                 </tr>
             </tfoot>
@@ -101,48 +99,85 @@ interface JobPhase {
     `,
     styleUrls: ['./admin-phases-list.component.css']
 })
-export class AdminPhasesListComponent {
+export class AdminPhasesListComponent  implements OnInit {
     protected productService = inject(ProductService);
     protected isModalOpen = signal(false);
     protected editablePhases = signal<JobPhase[]>([]);
     protected tableExpanded = signal(false);
     @Input({ required: true }) productId!: number;
+    filteredPhaseParams = output<PhaseParam[]>();
 
-    constructor() {
-        effect(() => {
-            const phases = this.productService.productPhases().map((p, i) => ({
-                phase: p,
-                specialInstruction: '',
-                order: i + 1
-            }));
-            this.editablePhases.set(phases);
-        });
+    ngOnInit(): void {
+        this.loadInitialPhases();
     }
+
+    private async loadInitialPhases() {
+        console.log(this.productId);
+        const phasesFromService = await this.productService.loadProductPhases(this.productId); // await async call
+
+        const phases: JobPhase[] = phasesFromService.map((p, i) => ({
+            phase: p,
+            specialInstruction: '',
+            order: i + 1
+        }));
+
+        this.editablePhases.set(phases);
+        this.emitFilteredParams();
+    }
+    // constructor() {
+    //     effect(() => {
+    //         const newPhases = this.productService.productPhases().map((p, i) => ({
+    //             phase: p,
+    //             specialInstruction: '',
+    //             order: i + 1
+    //         }));
+
+    //         this.editablePhases.update(existing => {
+    //             const existingIds = existing.map(jp => jp.phase.id);
+    //             const merged = [...existing];
+    //             for (const jp of newPhases) {
+    //                 if (!existingIds.includes(jp.phase.id)) {
+    //                     merged.push(jp);
+    //                 }
+    //             }
+    //             return merged;
+    //         });
+
+    //         this.emitFilteredParams();
+    //     });
+    // }
 
     get phaseCount() {
         return this.editablePhases().length;
     }
 
-    openModal() { this.isModalOpen.set(true); }
+    addPhase() { this.isModalOpen.set(true); }
     closeModal() { this.isModalOpen.set(false); }
 
     async onPhaseSelected(phase: Phase) {
+        console.log("WOOOOO");
         const resolvedPhase = await this.productService.resolvePhase(this.productId, phase.id);
-        const newOrder = this.editablePhases().length + 1;
+        resolvedPhase.order = this.editablePhases().length + 1;
 
         const jobPhase: JobPhase = {
             phase: resolvedPhase,
             specialInstruction: '',
-            order: newOrder
+            order: this.editablePhases().length + 1
         };
 
-        this.editablePhases.update(phases => [...phases, jobPhase]);
+        this.editablePhases.set([...this.editablePhases(), jobPhase]); // use .set with new array
+
+        console.log("WOOOOO:" + this.editablePhases().length);
+
         this.closeModal();
+        this.emitFilteredParams();
     }
 
     updateSpecialInstruction(jp: JobPhase, value: string) {
         jp.specialInstruction = value; // mutate in place
-        this.editablePhases.set([...this.editablePhases()]); // trigger signal
+        this.editablePhases.set([...this.editablePhases()]);
+        console.log("WOOOOOX:" + this.editablePhases().length);
+        // trigger signal
     }
 
     savePhases() {
@@ -152,7 +187,6 @@ export class AdminPhasesListComponent {
         });
 
         this.productService.savePhases(this.productId, phasesToSave)
-            .then(() => console.log('Saved!'))
             .catch(err => console.error('Failed to save phases', err));
     }
 
@@ -162,6 +196,9 @@ export class AdminPhasesListComponent {
             newPhases.forEach((p, i) => (p.order = i + 1));
             return newPhases;
         });
+        console.log("WOOOOOD:" + this.editablePhases().length);
+
+        this.emitFilteredParams();
     }
 
     moveUp(jp: JobPhase) {
@@ -173,6 +210,8 @@ export class AdminPhasesListComponent {
             }
             return [...phases];
         });
+        console.log("WOOOOOU:" + this.editablePhases().length);
+
     }
 
     moveDown(jp: JobPhase) {
@@ -184,5 +223,17 @@ export class AdminPhasesListComponent {
             }
             return [...phases];
         });
+        console.log("WOOOOODWN:" + this.editablePhases().length);
+
+    }
+
+    private emitFilteredParams() {
+        console.log("WOOOOOE1:" + this.editablePhases().length);
+        const filtered = this.editablePhases()
+            .flatMap(jp => jp.phase.params.filter(p => p.input === 1 || p.input === 2));
+
+        this.filteredPhaseParams.emit(filtered);
+        console.log("WOOOOOE2:" + this.editablePhases().length);
+
     }
 }

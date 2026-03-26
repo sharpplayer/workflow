@@ -25,7 +25,7 @@ export interface Phase {
   order: number
 }
 
-interface ProductsResponse {
+export interface ProductsResponse {
   products: Product[];
   validationErrors: string;
 }
@@ -38,51 +38,43 @@ interface PhasesResponse {
 export class ProductService {
   private http = inject(HttpClient);
 
-  products = signal<ProductsResponse>({
-    products: [],
-    validationErrors: ''
-  });
-  productPhases = signal<Phase[]>([]);
-  allPhases = signal<Phase[]>([]);
-
-  async loadProducts(): Promise<void> {
+  async loadProducts(): Promise<ProductsResponse> {
     const res = await firstValueFrom(
       this.http.get<ProductsResponse>(`${API_BASE_URL}/api/products`, { withCredentials: true })
     );
-    this.products.set(res);
+    return res;
   }
 
-  async loadProductPhases(productId: number): Promise<void> {
+  async loadProductPhases(productId: number): Promise<Phase[]> {
     const res = await firstValueFrom(
       this.http.get<PhasesResponse>(`${API_BASE_URL}/api/products/${productId}/phases`, { withCredentials: true })
     );
-    this.productPhases.set(res.phases);
+    return res.phases;
   }
 
-  async loadAllPhases(): Promise<void> {
+  async loadAllPhases(): Promise<Phase[]> {
     const res = await firstValueFrom(
       this.http.get<PhasesResponse>(`${API_BASE_URL}/api/phases`, { withCredentials: true })
     );
-    console.log("PHASES:" + res.phases);
-    this.allPhases.set(res.phases);
+    return  res.phases;
   }
 
-  async savePhases(productId: number, phases : Phase[]): Promise<void> {
-      await firstValueFrom(
-        this.http.put(`${API_BASE_URL}/api/products/${productId}/phases`, { phases }, { withCredentials: true })
-      );
-    }
+  async savePhases(productId: number, phases: Phase[]): Promise<void> {
+    await firstValueFrom(
+      this.http.put(`${API_BASE_URL}/api/products/${productId}/phases`, { phases }, { withCredentials: true })
+    );
+  }
 
-    async createPhase(phase: Phase): Promise<Phase> {
-      return await firstValueFrom(
-        this.http.post<Phase>(`${API_BASE_URL}/api/phases`, {description: phase.description, params : phase.params}, { withCredentials: true })
-      );
-    }
+  async createPhase(phase: Phase): Promise<Phase> {
+    return await firstValueFrom(
+      this.http.post<Phase>(`${API_BASE_URL}/api/phases`, { description: phase.description, params: phase.params }, { withCredentials: true })
+    );
+  }
 
-  async resolvePhase(productId : number, phase : number) : Promise<Phase> {
-      return await firstValueFrom(
-        this.http.get<Phase>(`${API_BASE_URL}/api/products/${productId}/phases/${phase}`, { withCredentials: true })
-      );
+  async resolvePhase(productId: number, phase: number): Promise<Phase> {
+    return await firstValueFrom(
+      this.http.get<Phase>(`${API_BASE_URL}/api/products/${productId}/phases/${phase}`, { withCredentials: true })
+    );
   }
 
   async createProduct(product: Partial<Product>): Promise<void> {

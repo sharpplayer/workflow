@@ -21,7 +21,6 @@ thead th {
 /* Body rows */
 tbody td {
   padding: 10px 15px;
-  border-bottom: 1px solid #ddd;
 }
 
 /* Alternating row colors */
@@ -75,7 +74,11 @@ button {
   background-color: #4a90e2;
   color: white;
   cursor: pointer;
-}
+  margin-top: 4px;
+  margin-right: 8px;
+  margin-bottom: 4px;
+} 
+ 
 
 /* admin-phases-list.component.css */
 
@@ -97,4 +100,12 @@ textarea.special-instruction {
 /* Optional: make the cell vertically aligned at top */
 td {
     vertical-align: top;
+}
+
+.add-phase-row {
+  text-align: right;
+}
+
+.phase-actions {
+  text-align: right;
 }

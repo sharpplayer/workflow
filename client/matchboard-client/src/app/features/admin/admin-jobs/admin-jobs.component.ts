@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Product, ProductService } from '../../../core/services/product.service';
+import { PhaseParam, Product, ProductService } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
 import { AdminPhasesListComponent } from '../admin-phases-list/admin-phases-list.component';
 
@@ -16,7 +16,7 @@ import { AdminPhasesListComponent } from '../admin-phases-list/admin-phases-list
               (selectionCleared)="selectedProduct.set(null)"
             />
             @if (selectedProduct() && hasResults) {
-              <admin-phases-list [productId]="selectedProduct()!.id"/>
+              <admin-phases-list [productId]="selectedProduct()!.id" (filteredPhaseParams)="showParamsToSpecify($event)"/>
             }
         </div>
     `,
@@ -30,5 +30,9 @@ export class AdminJobsComponent {
     async onProductSelected(product: Product): Promise<void> {
         this.selectedProduct.set(product);
         this.productService.loadProductPhases(product.id);
+    }
+
+    showParamsToSpecify(phaseParams : PhaseParam[]){
+        console.log(phaseParams);
     }
 }
