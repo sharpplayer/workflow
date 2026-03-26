@@ -4,6 +4,8 @@ import java.util.List;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
@@ -35,4 +37,6 @@ public interface DatabaseService {
     OptionalResult<Product> findProduct(int productId);
 
     Result<List<PhaseParam>> getPhaseParams(int phaseId);
+
+    Result<Phase> createPhase(CreatePhase phase);
 }

@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
+import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.Phases;
 import uk.co.matchboard.app.service.ProductService;
 
@@ -47,6 +49,12 @@ public class ProductController {
     @GetMapping("/phases")
     public ResponseEntity<?> getPhases() {
         return productService.getPhases()
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @PostMapping("/phases")
+    public ResponseEntity<?> createPhase(@RequestBody CreatePhase phase) {
+        return productService.createPhase(phase)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 

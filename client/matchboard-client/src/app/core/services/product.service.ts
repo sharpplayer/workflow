@@ -72,6 +72,12 @@ export class ProductService {
       );
     }
 
+    async createPhase(phase: Phase): Promise<Phase> {
+      return await firstValueFrom(
+        this.http.post<Phase>(`${API_BASE_URL}/api/phases`, {description: phase.description, params : phase.params}, { withCredentials: true })
+      );
+    }
+
   async resolvePhase(productId : number, phase : number) : Promise<Phase> {
       return await firstValueFrom(
         this.http.get<Phase>(`${API_BASE_URL}/api/products/${productId}/phases/${phase}`, { withCredentials: true })

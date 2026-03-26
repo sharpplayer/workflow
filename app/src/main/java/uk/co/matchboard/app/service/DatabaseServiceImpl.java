@@ -7,10 +7,12 @@ import static uk.co.matchboard.generated.Tables.PRODUCTS;
 import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
@@ -20,7 +22,10 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.PhaseParamData;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
@@ -45,6 +50,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .fetchOptional(DatabaseServiceImpl::getUser)));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @NonNull
     private static User getUser(UsersRecord rec) {
         return new User(rec.getId(),
@@ -57,6 +64,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.getEnabled());
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @NonNull
     private static Product getProduct(ProductsRecord rec) {
         return new Product(rec.getId(),
@@ -91,6 +100,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 record.get(PHASE_PARAM.ORDER));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<User> createUser(User user) {
         return TryUtils.tryCatch(() -> dsl.insertInto(USERS)
@@ -107,6 +118,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         user.roles(), user.passwordReset(), user.pinReset(), user.enabled()));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<User> updateUser(User user) {
         return TryUtils.tryCatch(() -> dsl.update(USERS)
@@ -122,6 +135,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .map(_ -> user);
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<User>> getUsers() {
         return TryUtils.tryCatch(() ->
@@ -130,6 +145,8 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<Product>> getProducts() {
         return TryUtils.tryCatch(() ->
@@ -138,6 +155,8 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Product> createProduct(Product product) {
         return TryUtils.tryCatch(() -> dsl.insertInto(PRODUCTS)
@@ -164,6 +183,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         product.enabled()));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<PhaseParam>> updatePhases(PhasesUpdate phasesUpdate) {
         return TryUtils.tryCatchResult(() -> {
@@ -189,6 +210,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         });
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Product> updateProduct(Product product) {
         return TryUtils.tryCatch(() -> dsl.update(PRODUCTS)
@@ -211,6 +234,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .map(_ -> product);
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<PhaseParam>> getPhases(int productId) {
         return TryUtils.tryCatch(() ->
@@ -226,6 +251,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .fetch(r -> getPhaseParamWithPhase(r, r.get(PRODUCT_PHASE.ORDER))));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<PhaseParam>> getPhases() {
         return TryUtils.tryCatch(() ->
@@ -238,6 +265,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .fetch(r -> getPhaseParamWithPhase(r, 0)));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public OptionalResult<Product> findProduct(int productId) {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
@@ -245,6 +274,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .fetchOptional(DatabaseServiceImpl::getProduct)));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<PhaseParam>> getPhaseParams(int phaseId) {
         return TryUtils.tryCatch(() ->
@@ -254,6 +285,50 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .orderBy(PHASE_PARAM.ORDER).fetch(DatabaseServiceImpl::getPhaseParam));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<Phase> createPhase(CreatePhase phase) {
+        return TryUtils.tryCatch(() ->
+                dsl.transactionResult(connection -> {
+                    DSLContext dsl = DSL.using(connection);
+
+                    Integer id = dsl.insertInto(PHASE)
+                            .set(PHASE.DESCRIPTION, phase.description())
+                            .set(PHASE.ENABLED, true)
+                            .returning(PHASE.ID)
+                            .fetchOne(PHASE.ID);
+                    if (id == null) {
+                        throw new DataAccessException("Failed to insert Phase, no ID returned") {
+                        };
+                    }
+
+                    List<PhaseParamData> params = new ArrayList<>();
+                    for (int i = 0; i < phase.params().size(); i++) {
+                        PhaseParamData phaseParam = phase.params().get(i);
+                        int index = i + 1; // 1-based index
+                        Integer paramId = dsl.insertInto(PHASE_PARAM)
+                                .set(PHASE_PARAM.PHASE_ID, id)
+                                .set(PHASE_PARAM.INPUT, phaseParam.input())
+                                .set(PHASE_PARAM.CONFIG, phaseParam.paramConfig())
+                                .set(PHASE_PARAM.NAME, phaseParam.paramName())
+                                .set(PHASE_PARAM.ORDER, index)
+                                .returning(PHASE_PARAM.ID)
+                                .fetchOne(PHASE_PARAM.ID);
+                        if (paramId == null) {
+                            throw new DataAccessException(
+                                    "Failed to insert phase parameter, no ID returned") {
+                            };
+                        }
+                        params.add(new PhaseParamData(paramId, phaseParam.paramName(),
+                                phaseParam.paramConfig(), phaseParam.input()));
+                    }
+                    return new Phase(id, phase.description(), params, 0);
+                }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public OptionalResult<Config> findConfig(String config) {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->

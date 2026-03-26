@@ -13,6 +13,7 @@ import uk.co.matchboard.app.exception.BadValueException;
 import uk.co.matchboard.app.exception.ProductNotFoundException;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
@@ -100,7 +101,7 @@ public class ProductServiceImpl implements ProductService {
     public Result<Phases> getPhases(int productId) {
         return databaseService.findProduct(productId).fold(
                 product -> databaseService.getPhases(productId)
-                        .map(list -> buildPhases(product, list)).map(Phases::new),
+                        .map(list -> buildPhases(product, list, false)).map(Phases::new),
                 Result::failure,
                 () -> Result.failure(new BadValueException(Integer.toString(productId), "ProductId",
                         Integer.toString(productId), "Not found")
@@ -112,7 +113,8 @@ public class ProductServiceImpl implements ProductService {
         var product = new Product(0, "prod", "sage", 1234, 567, 8, "pitch", "edge", "finish",
                 "profile", "material", "owner", "12",
                 List.of("machine1", "machine2", "machine3"), true);
-        return databaseService.getPhases().map(list -> buildPhases(product, list)).map(Phases::new);
+        return databaseService.getPhases().map(list -> buildPhases(product, list, true))
+                .map(Phases::new);
     }
 
     @Override
@@ -126,7 +128,7 @@ public class ProductServiceImpl implements ProductService {
     public Result<Phase> getResolvedPhase(int productId, int phaseId) {
         return databaseService.findProduct(productId)
                 .fold(p -> databaseService.getPhaseParams(phaseId)
-                                .map(phaseParams -> buildPhases(p, phaseParams))
+                                .map(phaseParams -> buildPhases(p, phaseParams, false))
                                 .flatMap(phases -> {
                                     if (phases.size() != 1) {
                                         return Result.failure(
@@ -139,7 +141,14 @@ public class ProductServiceImpl implements ProductService {
                         () -> Result.failure(new ProductNotFoundException(productId)));
     }
 
-    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams) {
+    @Override
+    public Result<Phase> createPhase(CreatePhase phase) {
+        // Some validation here!
+        return databaseService.createPhase(phase);
+    }
+
+    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams,
+            boolean example) {
         return phaseParams.stream()
                 .collect(Collectors.groupingBy(p -> new PhaseKey(p.id(), p.order())))
                 .values().stream()
@@ -147,7 +156,7 @@ public class ProductServiceImpl implements ProductService {
                     PhaseParam first = params.getFirst();
 
                     List<PhaseParamData> phaseDataList = getPhaseParamData(
-                            product, params);
+                            product, params, example);
 
                     return new Phase(first.id(), first.description(), phaseDataList, first.order());
                 })
@@ -156,26 +165,28 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @NonNull
-    private List<PhaseParamData> getPhaseParamData(Product product, List<PhaseParam> params) {
+    private List<PhaseParamData> getPhaseParamData(Product product, List<PhaseParam> params,
+            boolean example) {
         return params.stream()
                 .sorted(Comparator.comparingInt(PhaseParam::paramOrder))
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
-                        resolveConfig(product, pp.paramConfig(), pp.input()),
+                        resolveConfig(product, pp.paramConfig(), pp.input(), example),
                         pp.input()))
                 .collect(Collectors.toList());
     }
 
-    private String resolveConfig(Product product, String config, boolean input) {
+    private String resolveConfig(Product product, String config, boolean input, boolean example) {
+        final String value = example ? config + ";" : "";
         if (input) {
-            return "(Input)";
+            return value + "(Input)";
         } else if (config.startsWith("PRODUCT(")) {
             String prop = config.substring(8, config.length() - 1).toLowerCase();
             return TryUtils.tryCatch(() -> {
                 Method accessor = Product.class.getMethod(prop);
                 return accessor.invoke(product);
-            }).fold(Object::toString, _ -> "");
+            }).fold(o -> value + o.toString(), _ -> value);
         }
-        return config;
+        return value + config;
     }
 
     private Result<Integer> parseDimension(String value, String field, SageProduct product) {

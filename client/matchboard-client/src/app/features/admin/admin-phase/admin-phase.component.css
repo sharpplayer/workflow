@@ -17,7 +17,6 @@ thead th {
 
 tbody td {
   padding: 10px;
-  border-bottom: 1px solid #ddd;
   vertical-align: top;
 }
 
@@ -87,6 +86,10 @@ button:hover {
   background-color: #357ab8;
 }
 
+button:disabled {
+  background-color: #959698;
+}
+
 /* ===== FOOTER ===== */
 .add-phase-row {
   cursor: pointer;
@@ -106,10 +109,37 @@ button:hover {
   transform: translate(-50%, -50%);
   padding: 2rem;
   width: 90%;
-  max-width: 800px;
+  max-width: 1200px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   max-height: 90vh;
   overflow-y: auto;
+}
+
+.footer-actions button {
+  margin-left: 8px; /* horizontal spacing between buttons */
+}
+
+.footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%; /* force it to fill the entire cell */
+}
+
+table .col-value {
+  width: 300px;
+}
+
+table .col-input {
+  width: 50px;
+}
+
+table .col-example {
+  width: 100px;
+}
+
+table .col-description {
+  width: 300px;
 }
