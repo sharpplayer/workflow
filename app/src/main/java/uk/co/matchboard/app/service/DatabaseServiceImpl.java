@@ -93,8 +93,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 record.get(PHASE_PARAM.ORDER));
     }
 
-    private static PhaseParam getPhaseParam(Record record) {
-        return new PhaseParam(record.get(PHASE_PARAM.PHASE_ID), "resolution only",
+    private static PhaseParam getPhaseParam(String description, Record record) {
+        return new PhaseParam(record.get(PHASE_PARAM.PHASE_ID), description,
                 record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
                 record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), 0,
                 record.get(PHASE_PARAM.ORDER));
@@ -277,12 +277,29 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<List<PhaseParam>> getPhaseParams(int phaseId) {
-        return TryUtils.tryCatch(() ->
-                dsl.select(PHASE_PARAM.fields())
-                        .from(PHASE_PARAM)
-                        .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
-                        .orderBy(PHASE_PARAM.ORDER).fetch(DatabaseServiceImpl::getPhaseParam));
+    public Result<String> getPhaseName(int phaseId) {
+        return TryUtils.tryCatch(() -> {
+            String desc = dsl.select(PHASE.DESCRIPTION)
+                    .from(PHASE)
+                    .where(PHASE.ID.eq(phaseId)).fetchOne(PHASE.DESCRIPTION);
+            if (desc == null) {
+                throw new DataAccessException("Failed to insert Phase, no ID returned") {
+                };
+            }
+            return desc;
+        });
+    }
+
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName) {
+        return TryUtils.tryCatch(() -> dsl.select(PHASE_PARAM.fields())
+                .from(PHASE_PARAM)
+                .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
+                .orderBy(PHASE_PARAM.ORDER).fetch(r -> getPhaseParam(phaseName, r)));
+
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -321,7 +338,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             };
                         }
                         params.add(new PhaseParamData(paramId, phaseParam.paramName(),
-                                phaseParam.paramConfig(), phaseParam.input()));
+                                phaseParam.paramConfig(), phaseParam.input(), ""));
                     }
                     return new Phase(id, phase.description(), params, 0);
                 }));

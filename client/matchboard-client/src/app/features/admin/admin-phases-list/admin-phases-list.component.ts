@@ -1,140 +1,188 @@
-// admin-phases.component.ts
 import { Component, effect, inject, Input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Phase, ProductService } from '../../../core/services/product.service';
 import { AdminPhaseComponent } from '../admin-phase/admin-phase.component';
+
+interface JobPhase {
+    phase: Phase;
+    specialInstruction: string;
+    order: number; // top-level order
+}
 
 @Component({
     selector: 'admin-phases-list',
     standalone: true,
     imports: [CommonModule, AdminPhaseComponent],
     template: `
-        <div>
-            <table>
-                <thead>
+    <div>
+        <table>
+            <thead>
+                <tr>
+                    <th colspan="3">
+                        Phases
+                        <span class="phase-count">({{ phaseCount }})</span>
+                    </th>
+                    <th colspan="2" style="text-align:right">
+                        <button (click)="tableExpanded.update(e => !e)">
+                            {{ tableExpanded() ? '▲' : '▼' }}
+                        </button>
+                    </th>
+                </tr>
+                @if(tableExpanded()){
                     <tr>
                         <th>Phase</th>
                         <th>Description</th>
                         <th></th>
+                        <th>Special Instruction</th>
                         <th></th>
                     </tr>
-                </thead>
-                <tbody>
-                    @for (phase of editablePhases(); track phase.order)
-                    {
-                        <tr>
-                            <td>{{ phase.order }}</td>
-                            <td>{{ phase.description }}</td>
-                            <td>
-                                <table class="phase-param-table">
-                                    <thead>
-                                        <tr>
-                                            @for (phaseParam of phase.params; track $index) {
-                                                <th>{{ phaseParam.paramName }}</th>
-                                            }
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            @for (phaseParam of phase.params; track $index) {
-                                                <td>{{ phaseParam.paramConfig }}</td>
-                                            }
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-                             <td class="phase-actions">
-                                <button (click)="deletePhase(phase)">-</button>
-                                <button (click)="moveUp(phase)" [disabled]="phase.order === 1">↑</button>
-                                <button (click)="moveDown(phase)" [disabled]="phase.order === editablePhases().length">↓</button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-                <tfoot>
+                }
+            </thead>
+
+            @if(tableExpanded()){
+            <tbody>
+                @for (jp of editablePhases(); track jp.order)
+                {
                     <tr>
-                        <td colspan="3" class="add-phase-row" (click)="openModal()">
-                            + Add Phase
+                        <td>{{ jp.order }}</td>
+                        <td>{{ jp.phase.description }}</td>
+                        <td>
+                            <table class="phase-param-table">
+                                <thead>
+                                    <tr>
+                                        @for (phaseParam of jp.phase.params; track $index) {
+                                            <th>{{ phaseParam.paramName }}</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        @for (phaseParam of jp.phase.params; track $index) {
+                                            <td>{{ phaseParam.evaluation }}</td>
+                                        }
+                                    </tr>
+                                </tbody>
+                            </table>
                         </td>
-                        <td colspan="3" class="add-phase-row" (click)="savePhases()">
-                            + Save
+                        <td>
+                            <textarea
+                                class="special-instruction"
+                                rows="2"
+                                [value]="jp.specialInstruction"
+                                (input)="updateSpecialInstruction(jp, $any($event.target).value)"
+                            ></textarea>
+                        </td>
+                        <td class="phase-actions">
+                            <button (click)="deletePhase(jp)">-</button>
+                            <button (click)="moveUp(jp)" [disabled]="jp.order === 1">↑</button>
+                            <button (click)="moveDown(jp)" [disabled]="jp.order === editablePhases().length">↓</button>
                         </td>
                     </tr>
-                </tfoot>
-            </table>
-        </div>
+                }
+            </tbody>
 
-        @if (isModalOpen()) {
-            <admin-phase (close)="closeModal()" (phaseSelected)="onPhaseSelected($event)" />
-        }
+            <tfoot>
+                <tr>
+                    <td colspan="3" class="add-phase-row" (click)="openModal()">
+                        + Add Phase
+                    </td>
+                    <td colspan="3" class="add-phase-row" (click)="savePhases()">
+                        + Save
+                    </td>
+                </tr>
+            </tfoot>
+            }
+        </table>
+    </div>
+
+    @if (isModalOpen()) {
+        <admin-phase (close)="closeModal()" (phaseSelected)="onPhaseSelected($event)" />
+    }
     `,
-    styleUrl: './admin-phases-list.component.css'
+    styleUrls: ['./admin-phases-list.component.css']
 })
-export class AdminPhasesComponent {
+export class AdminPhasesListComponent {
     protected productService = inject(ProductService);
     protected isModalOpen = signal(false);
-    protected editablePhases = signal<Phase[]>([]);
+    protected editablePhases = signal<JobPhase[]>([]);
+    protected tableExpanded = signal(false);
     @Input({ required: true }) productId!: number;
 
     constructor() {
         effect(() => {
-            this.editablePhases.set([...this.productService.productPhases()]);
+            const phases = this.productService.productPhases().map((p, i) => ({
+                phase: p,
+                specialInstruction: '',
+                order: i + 1
+            }));
+            this.editablePhases.set(phases);
         });
+    }
+
+    get phaseCount() {
+        return this.editablePhases().length;
     }
 
     openModal() { this.isModalOpen.set(true); }
     closeModal() { this.isModalOpen.set(false); }
 
     async onPhaseSelected(phase: Phase) {
-        let p = await this.productService.resolvePhase(this.productId, phase.id);
-        p.order = this.editablePhases().length + 1;
-        p.description = phase.description + "(" + p.order + ")";
-        console.log("ON PHASE:" + p.description + ":" + p.order + ":" + this.editablePhases().length);
-        this.editablePhases.update(phases => [...phases, p]);
+        const resolvedPhase = await this.productService.resolvePhase(this.productId, phase.id);
+        const newOrder = this.editablePhases().length + 1;
+
+        const jobPhase: JobPhase = {
+            phase: resolvedPhase,
+            specialInstruction: '',
+            order: newOrder
+        };
+
+        this.editablePhases.update(phases => [...phases, jobPhase]);
         this.closeModal();
     }
 
-    async savePhases() {
-        const phases = this.editablePhases();
-        try {
-            const phases = this.editablePhases();
-
-            await this.productService.savePhases(this.productId, phases);
-
-            console.log('Saved!');
-        } catch (error) {
-            console.error('Failed to save phases', error);
-        }
+    updateSpecialInstruction(jp: JobPhase, value: string) {
+        jp.specialInstruction = value; // mutate in place
+        this.editablePhases.set([...this.editablePhases()]); // trigger signal
     }
 
-    deletePhase(phaseToDelete: Phase) {
-        this.editablePhases.update(phases =>
-            phases.filter(phase => phase !== phaseToDelete)
-                .map((phase, index) => ({ ...phase, order: index + 1 })) // reassign order
-        );
+    savePhases() {
+        const phasesToSave = this.editablePhases().map(jp => {
+            jp.phase.order = jp.order; // propagate top-level order to Phase
+            return jp.phase;
+        });
+
+        this.productService.savePhases(this.productId, phasesToSave)
+            .then(() => console.log('Saved!'))
+            .catch(err => console.error('Failed to save phases', err));
     }
 
-    moveUp(phaseToMove: Phase) {
+    deletePhase(jp: JobPhase) {
         this.editablePhases.update(phases => {
-            const index = phases.indexOf(phaseToMove);
-            if (index > 0) {
-                const newPhases = [...phases];
-                [newPhases[index - 1], newPhases[index]] = [newPhases[index], newPhases[index - 1]];
-                return newPhases.map((phase, idx) => ({ ...phase, order: idx + 1 }));
-            }
-            return phases;
+            const newPhases = phases.filter(p => p !== jp);
+            newPhases.forEach((p, i) => (p.order = i + 1));
+            return newPhases;
         });
     }
 
-    moveDown(phaseToMove: Phase) {
+    moveUp(jp: JobPhase) {
         this.editablePhases.update(phases => {
-            const index = phases.indexOf(phaseToMove);
-            if (index < phases.length - 1) {
-                const newPhases = [...phases];
-                [newPhases[index], newPhases[index + 1]] = [newPhases[index + 1], newPhases[index]];
-                return newPhases.map((phase, idx) => ({ ...phase, order: idx + 1 }));
+            const index = phases.indexOf(jp);
+            if (index > 0) {
+                [phases[index - 1], phases[index]] = [phases[index], phases[index - 1]];
+                phases.forEach((p, i) => (p.order = i + 1));
             }
-            return phases;
+            return [...phases];
+        });
+    }
+
+    moveDown(jp: JobPhase) {
+        this.editablePhases.update(phases => {
+            const index = phases.indexOf(jp);
+            if (index < phases.length - 1) {
+                [phases[index], phases[index + 1]] = [phases[index + 1], phases[index]];
+                phases.forEach((p, i) => (p.order = i + 1));
+            }
+            return [...phases];
         });
     }
 }

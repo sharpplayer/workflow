@@ -2,12 +2,12 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Product, ProductService } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
-import { AdminPhasesComponent } from '../admin-phases-list/admin-phases-list.component';
+import { AdminPhasesListComponent } from '../admin-phases-list/admin-phases-list.component';
 
 @Component({
     selector: 'admin-jobs-page',
     standalone: true,
-    imports: [CommonModule, AdminProductListComponent, AdminPhasesComponent],
+    imports: [CommonModule, AdminProductListComponent, AdminPhasesListComponent],
     template: `
         <div class="jobs-container">
             <admin-products-list

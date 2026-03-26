@@ -34,9 +34,11 @@ public interface DatabaseService {
 
     Result<List<PhaseParam>> getPhases();
 
+    Result<String> getPhaseName(int phaseId);
+
     OptionalResult<Product> findProduct(int productId);
 
-    Result<List<PhaseParam>> getPhaseParams(int phaseId);
+    Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName);
 
     Result<Phase> createPhase(CreatePhase phase);
 }

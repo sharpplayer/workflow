@@ -3,6 +3,7 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Phase, ProductService } from '../../../core/services/product.service';
+import { exhaustMap } from 'rxjs';
 
 type EditingFlag = 'create' | 'edit' | 'none';
 
@@ -16,9 +17,10 @@ interface EditablePhase {
 
 interface EditableParam {
   id: number;
-  input: boolean;
+  input: number;
   paramName: string;
   paramConfig: string;
+  paramEvaluation: string;
 }
 
 @Component({
@@ -83,20 +85,24 @@ interface EditableParam {
                       <td>
                         <input [(ngModel)]="param.paramName" />
                       </td>
-                    <td>
-                        <input type="checkbox" placeholder="Input" [(ngModel)]="param.input" />
-                    </td>
                       <td>
-                        <input [(ngModel)]="param.paramConfig" />
+                      <select [(ngModel)]="param.input">
+                          @for (opt of inputOptions; track opt.value) {
+                            <option [value]="opt.value">{{ opt.label }}</option>
+                          }
+                        </select> 
+                      </td>
+                      <td>
+                       <input [(ngModel)]="param.paramConfig" />
                       </td>
                       <td>
                         <button (click)="removeParam(phase, param)">✕</button>
                       </td>
                     } @else {
                       <td>{{ param.paramName }}</td>
-                      <td>{{ param.input ? "Y" : "N" }}</td>
-                      <td>{{ param.paramConfig.split(';')[0] }}</td>
-                      <td>{{ (param.paramConfig.split(';')[1] || '') }}</td>
+                      <td>{{ getInputLabel(param.input) }}</td>
+                      <td>{{ param.paramConfig }}</td>
+                      <td>{{ param.paramEvaluation }}</td>
                     }
                   </tr>
                 }
@@ -107,7 +113,11 @@ interface EditableParam {
                       <input placeholder="Key" [(ngModel)]="newParamName" />
                     </td>
                     <td>
-                      <input type="checkbox" placeholder="Input" [(ngModel)]="newParamInput" />
+                      <select [(ngModel)]="newParamInput">
+                          @for (opt of inputOptions; track opt.value) {
+                            <option [value]="opt.value">{{ opt.label }}</option>
+                          }
+                        </select> 
                     </td>
                     <td>
                       <input placeholder="Value" [(ngModel)]="newParamValue" />
@@ -138,21 +148,32 @@ interface EditableParam {
     </tbody>
 
     <tfoot>
-        <tr>
-            <td colspan="3">
-            <div class="footer-actions">
+      <tr>
+        <td colspan="3">
+          <table class="footer-table" width="100%">
+            <tr>
+              <td class="footer-text">
+                Input key: JC=Job Create; JS=Job Start; PR=Phase Run
+              </td>
+              <td class="footer-actions" style="text-align: right;">
                 <button [disabled]="anyPhaseEditing()" (click)="addPhase()">Create Phase</button>
                 <button [disabled]="anyPhaseEditing()" (click)="onCancel()">Close</button>
-            </div>
-            </td>
-        </tr>
-    </tfoot>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      </tfoot>
   </table>
 </div>
   `,
   styleUrls: ['./admin-phase.component.css']
 })
 export class AdminPhaseComponent {
+
+  readonly INPUT_JOB_CREATE = 1;
+  readonly INPUT_JOB_START = 2;
+  readonly INPUT_PHASE_RUN = 3;
 
   protected productService = inject(ProductService);
 
@@ -166,10 +187,15 @@ export class AdminPhaseComponent {
   anyPhaseEditing = computed(() => this.editablePhases().some(p => p.editing !== 'none'));
 
   newParamName = '';
-  newParamInput = false;
+  newParamInput = this.INPUT_JOB_CREATE;
   newParamValue = '';
 
   private snapshot: EditablePhase[] = [];
+  readonly inputOptions = [
+    { label: 'JC', value: this.INPUT_JOB_CREATE },
+    { label: 'JS', value: this.INPUT_JOB_START },
+    { label: 'PR', value: this.INPUT_PHASE_RUN }
+  ];
 
   constructor() {
     this.loadAllPhases();
@@ -199,7 +225,8 @@ export class AdminPhaseComponent {
         phaseParamId: pp.id || i + 1,
         input: pp.input,
         paramName: pp.paramName,
-        paramConfig: pp.paramConfig
+        paramConfig: pp.paramConfig,
+        evaluation: ''
       }))
     };
   }
@@ -209,12 +236,15 @@ export class AdminPhaseComponent {
       id: p.id,
       description: p.description,
       order: p.order,
-      params: p.params.map(pp => ({
-        id: pp.phaseParamId,
-        paramName: pp.paramName,
-        paramConfig: pp.paramConfig,
-        input: pp.input
-      })),
+      params: p.params.map(pp => {
+        return {
+          id: pp.phaseParamId,
+          paramName: pp.paramName,
+          paramConfig: pp.paramConfig,
+          paramEvaluation: pp.evaluation,
+          input: pp.input
+        }
+      }),
       editing: 'none'
     };
   }
@@ -268,7 +298,7 @@ export class AdminPhaseComponent {
 
     // Reset new param inputs
     this.newParamName = '';
-    this.newParamInput = false;
+    this.newParamInput = this.INPUT_JOB_CREATE;
     this.newParamValue = '';
   }
 
@@ -303,11 +333,12 @@ export class AdminPhaseComponent {
       id: Number(String(Date.now()).slice(-6)),
       paramName: this.newParamName,
       input: this.newParamInput,
-      paramConfig: this.newParamValue
+      paramConfig: this.newParamValue,
+      paramEvaluation: ''
     });
 
     this.newParamName = '';
-    this.newParamInput = false;
+    this.newParamInput = this.INPUT_JOB_CREATE;
     this.newParamValue = '';
   }
 
@@ -320,5 +351,11 @@ export class AdminPhaseComponent {
   // =========================
   onCancel() {
     this.close.emit();
+  }
+
+  getInputLabel(value: number): string {
+    console.log("LABEL:" + value);
+    const found = this.inputOptions.find(opt => opt.value === value);
+    return found?.label || '';
   }
 }

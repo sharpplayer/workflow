@@ -27,6 +27,14 @@ import uk.co.matchboard.app.model.sage.SageProduct;
 @Service
 public class ProductServiceImpl implements ProductService {
 
+    public static final Product EXAMPLE_PRODUCT = new Product(0, "prod", "sage", 1234, 567, 8,
+            "pitch", "edge", "finish",
+            "profile", "material", "owner", "12",
+            List.of("machine1", "machine2", "machine3"), true);
+    public static final int INPUT_JOB_CREATE = 1;
+    public static final int INPUT_JOB_START = 2;
+    public static final int INPUT_PHASE_RUN = 3;
+
     private record PhaseKey(int id, int order) {
 
     }
@@ -101,7 +109,7 @@ public class ProductServiceImpl implements ProductService {
     public Result<Phases> getPhases(int productId) {
         return databaseService.findProduct(productId).fold(
                 product -> databaseService.getPhases(productId)
-                        .map(list -> buildPhases(product, list, false)).map(Phases::new),
+                        .map(list -> buildPhases(product, list)).map(Phases::new),
                 Result::failure,
                 () -> Result.failure(new BadValueException(Integer.toString(productId), "ProductId",
                         Integer.toString(productId), "Not found")
@@ -110,10 +118,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Result<Phases> getPhases() {
-        var product = new Product(0, "prod", "sage", 1234, 567, 8, "pitch", "edge", "finish",
-                "profile", "material", "owner", "12",
-                List.of("machine1", "machine2", "machine3"), true);
-        return databaseService.getPhases().map(list -> buildPhases(product, list, true))
+        return databaseService.getPhases().map(list -> buildPhases(EXAMPLE_PRODUCT, list))
                 .map(Phases::new);
     }
 
@@ -127,8 +132,9 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Result<Phase> getResolvedPhase(int productId, int phaseId) {
         return databaseService.findProduct(productId)
-                .fold(p -> databaseService.getPhaseParams(phaseId)
-                                .map(phaseParams -> buildPhases(p, phaseParams, false))
+                .fold(p -> databaseService.getPhaseName(phaseId)
+                                .flatMap(name -> databaseService.getPhaseParams(phaseId, name))
+                                .map(phaseParams -> buildPhases(p, phaseParams))
                                 .flatMap(phases -> {
                                     if (phases.size() != 1) {
                                         return Result.failure(
@@ -144,11 +150,14 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Result<Phase> createPhase(CreatePhase phase) {
         // Some validation here!
-        return databaseService.createPhase(phase);
+        return databaseService.createPhase(phase).map(p -> buildPhases(EXAMPLE_PRODUCT,
+                p.params().stream()
+                        .map(pm -> new PhaseParam(EXAMPLE_PRODUCT.id(), EXAMPLE_PRODUCT.name(),
+                                pm.phaseParamId(), pm.paramName(),
+                                pm.paramConfig(), pm.input(), 0, 0)).toList()).getFirst());
     }
 
-    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams,
-            boolean example) {
+    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams) {
         return phaseParams.stream()
                 .collect(Collectors.groupingBy(p -> new PhaseKey(p.id(), p.order())))
                 .values().stream()
@@ -156,7 +165,7 @@ public class ProductServiceImpl implements ProductService {
                     PhaseParam first = params.getFirst();
 
                     List<PhaseParamData> phaseDataList = getPhaseParamData(
-                            product, params, example);
+                            product, params);
 
                     return new Phase(first.id(), first.description(), phaseDataList, first.order());
                 })
@@ -165,28 +174,30 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @NonNull
-    private List<PhaseParamData> getPhaseParamData(Product product, List<PhaseParam> params,
-            boolean example) {
+    private List<PhaseParamData> getPhaseParamData(Product product, List<PhaseParam> params) {
         return params.stream()
                 .sorted(Comparator.comparingInt(PhaseParam::paramOrder))
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
-                        resolveConfig(product, pp.paramConfig(), pp.input(), example),
-                        pp.input()))
+                        pp.paramConfig(),
+                        pp.input(), resolveConfig(product, pp.paramConfig(), pp.input())))
                 .collect(Collectors.toList());
     }
 
-    private String resolveConfig(Product product, String config, boolean input, boolean example) {
-        final String value = example ? config + ";" : "";
-        if (input) {
-            return value + "(Input)";
-        } else if (config.startsWith("PRODUCT(")) {
-            String prop = config.substring(8, config.length() - 1).toLowerCase();
-            return TryUtils.tryCatch(() -> {
-                Method accessor = Product.class.getMethod(prop);
-                return accessor.invoke(product);
-            }).fold(o -> value + o.toString(), _ -> value);
+    private String resolveConfig(Product product, String config, int input) {
+        if (input == INPUT_PHASE_RUN) {
+            return "(Input At Phase)";
+        } else if (input == INPUT_JOB_START) {
+            return "(Input At Job Start)";
+        } else if (input == INPUT_JOB_CREATE) {
+            if (config.startsWith("PRODUCT(")) {
+                String prop = config.substring(8, config.length() - 1);
+                return TryUtils.tryCatch(() -> {
+                    Method accessor = Product.class.getMethod(prop);
+                    return accessor.invoke(product);
+                }).fold(Object::toString, _ -> "");
+            }
         }
-        return value + config;
+        return config;
     }
 
     private Result<Integer> parseDimension(String value, String field, SageProduct product) {

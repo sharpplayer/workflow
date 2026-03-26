@@ -67,3 +67,34 @@ tbody tr:nth-child(odd) {
 .phase-param-table tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
+
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+}
+
+/* admin-phases-list.component.css */
+
+/* Special Instruction textarea styling */
+textarea.special-instruction {
+    width: 100%;          /* fills the cell width */
+    min-width: 150px;     /* optional: set a sensible minimum */
+    max-width: 400px;     /* optional: cap the width if table is very wide */
+    resize: vertical;     /* allow only vertical resizing */
+    padding: 4px 6px;     /* add some padding for readability */
+    font-size: 14px;      /* readable font size */
+    line-height: 1.4;     /* slightly more spaced lines */
+    box-sizing: border-box; /* includes padding in width calculation */
+    border: 1px solid #ccc; /* subtle border */
+    border-radius: 4px;      /* slightly rounded corners */
+    font-family: inherit;    /* match table font */
+}
+
+/* Optional: make the cell vertically aligned at top */
+td {
+    vertical-align: top;
+}

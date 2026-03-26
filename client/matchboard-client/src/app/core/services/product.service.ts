@@ -14,7 +14,8 @@ export interface PhaseParam {
   phaseParamId: number,
   paramName: string,
   paramConfig: string,
-  input: boolean
+  input: number,
+  evaluation: string
 }
 
 export interface Phase {

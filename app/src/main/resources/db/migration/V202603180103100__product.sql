@@ -45,6 +45,6 @@ CREATE TABLE phase_param
     phase_id INTEGER     NOT NULL,
     name     VARCHAR(50) NOT NULL,
     config   VARCHAR(20) NOT NULL,
-    input    BOOLEAN     NOT NULL,
+    input    INTEGER     NOT NULL,
     "order"  INTEGER     NOT NULL
 );
