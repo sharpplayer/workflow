@@ -1,6 +1,8 @@
 package uk.co.matchboard.app.service;
 
+import static uk.co.matchboard.generated.Tables.CARRIER;
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
+import static uk.co.matchboard.generated.Tables.CUSTOMER;
 import static uk.co.matchboard.generated.Tables.PHASE;
 import static uk.co.matchboard.generated.Tables.PHASE_PARAM;
 import static uk.co.matchboard.generated.Tables.PRODUCTS;
@@ -21,7 +23,10 @@ import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.CreateCustomer;
+import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -29,6 +34,8 @@ import uk.co.matchboard.app.model.product.PhaseParamData;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.generated.tables.records.CarrierRecord;
+import uk.co.matchboard.generated.tables.records.CustomerRecord;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
 
@@ -256,7 +263,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Override
     public Result<List<PhaseParam>> getPhases() {
         return TryUtils.tryCatch(() ->
-                dsl.select( PHASE.fields())
+                dsl.select(PHASE.fields())
                         .select(PHASE_PARAM.fields())
                         .from(PHASE)
                         .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
@@ -290,13 +297,11 @@ public class DatabaseServiceImpl implements DatabaseService {
         });
     }
 
-
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName) {
-        return TryUtils.tryCatch(() -> dsl.select(PHASE_PARAM.fields())
-                .from(PHASE_PARAM)
+        return TryUtils.tryCatch(() -> dsl.selectFrom(PHASE_PARAM)
                 .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
                 .orderBy(PHASE_PARAM.ORDER).fetch(r -> getPhaseParam(phaseName, r)));
 
@@ -342,6 +347,62 @@ public class DatabaseServiceImpl implements DatabaseService {
                     }
                     return new Phase(id, phase.description(), params, 0);
                 }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<Customer>> getCustomers() {
+        return TryUtils.tryCatch(() ->
+                dsl.selectFrom(CUSTOMER)
+                        .orderBy(CUSTOMER.NAME.asc())
+                        .fetch(DatabaseServiceImpl::getCustomer));
+
+    }
+
+    private static Customer getCustomer(CustomerRecord customerRecord) {
+        return new Customer(customerRecord.getId(),
+                customerRecord.getCode(),
+                customerRecord.getName(),
+                customerRecord.getZone(),
+                customerRecord.getContact(),
+                customerRecord.getContactNumber(),
+                customerRecord.getEnabled());
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<Carrier>> getCarriers() {
+        return TryUtils.tryCatch(() ->
+                dsl.selectFrom(CARRIER)
+                        .orderBy(CARRIER.NAME.asc())
+                        .fetch(DatabaseServiceImpl::getCarrier));
+    }
+
+    @Override
+    public Result<Customer> createCustomer(CreateCustomer customer) {
+        return TryUtils.tryCatch(() -> dsl.insertInto(CUSTOMER)
+                        .set(CUSTOMER.CODE, customer.code())
+                        .set(CUSTOMER.NAME, customer.name())
+                        .set(CUSTOMER.ZONE, customer.zone())
+                        .set(CUSTOMER.CONTACT, customer.contact())
+                        .set(CUSTOMER.CONTACT_NUMBER, customer.contactNumber())
+                        .set(CUSTOMER.ENABLED, true)
+                        .returning(CUSTOMER.ID)
+                        .fetchOne(CUSTOMER.ID))
+                .map(id -> new Customer(id, customer.code(), customer.name(), customer.zone(),
+                        customer.contact(),
+                        customer.contactNumber(), true));
+
+    }
+
+    private static Carrier getCarrier(CarrierRecord carrierRecord) {
+        return new Carrier(carrierRecord.getId(),
+                carrierRecord.getCode(),
+                carrierRecord.getName(),
+                carrierRecord.getEnabled());
+
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,

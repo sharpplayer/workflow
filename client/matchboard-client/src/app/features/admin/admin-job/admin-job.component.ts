@@ -4,6 +4,7 @@ import { PhaseParam, Product, ProductService } from '../../../core/services/prod
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
 import { AdminPhasesListComponent, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
 import { AdminPhaseParamComponent, PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
+import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
 
 export interface ProductSelected {
     product: Product,
@@ -14,7 +15,7 @@ const PHASE_PARAM_QUANTITY: PhaseParam = {
     paramName: 'Quantity',
     paramConfig: '',
     input: 1,
-    evaluation: '()',
+    evaluation: '(Input At Job Create)',
     type: 'int'
 };
 
@@ -22,8 +23,8 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
     phaseParamId: -2,
     paramName: 'Payment Received',
     paramConfig: '',
-    input: 1,
-    evaluation: '()',
+    input: 2,
+    evaluation: '(Input At Job Start)',
     type: 'boolean'
 };
 
@@ -32,7 +33,7 @@ const PHASE_PARAM_CALLOFF: PhaseParam = {
     paramName: 'Call Off',
     paramConfig: '',
     input: 1,
-    evaluation: '()',
+    evaluation: '(Input At Job Create)',
     type: 'boolean'
 };
 
@@ -41,9 +42,28 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
     paramName: 'From Finished',
     paramConfig: '',
     input: 1,
-    evaluation: '()',
+    evaluation: '(Input At Job Create)',
     type: 'boolean'
 };
+
+const PHASE_PARAM_DUE_DATE: PhaseParam = {
+    phaseParamId: -5,
+    paramName: 'Due',
+    paramConfig: '',
+    input: 1,
+    evaluation: '(Input At Job Create)',
+    type: 'date'
+};
+
+const PHASE_PARAM_CUSTOMER: PhaseParam = {
+    phaseParamId: -6,
+    paramName: 'Customer',
+    paramConfig: 'customer',
+    input: 1,
+    evaluation: '(Input At Job Create)',
+    type: 'string[]'
+};
+
 
 @Component({
     selector: 'admin-job-page',
@@ -72,7 +92,13 @@ export class AdminJobComponent {
     phaseParamsToShow = signal<PhaseParam[]>([]);
     productSelected = output<ProductSelected>();
     hasResults = true;
-    paymentReceived = input<boolean>(false);
+    crossJobParams = input<CrossJobParameters>({
+        paymentReceived: false,
+        dueDate: '',
+        customer: ''
+    });
+    crossJobParamsChanged = output<CrossJobParameters>();
+
     @ViewChild('productsList') productsList!: AdminProductListComponent;
 
     // reactive signal to track if "Add Product" can be clicked
@@ -85,15 +111,15 @@ export class AdminJobComponent {
     lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
 
     async onProductSelected(product: Product): Promise<void> {
-        console.log("XXX:" + this.paymentReceived());
         this.selectedProduct.set(product);
         this.productService.loadProductPhases(product.id);
     }
 
     phaseSelected(phases: PhasesSelected) {
-        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.paymentReceived() ? "true" : "false" };
-        console.log("PPP:" + paymentParam.value);
-        let params = [PHASE_PARAM_QUANTITY, paymentParam, ...phases.params, PHASE_PARAM_FINISHED, PHASE_PARAM_CALLOFF]
+        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
+        const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
+        const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
+        let params = [dateParam, paymentParam, customerParam, PHASE_PARAM_QUANTITY, ...phases.params, PHASE_PARAM_FINISHED, PHASE_PARAM_CALLOFF]
         this.phaseParamsToShow.set(params);
     }
 
@@ -104,13 +130,24 @@ export class AdminJobComponent {
             return;
         }
 
-        const paymentParam = params.find(p => p.phaseParamId === -2);
-        if (paymentParam) {
-            const newValue = !!Number(paymentParam.value);
-            if (newValue !== this.paymentReceived()) {
-                //this.paymentReceived.set(newValue);
-            }
+        const current = this.crossJobParams();
+
+        const paymentParam = params.find(p => p.phaseParamId === -2)?.value === 'true';
+        const dueDateParam = params.find(p => p.phaseParamId === -5)?.value || '';
+        const customerParam = params.find(p => p.phaseParamId === -6)?.value || '';
+        const newValue = {
+            paymentReceived: paymentParam,
+            dueDate: dueDateParam,
+            customer: customerParam
         }
+
+        const hasChanged = (newValue.paymentReceived !== current.paymentReceived) ||
+            (newValue.dueDate !== current.dueDate);
+
+        if (hasChanged) {
+            this.crossJobParamsChanged.emit(newValue);
+        }
+
     }
 
     addProduct() {
@@ -138,8 +175,22 @@ export class AdminJobComponent {
 
     private validateParams(params: PhaseParamSelected[]): boolean {
         return !params.some(p =>
-            p.phaseParamId === -1 && (!/^\d+$/.test(p.value) || Number(p.value) <= 0)
+            this.invalidQuantity(p) || this.invalidDate(p)
         );
+    }
+
+    private invalidQuantity(p: PhaseParamSelected): unknown {
+        return p.phaseParamId === -1 && (!/^\d+$/.test(p.value) || Number(p.value) <= 0);
+    }
+
+    private invalidDate(p: PhaseParamSelected): boolean {
+        if (p.phaseParamId !== -5) return false;
+
+        const selected = new Date(p.value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return isNaN(selected.getTime()) || selected < today;
     }
 
     reset(): void {

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.sage.SageProduct;
 
 @Service
@@ -38,8 +39,8 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                         .readValues(inputStream);
 
                 return configService.getConfig("SAGECSV")
-                        .map(config -> ((List<String>) config.value()).stream()
-                                .map(s -> s.split("=", 2))        // split on first '=' only
+                        .map(config -> ((List<KeyValuePair>) config.value()).stream()
+                                .map(s -> s.value().split("=", 2))        // split on first '=' only
                                 .filter(arr -> arr.length == 2)
                                 .collect(Collectors.toMap(
                                         arr -> arr[0].trim(),

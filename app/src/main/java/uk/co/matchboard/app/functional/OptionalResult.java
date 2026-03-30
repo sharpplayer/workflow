@@ -19,7 +19,7 @@ public class OptionalResult<T> {
         for (OptionalResult<T> r : results) {
             if (r.isFaulted()) {
                 errors.add(r.exception);
-            } else if(r.value != null){
+            } else if (r.value != null) {
                 collected.add(r.value);
             }
         }

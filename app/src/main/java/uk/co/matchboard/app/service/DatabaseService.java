@@ -3,7 +3,11 @@ package uk.co.matchboard.app.service;
 import java.util.List;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.ConfigItem;
+import uk.co.matchboard.app.model.config.CreateCustomer;
+import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -41,4 +45,10 @@ public interface DatabaseService {
     Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName);
 
     Result<Phase> createPhase(CreatePhase phase);
+
+    Result<List<Customer>> getCustomers();
+
+    Result<List<Carrier>> getCarriers();
+
+    Result<Customer> createCustomer(CreateCustomer customer);
 }

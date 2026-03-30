@@ -44,7 +44,8 @@ export class AdminUsersComponent {
     async loadRoles() {
        try {
             const res = await this.configService.getList("roles");
-            this.roles.set(res.value);
+            const roleValues = res.value.map((r: any) => r.value);
+            this.roles.set(roleValues);
         } catch (err) {
             console.error(err);
         } finally {

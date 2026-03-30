@@ -10,6 +10,10 @@ button {
   margin-top: 8px;
 }
 
+button:hover {
+  background-color: #357ab8;
+}
+
 button:disabled {
   background-color: #959698;
 }

@@ -7,6 +7,12 @@ interface ProductSelectedWithMap extends ProductSelected {
     paramMap: Map<number, string>;
 }
 
+export interface CrossJobParameters  {
+    paymentReceived : boolean,
+    dueDate : string,
+    customer: string
+}
+
 @Component({
     selector: 'admin-jobs',
     standalone: true,
@@ -45,8 +51,9 @@ interface ProductSelectedWithMap extends ProductSelected {
         </table>
     </div>
       <admin-job-page
-            [paymentReceived]="paymentReceived()"
+            [crossJobParams]="crossJobParams()"
             (productSelected)="onProductAdded($event)"
+            (crossJobParamsChanged)="onCrossJobParams($event)"
         />
 
   `,
@@ -54,7 +61,11 @@ interface ProductSelectedWithMap extends ProductSelected {
 })
 export class AdminJobsComponent {
 
-    paymentReceived = signal(true)
+    crossJobParams = signal<CrossJobParameters>({
+        paymentReceived : false,
+        dueDate: '',
+        customer: '',
+    })
 
     // Store all added jobs
     jobs: ProductSelectedWithMap[] = [];
@@ -71,16 +82,28 @@ export class AdminJobsComponent {
             job.params.map(p => [p.phaseParamId, p.value])
         );
 
-        const param = job.params.find(i => i.phaseParamId === -2); 
-        this.paymentReceived.set(param?.value === 'true');
+        // const paymentReceived = job.params.find(i => i.phaseParamId === -2)!; 
+        // const date = job.params.find(i => i.phaseParamId === -5)!; 
+        // const customer = job.params.find(i => i.phaseParamId === -6)!; 
 
-        // Push to the jobs array with the new paramMap
+        // let newValue = {
+        //     paymentReceived : paymentReceived.value === 'true',
+        //     dueDate : date.value,
+        //     customer: customer.value
+        // };
+        
+        // this.crossJobParams.set(newValue);
+
         this.jobs.push({
             ...job,
             paramMap
         });
 
-        // Reset the child builder so a new product can be selected
         this.jobBuilder.reset();
+    }
+
+    onCrossJobParams(crossJobParamsChange : CrossJobParameters){
+        console.log("JOB PARAM CHANGE :" + JSON.stringify(crossJobParamsChange));
+        this.crossJobParams.set(crossJobParamsChange);
     }
 }

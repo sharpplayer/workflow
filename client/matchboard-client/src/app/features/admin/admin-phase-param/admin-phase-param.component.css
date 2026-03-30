@@ -30,3 +30,65 @@ tbody tr:nth-child(even) {
 tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
+
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: visible;
+}
+
+.param-table th,
+.param-table td {
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  text-align: left;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.param-table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+.param-table tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.param-select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.param-select-wrapper ng-select {
+  flex: 1;
+}
+
+.no-data {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+}
+
+/* Ensure date picker form field doesn't add excess padding */
+mat-form-field {
+  width: 100%;
+}
+
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
+}

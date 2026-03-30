@@ -74,11 +74,15 @@ button {
   background-color: #4a90e2;
   color: white;
   cursor: pointer;
-  margin-top: 4px;
-  margin-right: 8px;
-  margin-bottom: 4px;
-} 
- 
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
+}
 
 /* admin-phases-list.component.css */
 
