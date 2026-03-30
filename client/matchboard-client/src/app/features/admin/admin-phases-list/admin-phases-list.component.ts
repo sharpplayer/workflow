@@ -9,6 +9,11 @@ interface JobPhase {
     order: number; // top-level order
 }
 
+export interface PhasesSelected {
+    phases: JobPhase[];
+    params: PhaseParam[];
+}
+
 @Component({
     selector: 'admin-phases-list',
     standalone: true,
@@ -99,20 +104,19 @@ interface JobPhase {
     `,
     styleUrls: ['./admin-phases-list.component.css']
 })
-export class AdminPhasesListComponent  implements OnInit {
+export class AdminPhasesListComponent implements OnInit {
     protected productService = inject(ProductService);
     protected isModalOpen = signal(false);
     protected editablePhases = signal<JobPhase[]>([]);
     protected tableExpanded = signal(false);
     @Input({ required: true }) productId!: number;
-    filteredPhaseParams = output<PhaseParam[]>();
+    phasesSelected = output<PhasesSelected>();
 
     ngOnInit(): void {
         this.loadInitialPhases();
     }
 
     private async loadInitialPhases() {
-        console.log(this.productId);
         const phasesFromService = await this.productService.loadProductPhases(this.productId); // await async call
 
         const phases: JobPhase[] = phasesFromService.map((p, i) => ({
@@ -124,28 +128,6 @@ export class AdminPhasesListComponent  implements OnInit {
         this.editablePhases.set(phases);
         this.emitFilteredParams();
     }
-    // constructor() {
-    //     effect(() => {
-    //         const newPhases = this.productService.productPhases().map((p, i) => ({
-    //             phase: p,
-    //             specialInstruction: '',
-    //             order: i + 1
-    //         }));
-
-    //         this.editablePhases.update(existing => {
-    //             const existingIds = existing.map(jp => jp.phase.id);
-    //             const merged = [...existing];
-    //             for (const jp of newPhases) {
-    //                 if (!existingIds.includes(jp.phase.id)) {
-    //                     merged.push(jp);
-    //                 }
-    //             }
-    //             return merged;
-    //         });
-
-    //         this.emitFilteredParams();
-    //     });
-    // }
 
     get phaseCount() {
         return this.editablePhases().length;
@@ -155,7 +137,6 @@ export class AdminPhasesListComponent  implements OnInit {
     closeModal() { this.isModalOpen.set(false); }
 
     async onPhaseSelected(phase: Phase) {
-        console.log("WOOOOO");
         const resolvedPhase = await this.productService.resolvePhase(this.productId, phase.id);
         resolvedPhase.order = this.editablePhases().length + 1;
 
@@ -167,8 +148,6 @@ export class AdminPhasesListComponent  implements OnInit {
 
         this.editablePhases.set([...this.editablePhases(), jobPhase]); // use .set with new array
 
-        console.log("WOOOOO:" + this.editablePhases().length);
-
         this.closeModal();
         this.emitFilteredParams();
     }
@@ -176,8 +155,6 @@ export class AdminPhasesListComponent  implements OnInit {
     updateSpecialInstruction(jp: JobPhase, value: string) {
         jp.specialInstruction = value; // mutate in place
         this.editablePhases.set([...this.editablePhases()]);
-        console.log("WOOOOOX:" + this.editablePhases().length);
-        // trigger signal
     }
 
     savePhases() {
@@ -196,8 +173,6 @@ export class AdminPhasesListComponent  implements OnInit {
             newPhases.forEach((p, i) => (p.order = i + 1));
             return newPhases;
         });
-        console.log("WOOOOOD:" + this.editablePhases().length);
-
         this.emitFilteredParams();
     }
 
@@ -210,8 +185,6 @@ export class AdminPhasesListComponent  implements OnInit {
             }
             return [...phases];
         });
-        console.log("WOOOOOU:" + this.editablePhases().length);
-
     }
 
     moveDown(jp: JobPhase) {
@@ -223,17 +196,16 @@ export class AdminPhasesListComponent  implements OnInit {
             }
             return [...phases];
         });
-        console.log("WOOOOODWN:" + this.editablePhases().length);
-
     }
 
     private emitFilteredParams() {
-        console.log("WOOOOOE1:" + this.editablePhases().length);
-        const filtered = this.editablePhases()
-            .flatMap(jp => jp.phase.params.filter(p => p.input === 1 || p.input === 2));
+        const editable = this.editablePhases();
+        const filtered = editable.flatMap(jp => jp.phase.params.filter(p => p.input === 1 || p.input === 2));
 
-        this.filteredPhaseParams.emit(filtered);
-        console.log("WOOOOOE2:" + this.editablePhases().length);
-
+        this.phasesSelected.emit({
+            phases: editable,
+            params: filtered
+        } as PhasesSelected);
     }
+
 }

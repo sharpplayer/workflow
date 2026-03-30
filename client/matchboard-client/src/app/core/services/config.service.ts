@@ -4,6 +4,7 @@ import { API_BASE_URL } from "../../app.config";
 import { HttpClient } from "@angular/common/http";
 interface ConfigResponse {
     value: string[];
+    type: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -11,12 +12,10 @@ export class ConfigService {
 
     private http = inject(HttpClient);
 
-    roles = signal<string[]>([]);
-
-    async loadRoles(): Promise<void> {
+    async getList(config : string): Promise<ConfigResponse> {
         const res = await firstValueFrom(
-            this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/roles`)
+            this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/${config}`)
         );
-        this.roles.set(res.value ?? []);
+        return res;
     }
 }

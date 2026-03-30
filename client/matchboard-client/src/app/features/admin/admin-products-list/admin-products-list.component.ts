@@ -10,7 +10,7 @@ import { Product, ProductService, ProductsResponse } from '../../../core/service
     template: `
     <div class="list-container">
         <div class="filter-bar">
-            <input
+            <label>Product:</label><input
                 type="text"
                 placeholder="Filter by name..."
                 [ngModel]="filterText()"
@@ -141,5 +141,12 @@ export class AdminProductListComponent {
         } finally {
             this.loading.set(false);
         }
+    }
+
+    clearFilter(): void {
+        this.filterText.set('');
+        this.selectedProduct.set(null);
+        this.collapsed.set(false);
+        this.selectionCleared.emit();
     }
 }

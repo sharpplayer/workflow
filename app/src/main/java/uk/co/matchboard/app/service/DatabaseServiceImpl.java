@@ -256,12 +256,12 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Override
     public Result<List<PhaseParam>> getPhases() {
         return TryUtils.tryCatch(() ->
-                dsl.select(PHASE.fields())
+                dsl.select( PHASE.fields())
                         .select(PHASE_PARAM.fields())
                         .from(PHASE)
                         .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
                         .where(PHASE.ENABLED.eq(true))
-                        .orderBy(PHASE_PARAM.ORDER.asc())
+                        .orderBy(PHASE.DESCRIPTION.asc())
                         .fetch(r -> getPhaseParamWithPhase(r, 0)));
     }
 

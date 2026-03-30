@@ -16,8 +16,8 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         this.databaseService = databaseService;
     }
 
-    public ConfigItem getListConfig(String config, String value) {
-        return new ConfigItem(config, Arrays.stream(value.split(",")).toList());
+    public ConfigItem getListConfig(String config, String value, String type) {
+        return new ConfigItem(config, Arrays.stream(value.split(",")).toList(), type);
     }
 
     @Override
@@ -30,8 +30,8 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     }
 
     private Result<ConfigItem> convertItem(Config item) {
-        if (item.type().equals("string[]")) {
-            return Result.of(getListConfig(item.name(), item.value()));
+        if (item.type().equals("string[]") || item.type().equals("colour[]")) {
+            return Result.of(getListConfig(item.name(), item.value(), item.type()));
         }
         return Result.failure(new UnknownConfigException(
                 item.name().toUpperCase() + " type not supported:" + item.type()));

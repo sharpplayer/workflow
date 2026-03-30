@@ -43,9 +43,12 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public OptionalResult<Device> registerSession(String id, LoginUser loginUser) {
+        Device device = registerDevice(id);
         return toOptionalResult(
-                sessionService.startSession(id, loginUser.username(), loginUser.password(),
-                        loginUser.admin()).map(s -> getDevice(id, s.passwordReset())));
+                sessionService.startSession(device.deviceId(), loginUser.username(),
+                                loginUser.password(),
+                                loginUser.admin())
+                        .map(s -> getDevice(device.deviceId(), s.passwordReset())));
     }
 
     @Override

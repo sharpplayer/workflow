@@ -33,12 +33,24 @@ import { ConfigService } from "../../../core/services/config.service";
 export class AdminUsersComponent {
     private configService = inject(ConfigService);
 
-    roles = this.configService.roles;
+    roles = signal<string[]>([]);
     selectedUser = signal<UserForm | null>(null);
     showModal = signal(false);
 
     constructor() {
-        this.configService.loadRoles();
+        this.loadRoles();
+    }
+
+    async loadRoles() {
+       try {
+            const res = await this.configService.getList("roles");
+            this.roles.set(res.value);
+        } catch (err) {
+            console.error(err);
+        } finally {
+//            this.loading.set(false);
+        }
+       
     }
 
     openCreate() {

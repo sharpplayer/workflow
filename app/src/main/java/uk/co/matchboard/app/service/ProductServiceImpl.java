@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.BadValueException;
 import uk.co.matchboard.app.exception.ProductNotFoundException;
@@ -35,7 +36,7 @@ public class ProductServiceImpl implements ProductService {
     public static final int INPUT_JOB_START = 2;
     public static final int INPUT_PHASE_RUN = 3;
 
-    private record PhaseKey(int id, int order) {
+    private record PhaseParamKey(int id, int order) {
 
     }
 
@@ -159,7 +160,8 @@ public class ProductServiceImpl implements ProductService {
 
     private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams) {
         return phaseParams.stream()
-                .collect(Collectors.groupingBy(p -> new PhaseKey(p.id(), p.order())))
+                .collect(Collectors.groupingBy(
+                        p -> new PhaseParamKey(p.id(), p.order())))
                 .values().stream()
                 .map(params -> {
                     PhaseParam first = params.getFirst();
@@ -169,7 +171,7 @@ public class ProductServiceImpl implements ProductService {
 
                     return new Phase(first.id(), first.description(), phaseDataList, first.order());
                 })
-                .sorted(Comparator.comparingInt(Phase::order))
+                .sorted(Comparator.comparing(Phase::description))
                 .collect(Collectors.toList());
     }
 
@@ -184,27 +186,33 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private String resolveConfig(Product product, String config, int input) {
+        if (config.startsWith("PRODUCT(")) {
+            String prop = config.substring(8, config.length() - 1);
+            if (prop.equals("format")) {
+                if (product.width() > product.length()) {
+                    return "PORTRAIT";
+                } else {
+                    return "LANDSCAPE";
+                }
+            }
+            return TryUtils.tryCatch(() -> {
+                Method accessor = Product.class.getMethod(prop);
+                return accessor.invoke(product);
+            }).fold(Object::toString, _ -> getDefaultInput(input));
+        }
+
+        return getDefaultInput(input);
+    }
+
+    private static String getDefaultInput(int input) {
         if (input == INPUT_PHASE_RUN) {
             return "(Input At Phase)";
         } else if (input == INPUT_JOB_START) {
             return "(Input At Job Start)";
         } else if (input == INPUT_JOB_CREATE) {
-            if (config.startsWith("PRODUCT(")) {
-                String prop = config.substring(8, config.length() - 1);
-                if (prop.equals("orientation")) {
-                        if (product.width() > product.length()) {
-                        return "PORTRAIT";
-                    } else {
-                        return "LANDSCAPE";
-                    }
-                }
-                return TryUtils.tryCatch(() -> {
-                    Method accessor = Product.class.getMethod(prop);
-                    return accessor.invoke(product);
-                }).fold(Object::toString, _ -> "");
-            }
+            return "(Input At Job Create)";
         }
-        return config;
+        return "(Unexpected Input " + input + ")";
     }
 
     private Result<Integer> parseDimension(String value, String field, SageProduct product) {
@@ -238,8 +246,8 @@ public class ProductServiceImpl implements ProductService {
                     new BadValueException(product.number(), "Finish", product.finish(),
                             "Finish required"));
         }
-        var widthR = parseDimension(dims[0], "Width", product);
-        var lengthR = parseDimension(dims[1], "Length", product);
+        var widthR = parseDimension(dims[1], "Width", product);
+        var lengthR = parseDimension(dims[0], "Length", product);
         var thicknessR = parseDimension(product.thickness(), "Thickness", product);
         return Result.combine(widthR, lengthR, thicknessR, (width, length, thickness) ->
                 new Product(

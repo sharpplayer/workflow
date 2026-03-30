@@ -1,8 +1,6 @@
 import { Routes } from '@angular/router';
 import { AdminPageComponent } from './admin-page/admin-page.component';
 import { AdminUsersComponent } from './admin-users/admin-users.component';
-//import { AdminJobsComponent } from './admin-products/admin-products.component';
-//import { AdminConfigComponent } from './admin-products/admin-products.component';
 import { unsavedChangesGuard } from './admin.guards';
 import { adminGuard } from '../../core/guards/auth.guards';
 import { AdminProductsComponent } from './admin-products/admin-products.component';

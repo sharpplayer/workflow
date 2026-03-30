@@ -318,6 +318,10 @@ export class AdminPhaseComponent {
     });
 
     this.editablePhases.set(phases);
+
+    this.newParamName = '';
+    this.newParamInput = this.INPUT_JOB_CREATE;
+    this.newParamValue = '';
   }
 
   // =========================
