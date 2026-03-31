@@ -17,3 +17,10 @@ button:hover {
 button:disabled {
   background-color: #959698;
 }
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}

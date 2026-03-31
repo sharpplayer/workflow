@@ -26,7 +26,8 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
     paramConfig: '',
     input: 2,
     evaluation: '(Input At Job Start)',
-    type: 'boolean'
+    type: 'boolean',
+    value: 'false'
 };
 
 const PHASE_PARAM_CALLOFF: PhaseParam = {
@@ -35,7 +36,8 @@ const PHASE_PARAM_CALLOFF: PhaseParam = {
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
-    type: 'boolean'
+    type: 'boolean',
+    value: 'false'
 };
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
@@ -44,7 +46,8 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
-    type: 'boolean'
+    type: 'boolean',
+    value: 'false'
 };
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
@@ -80,29 +83,32 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
     standalone: true,
     imports: [CommonModule, AdminProductListComponent, AdminPhasesListComponent, AdminPhaseParamComponent],
     template: `
-        <div class="jobs-container">
-           <admin-products-list
-            #productsList
-            [selectedProductInput]="selectedPart()?.product ?? null"
-            [locked]="!!selectedPart()"
-            (productSelected)="onProductSelected($event)"
-            (hasResults)="hasResults = $event"
-            (selectionCleared)="manualSelectedProduct.set(null)"
-            />
+            <div class="jobs-container">
+            <admin-products-list
+                #productsList
+                [selectedProductInput]="selectedPart()?.product ?? null"
+                [locked]="!!selectedPart()"
+                (productSelected)="onProductSelected($event)"
+                (hasResults)="hasResults = $event"
+                (selectionCleared)="manualSelectedProduct.set(null)"
+                />
 
-            @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
-            <admin-phases-list
-                [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
-                (phasesSelected)="phaseSelected($event)"
-            />
-            <admin-phase-param
-                [phaseParams]="phaseParamsToShow()"
-                [selectedParams]="lastParamsSelected() ?? selectedPart()?.params ?? []"
-                (paramsSelected)="paramsSelected($event)"
-            />
-            <button [disabled]="!canAddProduct()" (click)="addProduct()">{{ buttonText() }}</button>
-            }
-        </div>
+                @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
+                <admin-phases-list
+                    [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
+                    (phasesSelected)="phaseSelected($event)"
+                />
+                <admin-phase-param
+                    [phaseParams]="phaseParamsToShow()"
+                    [selectedParams]="lastParamsSelected() ?? selectedPart()?.params ?? []"
+                    (paramsSelected)="paramsSelected($event)"
+                />
+                <div class="actions">
+                    <button (click)="cancelAdd()">Cancel</button>
+                    <button [disabled]="!canAddProduct()" (click)="addProduct()">{{ buttonText() }}</button>
+                </div>
+                }
+            </div>
     `,
     styleUrls: ['./admin-job.component.css']
 })
@@ -110,6 +116,7 @@ export class AdminJobComponent {
     manualSelectedProduct = signal<Product | null>(null);
     phaseParamsToShow = signal<PhaseParam[]>([]);
     productSave = output<ProductSave>();
+    cancel = output<void>();
     hasResults = true;
 
     crossJobParams = input<CrossJobParameters>({
@@ -248,6 +255,12 @@ export class AdminJobComponent {
             params: params
         });
 
+        this.productsList.clearFilter();
+        this.reset();
+    }
+
+    cancelAdd() {
+        this.cancel.emit();
         this.productsList.clearFilter();
         this.reset();
     }

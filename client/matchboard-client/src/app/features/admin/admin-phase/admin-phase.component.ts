@@ -3,7 +3,6 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Phase, ProductService } from '../../../core/services/product.service';
-import { exhaustMap } from 'rxjs';
 
 type EditingFlag = 'create' | 'edit' | 'none';
 

@@ -40,3 +40,23 @@ table tbody tr {
 table tbody tr.selected {
   background: #e6f2ff;
 }
+
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+  float: right;
+  margin-right: 4px;
+  margin-top: 8px;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
+}
