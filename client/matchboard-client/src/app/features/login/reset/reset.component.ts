@@ -14,7 +14,8 @@ import { ResetResult } from "../../../core/services/auth.service";
   template: `
     <div class="modal-card">
     
-    <h2>{{ isPin ? 'PIN' : 'Password' }} Reset</h2>
+      <h2>{{ isPin ? 'PIN' : 'Password' }} Reset</h2>
+
       <div class="field">
         <label>Username</label>
         <input type="text"
@@ -30,13 +31,18 @@ import { ResetResult } from "../../../core/services/auth.service";
                [maxlength]="isPin ? 4 : 30"
                [pattern]="isPin ? '[0-9]*' : ''"
                (input)="isPin && sanitisePin($event)"
-                autocomplete="one-time-code" />
+               autocomplete="one-time-code" />
         <span class="hint">{{ isPin ? '4-digit PIN' : 'Password' }}</span>
       </div>
 
       <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
 
-      <button [disabled]="!canSubmit" (click)="submit()">Reset {{ isPin ? 'PIN' : 'Password' }}</button>
+      <div class="button-group">
+        <button [disabled]="!canSubmit" (click)="submit()">
+          Reset {{ isPin ? 'PIN' : 'Password' }}
+        </button>
+      </div>
+
     </div>
   `,
   styleUrls: ['./reset.component.css']

@@ -10,7 +10,8 @@ interface ProductSelectedWithMap extends ProductSelected {
 export interface CrossJobParameters  {
     paymentReceived : boolean,
     dueDate : string,
-    customer: string
+    customer: string,
+    carrier: string
 }
 
 @Component({
@@ -65,6 +66,7 @@ export class AdminJobsComponent {
         paymentReceived : false,
         dueDate: '',
         customer: '',
+        carrier: ''
     })
 
     // Store all added jobs

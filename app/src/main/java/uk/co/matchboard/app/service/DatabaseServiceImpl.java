@@ -25,6 +25,7 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.product.CreatePhase;
@@ -395,6 +396,17 @@ public class DatabaseServiceImpl implements DatabaseService {
                         customer.contact(),
                         customer.contactNumber(), true));
 
+    }
+
+    @Override
+    public Result<Carrier> createCarrier(CreateCarrier carrier) {
+        return TryUtils.tryCatch(() -> dsl.insertInto(CARRIER)
+                        .set(CARRIER.CODE, carrier.code())
+                        .set(CARRIER.NAME, carrier.name())
+                        .set(CARRIER.ENABLED, true)
+                        .returning(CARRIER.ID)
+                        .fetchOne(CARRIER.ID))
+                .map(id -> new Carrier(id, carrier.code(), carrier.name(), true));
     }
 
     private static Carrier getCarrier(CarrierRecord carrierRecord) {

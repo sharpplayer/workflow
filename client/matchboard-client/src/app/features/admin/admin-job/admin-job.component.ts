@@ -30,7 +30,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
 
 const PHASE_PARAM_CALLOFF: PhaseParam = {
     phaseParamId: -3,
-    paramName: 'Call Off',
+    paramName: 'For Call Off',
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
@@ -39,7 +39,7 @@ const PHASE_PARAM_CALLOFF: PhaseParam = {
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
     phaseParamId: -4,
-    paramName: 'From Finished',
+    paramName: 'From Call Off',
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
@@ -59,6 +59,15 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
     phaseParamId: -6,
     paramName: 'Customer',
     paramConfig: 'customer',
+    input: 1,
+    evaluation: '(Input At Job Create)',
+    type: 'string[]'
+};
+
+const PHASE_PARAM_CARRIER: PhaseParam = {
+    phaseParamId: -7,
+    paramName: 'Carrier',
+    paramConfig: 'carrier',
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'string[]'
@@ -95,7 +104,8 @@ export class AdminJobComponent {
     crossJobParams = input<CrossJobParameters>({
         paymentReceived: false,
         dueDate: '',
-        customer: ''
+        customer: '',
+        carrier: ''
     });
     crossJobParamsChanged = output<CrossJobParameters>();
 
@@ -119,7 +129,8 @@ export class AdminJobComponent {
         const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
-        let params = [dateParam, paymentParam, customerParam, PHASE_PARAM_QUANTITY, ...phases.params, PHASE_PARAM_FINISHED, PHASE_PARAM_CALLOFF]
+        const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: this.crossJobParams().carrier };
+        let params = [dateParam, paymentParam, customerParam, carrierParam, PHASE_PARAM_QUANTITY, ...phases.params, PHASE_PARAM_FINISHED, PHASE_PARAM_CALLOFF]
         this.phaseParamsToShow.set(params);
     }
 
@@ -135,14 +146,18 @@ export class AdminJobComponent {
         const paymentParam = params.find(p => p.phaseParamId === -2)?.value === 'true';
         const dueDateParam = params.find(p => p.phaseParamId === -5)?.value || '';
         const customerParam = params.find(p => p.phaseParamId === -6)?.value || '';
+        const carrierParam = params.find(p => p.phaseParamId === -7)?.value || '';
         const newValue = {
             paymentReceived: paymentParam,
             dueDate: dueDateParam,
-            customer: customerParam
+            customer: customerParam,
+            carrier: carrierParam
         }
 
         const hasChanged = (newValue.paymentReceived !== current.paymentReceived) ||
-            (newValue.dueDate !== current.dueDate);
+            (newValue.dueDate !== current.dueDate) ||
+            (newValue.customer !== current.customer) ||
+            (newValue.carrier !== current.carrier)
 
         if (hasChanged) {
             this.crossJobParamsChanged.emit(newValue);
@@ -175,7 +190,7 @@ export class AdminJobComponent {
 
     private validateParams(params: PhaseParamSelected[]): boolean {
         return !params.some(p =>
-            this.invalidQuantity(p) || this.invalidDate(p) || this.invalidCustomer(p)
+            this.invalidQuantity(p) || this.invalidDate(p) || this.invalidCustomer(p) || this.invalidCarrier(p)
         );
     }
 
@@ -185,6 +200,10 @@ export class AdminJobComponent {
 
     private invalidCustomer(p: PhaseParamSelected): unknown {
         return p.phaseParamId === -6 && Number(p.value) <= 0;
+    }
+
+    private invalidCarrier(p: PhaseParamSelected): unknown {
+        return p.phaseParamId === -7 && Number(p.value) <= 0;
     }
 
     private invalidDate(p: PhaseParamSelected): boolean {

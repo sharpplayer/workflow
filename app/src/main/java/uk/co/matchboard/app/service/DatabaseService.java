@@ -5,7 +5,7 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
-import uk.co.matchboard.app.model.config.ConfigItem;
+import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.product.CreatePhase;
@@ -51,4 +51,6 @@ public interface DatabaseService {
     Result<List<Carrier>> getCarriers();
 
     Result<Customer> createCustomer(CreateCustomer customer);
+
+    Result<Carrier> createCarrier(CreateCarrier carrier);
 }

@@ -40,9 +40,11 @@ form {
     gap: .4rem;
 }
 
+/* ✅ Right-aligned button container */
 .button-group {
     display: flex;
-    gap: .5rem;
+    justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .hint {
@@ -85,6 +87,7 @@ label.disabled {
     font-family: inherit;
 }
 
+/* ✅ Clean button styles (no float) */
 button {
   padding: 4px 8px;
   border: none;
@@ -92,8 +95,6 @@ button {
   background-color: #4a90e2;
   color: white;
   cursor: pointer;
-  float: right;
-  margin-right: 4px;
   margin-top: 8px;
 }
 

@@ -6,6 +6,7 @@ import uk.co.matchboard.app.exception.UnknownConfigException;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.ConfigItem;
+import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 
@@ -46,6 +47,11 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     @Override
     public Result<KeyValuePair> createCustomer(CreateCustomer customer) {
         return auxiliaryService.createCustomer(customer);
+    }
+
+    @Override
+    public Result<KeyValuePair> createCarrier(CreateCarrier carrier) {
+        return auxiliaryService.createCarrier(carrier);
     }
 
     private Result<ConfigItem> convertItem(Config item) {
