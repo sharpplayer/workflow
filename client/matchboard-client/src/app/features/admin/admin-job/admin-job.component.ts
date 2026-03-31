@@ -175,12 +175,16 @@ export class AdminJobComponent {
 
     private validateParams(params: PhaseParamSelected[]): boolean {
         return !params.some(p =>
-            this.invalidQuantity(p) || this.invalidDate(p)
+            this.invalidQuantity(p) || this.invalidDate(p) || this.invalidCustomer(p)
         );
     }
 
     private invalidQuantity(p: PhaseParamSelected): unknown {
         return p.phaseParamId === -1 && (!/^\d+$/.test(p.value) || Number(p.value) <= 0);
+    }
+
+    private invalidCustomer(p: PhaseParamSelected): unknown {
+        return p.phaseParamId === -6 && Number(p.value) <= 0;
     }
 
     private invalidDate(p: PhaseParamSelected): boolean {

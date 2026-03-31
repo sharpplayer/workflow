@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal, effect, output, LOCALE_ID } from '@angular/core';
+import { Component, inject, input, output, LOCALE_ID, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam } from '../../../core/services/product.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
@@ -81,8 +81,8 @@ export interface PhaseParamSelected {
                 }
                 @for (opt of param.options; track opt.key) {
                   <option
-                    value="{{ opt.value }}"
-                    style="color: {{ opt.value.toLowerCase() }}"
+                    [value]="opt.key"
+                    [style.color]="opt.value.toLowerCase()"
                   >
                     ● {{ opt.value }}
                   </option>
@@ -91,14 +91,14 @@ export interface PhaseParamSelected {
             } @else if (param.type === 'string[]') {
               <div class="param-select-wrapper">
                 <ng-select
-                  [items]="getOptions(param)"
+                  [items]="param.options"
                   bindLabel="value"
                   bindValue="key"
                   [searchable]="true"
                   [clearable]="true"
                   [appendTo]="'body'"
                   placeholder="Select or type..."
-                  [(ngModel)]="editedValuesMap[param.phaseParamId]"
+                  [(ngModel)]="param.value"
                   (ngModelChange)="onNgSelectChange(param.phaseParamId, $event)"
                 >
                 </ng-select>
@@ -154,80 +154,70 @@ export class AdminPhaseParamComponent {
   private configService = inject(ConfigService);
 
   phaseParams = input<PhaseParam[]>([]);
-  public paramsSelected = output<PhaseParamSelected[]>();
+  paramsSelected = output<PhaseParamSelected[]>();
 
-  private editedValues = signal<Record<number, string>>({});
-  private inputOptions = signal<Record<string, { values: ConfigItem[], type: string }>>({});
-
-  // Stable object for ng-select two-way binding
-  editedValuesMap: Record<number, string> = {};
-
-  filteredParams = computed<PhaseParamData[]>(() => {
-    const params = this.phaseParams();
-    const edits = this.editedValues();
-    const optionsMap = this.inputOptions();
-
-    return params
-      .filter(p => this.isWrappedEvaluation(p))
-      .map(p => {
-        const cfg = optionsMap[p.paramConfig];
-        return {
-          phaseParamId: p.phaseParamId,
-          key: p.paramName,
-          value: edits[p.phaseParamId] ?? p.value ?? '',
-          paramConfig: p.paramConfig,
-          type: cfg?.type ?? p.type ?? null,
-          options: cfg?.values ?? [],
-          input: p.input
-        };
-      });
-  });
+  // signal to store params that drive the template
+  filteredParams = signal<PhaseParamData[]>([]);
 
   constructor() {
-    // Keep object reference stable for ng-select
-    effect(() => {
-      const edits = this.editedValues();
-      Object.keys(edits).forEach(id => {
-        this.editedValuesMap[+id] = edits[+id];
-      });
-    });
-
-    // Load input options
     effect(() => {
       const params = this.phaseParams();
-      if (params.length > 0) {
-        this.loadInputOptionsForRawParams(params);
-      }
-    });
 
-    // Emit selected values upstream
-    effect(() => {
-      const selected = this.filteredParams().map(p => ({
-        phaseParamId: p.phaseParamId,
-        key: p.key,
-        value: p.value,
-        input: p.input
-      }));
-      this.paramsSelected.emit(selected);
+      if (params?.length) {
+        this.initialize(params);
+      }
     });
   }
 
-  private async loadInputOptionsForRawParams(params: PhaseParam[]) {
+  private async initialize(params: PhaseParam[]) {
     const filtered = params.filter(p => this.isWrappedEvaluation(p));
+
+    const result: PhaseParamData[] = [];
+
     for (const p of filtered) {
-      const key = p.paramConfig;
-      if (key !== '' && !this.inputOptions()[key]) {
+      let options: ConfigItem[] = [];
+      let type = p.type ?? null;
+
+      if (p.paramConfig) {
         try {
-          const list = await this.configService.getList(key);
-          this.inputOptions.update(current => ({
-            ...current,
-            [key]: { values: list.value, type: list.type }
-          }));
+          const list = await this.configService.getList(p.paramConfig);
+          options = list.value;
+          type = list.type;
         } catch (err) {
-          console.error(`Failed to load list for ${key}`, err);
+          console.error(`Failed to load list for ${p.paramConfig}`, err);
         }
       }
+
+      const defaults: ConfigItem[] = [];
+      if (p.input === 2) {
+        defaults.push({ key: '(Job Not Starting)', value: '(Job Not Starting)' });
+      }
+
+      const value = p.value ?? '';
+
+      // Ensure current value is in options
+      let finalOptions = [...options];
+      if (
+        value &&
+        !finalOptions.some(o => o.key === value) &&
+        !defaults.some(d => d.key === value)
+      ) {
+        finalOptions.unshift({ key: value, value });
+      }
+
+      result.push({
+        phaseParamId: p.phaseParamId,
+        key: p.paramName,
+        value,
+        paramConfig: p.paramConfig,
+        type,
+        options: [...defaults, ...finalOptions],
+        input: p.input
+      });
     }
+
+    // set the signal, template will auto-update
+    this.filteredParams.set(result);
   }
 
   private isWrappedEvaluation(evaluation: PhaseParam): boolean {
@@ -236,42 +226,33 @@ export class AdminPhaseParamComponent {
       evaluation.evaluation.trim().endsWith(')');
   }
 
-
   onValueChange(id: number, value: string, type?: string) {
-    let newValue = value;
+    const param = this.filteredParams().find(p => p.phaseParamId === id);
+    if (!param) return;
+
     if (type === 'int') {
       const parsed = Number(value);
-      newValue = Number.isInteger(parsed) ? parsed.toString() : '';
+      param.value = Number.isInteger(parsed) ? parsed.toString() : '';
     } else if (type === 'boolean') {
-      newValue = value ? 'true' : 'false';
+      param.value = value ? 'true' : 'false';
+    } else {
+      param.value = value;
     }
-    this.editedValues.update(v => ({ ...v, [id]: newValue }));
+
+    this.emitChanges();
   }
 
   onDateChange(id: number, date: Moment | null) {
-    const formatted = date ? date.format(UK_DATE_FORMATS.storage) : '';
-    this.editedValues.update(v => ({ ...v, [id]: formatted }));
+    const param = this.filteredParams().find(p => p.phaseParamId === id);
+    if (!param) return;
+
+    param.value = date ? date.format(UK_DATE_FORMATS.storage) : '';
+    this.emitChanges();
   }
 
   parseDate(value: string): Moment | null {
     if (!value) return null;
     return moment(value, UK_DATE_FORMATS.storage);
-  }
-
-  getOptions(param: PhaseParamData): ConfigItem[] {
-    const defaults: ConfigItem[] = [];
-
-    if (param.input === 2) {
-      defaults.push({ key: '(Job Not Starting)', value: '(Job Not Starting)' });
-    }
-
-    const options = [...(param.options ?? [])];
-    const currentValue = param.value;
-    if (currentValue && !options.some(o => o.key === currentValue) && !defaults.some(d => d.key === currentValue)) {
-      options.unshift({ key: currentValue, value: currentValue });
-    }
-
-    return [...defaults, ...options];
   }
 
   async addItem(param: PhaseParamData) {
@@ -280,17 +261,11 @@ export class AdminPhaseParamComponent {
 
     try {
       const newItem = await this.configService.addItem(param.paramConfig, newValue);
-      this.inputOptions.update(current => {
-        const prev = current[param.paramConfig]?.values ?? [];
-        return {
-          ...current,
-          [param.paramConfig]: {
-            ...current[param.paramConfig],
-            values: [...prev, newItem]
-          }
-        };
-      });
-      this.editedValues.update(v => ({ ...v, [param.phaseParamId]: newItem.key }));
+
+      param.options = [...param.options, newItem];
+      param.value = newItem.key;
+
+      this.emitChanges();
     } catch (err) {
       console.error('Failed to add new item', err);
       alert('Failed to add new item');
@@ -298,6 +273,20 @@ export class AdminPhaseParamComponent {
   }
 
   onNgSelectChange(id: number, key: string) {
-    this.editedValues.update(v => ({ ...v, [id]: key }));
+    const param = this.filteredParams().find(p => p.phaseParamId === id);
+    if (!param) return;
+    param.value = key;
+    this.emitChanges();
+  }
+
+  private emitChanges() {
+    const selected: PhaseParamSelected[] = this.filteredParams().map(p => ({
+      phaseParamId: p.phaseParamId,
+      key: p.key,
+      value: p.value,
+      input: p.input
+    }));
+
+    this.paramsSelected.emit(selected);
   }
 }
