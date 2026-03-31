@@ -80,6 +80,7 @@ button {
   background-color: #4a90e2;
   color: white;
   cursor: pointer;
+  margin-right: 8px;
 }
 
 button:hover {
@@ -119,6 +120,7 @@ button:disabled {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   max-height: 90vh;
   overflow-y: auto;
+  z-index: 10000;
 }
 
 .footer-actions button {

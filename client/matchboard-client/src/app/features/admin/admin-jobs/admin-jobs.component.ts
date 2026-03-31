@@ -82,18 +82,6 @@ export class AdminJobsComponent {
             job.params.map(p => [p.phaseParamId, p.value])
         );
 
-        // const paymentReceived = job.params.find(i => i.phaseParamId === -2)!; 
-        // const date = job.params.find(i => i.phaseParamId === -5)!; 
-        // const customer = job.params.find(i => i.phaseParamId === -6)!; 
-
-        // let newValue = {
-        //     paymentReceived : paymentReceived.value === 'true',
-        //     dueDate : date.value,
-        //     customer: customer.value
-        // };
-        
-        // this.crossJobParams.set(newValue);
-
         this.jobs.push({
             ...job,
             paramMap

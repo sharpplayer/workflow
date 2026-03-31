@@ -10,6 +10,7 @@ import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/m
 import moment, { Moment } from 'moment';
 import { NgSelectModule } from '@ng-select/ng-select';
 import { FormsModule } from '@angular/forms';
+import { AdminCustomerComponent, CustomerFormModel } from '../admin-customer/admin-customer.component';
 
 export const UK_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -49,7 +50,8 @@ export interface PhaseParamSelected {
     MatInputModule,
     MatMomentDateModule,
     NgSelectModule,
-    FormsModule
+    FormsModule,
+    AdminCustomerComponent
   ],
   providers: [
     { provide: LOCALE_ID, useValue: 'en-GB' },
@@ -58,7 +60,7 @@ export interface PhaseParamSelected {
     { provide: MAT_MOMENT_DATE_ADAPTER_OPTIONS, useValue: { useUtc: false } }
   ],
   template: `
-<table class="param-table">
+<table>
   <thead>
     <tr>
       <th>Information</th>
@@ -76,7 +78,7 @@ export interface PhaseParamSelected {
                 [value]="param.value"
                 (change)="onValueChange(param.phaseParamId, $any($event.target).value)"
               >
-                @if(param.input === 2){
+                @if (param.input === 2) {
                   <option value="(Job Not Starting)">(Job Not Starting)</option>
                 }
                 @for (opt of param.options; track opt.key) {
@@ -146,18 +148,28 @@ export interface PhaseParamSelected {
     }
   </tbody>
 </table>
+
+<admin-customer
+  [visible]="showCustomerModal()"
+  [saving]="savingCustomer()"
+  [model]="customerFormData()"
+  (save)="submitCustomerModal($event)"
+  (cancel)="closeCustomerModal()"
+/>
   `,
   styleUrls: ['./admin-phase-param.component.css']
 })
 export class AdminPhaseParamComponent {
-
   private configService = inject(ConfigService);
 
   phaseParams = input<PhaseParam[]>([]);
   paramsSelected = output<PhaseParamSelected[]>();
 
-  // signal to store params that drive the template
   filteredParams = signal<PhaseParamData[]>([]);
+  showCustomerModal = signal(false);
+  savingCustomer = signal(false);
+  selectedParamForAdd = signal<PhaseParamData | null>(null);
+  customerFormData = signal<CustomerFormModel | null>(null);
 
   constructor() {
     effect(() => {
@@ -195,7 +207,6 @@ export class AdminPhaseParamComponent {
 
       const value = p.value ?? '';
 
-      // Ensure current value is in options
       let finalOptions = [...options];
       if (
         value &&
@@ -216,7 +227,6 @@ export class AdminPhaseParamComponent {
       });
     }
 
-    // set the signal, template will auto-update
     this.filteredParams.set(result);
   }
 
@@ -255,26 +265,61 @@ export class AdminPhaseParamComponent {
     return moment(value, UK_DATE_FORMATS.storage);
   }
 
-  async addItem(param: PhaseParamData) {
-    const newValue = prompt('Enter new item:');
-    if (!newValue) return;
+  addItem(param: PhaseParamData) {
+    if (param.paramConfig?.toLowerCase() === 'customer') {
+      this.selectedParamForAdd.set(param);
+      this.customerFormData.set({
+        code: '',
+        name: '',
+        zone: '',
+        contact: '',
+        contactNumber: ''
+      });
+      this.showCustomerModal.set(true);
+      return;
+    }
+
+    console.error(`Add item modal not implemented for paramConfig: ${param.paramConfig}`);
+  }
+
+  closeCustomerModal() {
+    this.showCustomerModal.set(false);
+    this.selectedParamForAdd.set(null);
+    this.customerFormData.set(null);
+  }
+
+  async submitCustomerModal(form: CustomerFormModel) {
+    const param = this.selectedParamForAdd();
+    if (!param) return;
 
     try {
-      const newItem = await this.configService.addItem(param.paramConfig, newValue);
+      this.savingCustomer.set(true);
+
+      const newItem = await this.configService.addItem(param.paramConfig, {
+        code: form.code,
+        name: form.name,
+        zone: form.zone,
+        contact: form.contact,
+        contactNumber: form.contactNumber
+      });
 
       param.options = [...param.options, newItem];
       param.value = newItem.key;
 
       this.emitChanges();
+      this.closeCustomerModal();
     } catch (err) {
-      console.error('Failed to add new item', err);
+      console.error('Failed to add new customer item', err);
       alert('Failed to add new item');
+    } finally {
+      this.savingCustomer.set(false);
     }
   }
 
   onNgSelectChange(id: number, key: string) {
     const param = this.filteredParams().find(p => p.phaseParamId === id);
     if (!param) return;
+
     param.value = key;
     this.emitChanges();
   }

@@ -40,9 +40,12 @@ form {
     gap: .4rem;
 }
 
+/* ✅ Fixed button alignment */
 .button-group {
     display: flex;
+    justify-content: flex-end;
     gap: .5rem;
+    width: 100%;
 }
 
 .hint {
@@ -83,4 +86,23 @@ label.disabled {
     border-radius: 4px;
     font-size: 1rem;
     font-family: inherit;
+}
+
+/* ✅ Clean button styling (no floats) */
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
 }

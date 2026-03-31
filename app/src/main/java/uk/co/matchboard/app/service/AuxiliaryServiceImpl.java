@@ -30,14 +30,14 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
     @NonNull
     private static KeyValuePair getCustomerKeyPair(Customer c) {
         return new KeyValuePair(Integer.toString(c.id()),
-                c.name() + "(" + c.code() + ")");
+                c.name() + " (" + c.code() + ")");
     }
 
     @Override
     public Result<ConfigItem> getCarriers() {
         return databaseService.getCarriers().map(list -> new ConfigItem(CONFIG_CARRIER, list.stream()
                 .map(c -> new KeyValuePair(Integer.toString(c.id()),
-                        c.name() + "(" + c.code() + ")")), "string[]"));
+                        c.name() + " (" + c.code() + ")")), "string[]"));
     }
 
     @Override

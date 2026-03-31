@@ -19,24 +19,22 @@ export class ConfigService {
 
     private http = inject(HttpClient);
 
-    async getList(config : string): Promise<ConfigResponse> {
+    async getList(config: string): Promise<ConfigResponse> {
         const res = await firstValueFrom(
             this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/${config}`)
         );
         return res;
     }
 
-    async addItem(configItem : string, value : string) : Promise<ConfigItem>{
-        console.log("ADDING:" + configItem);
+    async addItem(configItem: string, body: any): Promise<ConfigItem> {
         const res = await firstValueFrom(
-            this.http.post<ConfigItem>(`${API_BASE_URL}/api/config/${configItem.toLowerCase()}`, {
-                code: "K",
-                name: value,
-                zone: "Z",
-                contact : "contact",
-                contactNumber: "01273111000",
-            }, {withCredentials : true})
+            this.http.post<ConfigItem>(
+                `${API_BASE_URL}/api/config/${configItem.toLowerCase()}`,
+                body,
+                { withCredentials: true }
+            )
         );
+
         return res;
     }
 }
