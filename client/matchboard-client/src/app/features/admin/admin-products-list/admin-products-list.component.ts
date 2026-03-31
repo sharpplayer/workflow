@@ -1,4 +1,4 @@
-import { Component, EventEmitter, inject, Output, signal, computed, effect } from '@angular/core';
+import { Component, EventEmitter, inject, Output, signal, computed, effect, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Product, ProductService, ProductsResponse } from '../../../core/services/product.service';
@@ -9,14 +9,20 @@ import { Product, ProductService, ProductsResponse } from '../../../core/service
     imports: [CommonModule, FormsModule],
     template: `
     <div class="list-container">
-        <div class="filter-bar">
-            <label>Product:</label><input
+        @if (locked() || selectedProduct()) {
+            <input
+                type="text"
+                [value]="selectedProduct()?.name ?? filterText()"
+                readonly
+            />
+        } @else {
+            <input
                 type="text"
                 placeholder="Filter by name..."
                 [ngModel]="filterText()"
                 (ngModelChange)="onFilterChange($event)"
             />
-        </div>
+        }
 
         @if (loading()) {
             <div>Loading...</div>
@@ -94,6 +100,8 @@ export class AdminProductListComponent {
     filterText = signal('');
     selectedProduct = signal<Product | null>(null);
     collapsed = signal(false);
+    selectedProductInput = input<Product | null>(null);
+    locked = input(false);
 
     filteredProducts = computed(() => {
         const term = this.filterText().toLowerCase().trim();
@@ -112,9 +120,23 @@ export class AdminProductListComponent {
         effect(() => {
             this.hasResults.emit(this.filteredProducts().length > 0);
         });
+        effect(() => {
+            const selected = this.selectedProductInput();
+            const isLocked = this.locked();
+
+            this.selectedProduct.set(selected);
+            this.collapsed.set(!!selected || isLocked);
+
+            if (selected) {
+                this.filterText.set(selected.name);
+            } else if (!isLocked) {
+                this.filterText.set('');
+            }
+        });
     }
 
     onFilterChange(value: string): void {
+        if (this.locked()) return;
         this.filterText.set(value);
         if (this.collapsed()) {
             this.collapsed.set(false);

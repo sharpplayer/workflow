@@ -186,17 +186,20 @@ export class AdminPhaseParamComponent {
 
   selectedParamForAdd = signal<PhaseParamData | null>(null);
 
+  selectedParams = input<PhaseParamSelected[] | null>(null);
+
   constructor() {
     effect(() => {
-      const params = this.phaseParams();
+        const params = this.phaseParams();
+        const selected = this.selectedParams();
 
-      if (params?.length) {
-        this.initialize(params);
-      }
+        if (params?.length) {
+            this.initialize(params, selected);
+        }
     });
   }
 
-  private async initialize(params: PhaseParam[]) {
+  private async initialize(params: PhaseParam[], selectedParams: PhaseParamSelected[] | null) {
     const filtered = params.filter(p => this.isWrappedEvaluation(p));
 
     const result: PhaseParamData[] = [];
@@ -220,7 +223,10 @@ export class AdminPhaseParamComponent {
         defaults.push({ key: '(Job Not Starting)', value: '(Job Not Starting)' });
       }
 
-      const value = p.value ?? '';
+       const selectedMap = new Map(
+        (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
+      );
+      const value = selectedMap.get(p.phaseParamId) ?? p.value ?? '';
 
       let finalOptions = [...options];
       if (

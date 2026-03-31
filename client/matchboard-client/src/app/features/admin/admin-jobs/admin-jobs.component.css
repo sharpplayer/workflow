@@ -32,3 +32,11 @@ tbody tr:nth-child(even) {
 tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
+
+table tbody tr {
+  cursor: pointer;
+}
+
+table tbody tr.selected {
+  background: #e6f2ff;
+}

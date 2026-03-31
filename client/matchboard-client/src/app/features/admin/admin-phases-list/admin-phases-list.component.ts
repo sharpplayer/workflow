@@ -1,4 +1,4 @@
-import { Component, effect, inject, Input, OnInit, output, Output, signal } from '@angular/core';
+import { Component, inject, Input, OnChanges, OnInit, output, signal, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Phase, PhaseParam, ProductService } from '../../../core/services/product.service';
 import { AdminPhaseComponent } from '../admin-phase/admin-phase.component';
@@ -63,7 +63,7 @@ export interface PhasesSelected {
                                 <tbody>
                                     <tr>
                                         @for (phaseParam of jp.phase.params; track $index) {
-                                            <td>{{ phaseParam.evaluation }}</td>
+                                            <td>{{ shrink(phaseParam.evaluation) }}</td>
                                         }
                                     </tr>
                                 </tbody>
@@ -90,7 +90,12 @@ export interface PhasesSelected {
                 <tr>
                     <td colspan="5" class="add-phase-row">
                         <button (click)="addPhase()">Add Phase</button>
-                        <button (click)="savePhases()">Save Phases</button>
+                        <button
+                            (click)="savePhases()"
+                            [disabled]="!hasUnsavedChanges()"
+                        >
+                            Save Phases
+                        </button>
                     </td>
                 </tr>
             </tfoot>
@@ -99,16 +104,21 @@ export interface PhasesSelected {
     </div>
 
     @if (isModalOpen()) {
-        <admin-phase (close)="closeModal()" (phaseSelected)="onPhaseSelected($event)" />
+        <admin-phase
+            (close)="closeModal()"
+            (phaseSelected)="onPhaseSelected($event)"
+        />
     }
     `,
     styleUrls: ['./admin-phases-list.component.css']
 })
-export class AdminPhasesListComponent implements OnInit {
+export class AdminPhasesListComponent implements OnInit, OnChanges {
     protected productService = inject(ProductService);
     protected isModalOpen = signal(false);
     protected editablePhases = signal<JobPhase[]>([]);
     protected tableExpanded = signal(false);
+    protected hasUnsavedChanges = signal(false);
+
     @Input({ required: true }) productId!: number;
     phasesSelected = output<PhasesSelected>();
 
@@ -116,8 +126,14 @@ export class AdminPhasesListComponent implements OnInit {
         this.loadInitialPhases();
     }
 
+    ngOnChanges(changes: SimpleChanges): void {
+    if (changes['productId'] && !changes['productId'].firstChange) {
+        this.loadInitialPhases();
+    }
+}
+
     private async loadInitialPhases() {
-        const phasesFromService = await this.productService.loadProductPhases(this.productId); // await async call
+        const phasesFromService = await this.productService.loadProductPhases(this.productId);
 
         const phases: JobPhase[] = phasesFromService.map((p, i) => ({
             phase: p,
@@ -126,6 +142,7 @@ export class AdminPhasesListComponent implements OnInit {
         }));
 
         this.editablePhases.set(phases);
+        this.hasUnsavedChanges.set(false);
         this.emitFilteredParams();
     }
 
@@ -133,8 +150,13 @@ export class AdminPhasesListComponent implements OnInit {
         return this.editablePhases().length;
     }
 
-    addPhase() { this.isModalOpen.set(true); }
-    closeModal() { this.isModalOpen.set(false); }
+    addPhase() {
+        this.isModalOpen.set(true);
+    }
+
+    closeModal() {
+        this.isModalOpen.set(false);
+    }
 
     async onPhaseSelected(phase: Phase) {
         const resolvedPhase = await this.productService.resolvePhase(this.productId, phase.id);
@@ -146,24 +168,27 @@ export class AdminPhasesListComponent implements OnInit {
             order: this.editablePhases().length + 1
         };
 
-        this.editablePhases.set([...this.editablePhases(), jobPhase]); // use .set with new array
+        this.editablePhases.set([...this.editablePhases(), jobPhase]);
+        this.hasUnsavedChanges.set(true);
 
         this.closeModal();
         this.emitFilteredParams();
     }
 
     updateSpecialInstruction(jp: JobPhase, value: string) {
-        jp.specialInstruction = value; // mutate in place
+        jp.specialInstruction = value;
         this.editablePhases.set([...this.editablePhases()]);
+        this.hasUnsavedChanges.set(true);
     }
 
     savePhases() {
         const phasesToSave = this.editablePhases().map(jp => {
-            jp.phase.order = jp.order; // propagate top-level order to Phase
+            jp.phase.order = jp.order;
             return jp.phase;
         });
 
         this.productService.savePhases(this.productId, phasesToSave)
+            .then(() => this.hasUnsavedChanges.set(false))
             .catch(err => console.error('Failed to save phases', err));
     }
 
@@ -173,6 +198,8 @@ export class AdminPhasesListComponent implements OnInit {
             newPhases.forEach((p, i) => (p.order = i + 1));
             return newPhases;
         });
+
+        this.hasUnsavedChanges.set(true);
         this.emitFilteredParams();
     }
 
@@ -185,6 +212,9 @@ export class AdminPhasesListComponent implements OnInit {
             }
             return [...phases];
         });
+
+        this.hasUnsavedChanges.set(true);
+        this.emitFilteredParams();
     }
 
     moveDown(jp: JobPhase) {
@@ -196,11 +226,16 @@ export class AdminPhasesListComponent implements OnInit {
             }
             return [...phases];
         });
+
+        this.hasUnsavedChanges.set(true);
+        this.emitFilteredParams();
     }
 
     private emitFilteredParams() {
         const editable = this.editablePhases();
-        const filtered = editable.flatMap(jp => jp.phase.params.filter(p => p.input === 1 || p.input === 2));
+        const filtered = editable.flatMap(jp =>
+            jp.phase.params.filter(p => p.input === 1 || p.input === 2)
+        );
 
         this.phasesSelected.emit({
             phases: editable,
@@ -208,4 +243,11 @@ export class AdminPhasesListComponent implements OnInit {
         } as PhasesSelected);
     }
 
+    shrink(value: string): string {
+
+        if (value.startsWith('(Input')) {
+            return '(Input)'
+        }
+        return value;
+    }
 }

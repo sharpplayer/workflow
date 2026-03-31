@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam, Product, ProductService } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
@@ -6,7 +6,8 @@ import { AdminPhasesListComponent, PhasesSelected } from '../admin-phases-list/a
 import { AdminPhaseParamComponent, PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
 import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
 
-export interface ProductSelected {
+export interface ProductSave {
+    mode: 'add' | 'update';
     product: Product,
     params: PhaseParamSelected[]
 }
@@ -80,62 +81,123 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
     imports: [CommonModule, AdminProductListComponent, AdminPhasesListComponent, AdminPhaseParamComponent],
     template: `
         <div class="jobs-container">
-            <admin-products-list
-              #productsList
-              (productSelected)="onProductSelected($event)"
-              (hasResults)="hasResults = $event"
-              (selectionCleared)="selectedProduct.set(null)"
+           <admin-products-list
+            #productsList
+            [selectedProductInput]="selectedPart()?.product ?? null"
+            [locked]="!!selectedPart()"
+            (productSelected)="onProductSelected($event)"
+            (hasResults)="hasResults = $event"
+            (selectionCleared)="manualSelectedProduct.set(null)"
             />
-            @if (selectedProduct() && hasResults) {
-              <admin-phases-list [productId]="selectedProduct()!.id" (phasesSelected)="phaseSelected($event)"/>
-              <admin-phase-param [phaseParams]="phaseParamsToShow()" (paramsSelected)="paramsSelected($event)" />
-              <button [disabled]="!canAddProduct()" (click)="addProduct()">Add Product</button>
+
+            @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
+            <admin-phases-list
+                [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
+                (phasesSelected)="phaseSelected($event)"
+            />
+            <admin-phase-param
+                [phaseParams]="phaseParamsToShow()"
+                [selectedParams]="lastParamsSelected() ?? selectedPart()?.params ?? []"
+                (paramsSelected)="paramsSelected($event)"
+            />
+            <button [disabled]="!canAddProduct()" (click)="addProduct()">{{ buttonText() }}</button>
             }
         </div>
     `,
     styleUrls: ['./admin-job.component.css']
 })
 export class AdminJobComponent {
-    protected productService = inject(ProductService);
-    selectedProduct = signal<Product | null>(null);
+    manualSelectedProduct = signal<Product | null>(null);
     phaseParamsToShow = signal<PhaseParam[]>([]);
-    productSelected = output<ProductSelected>();
+    productSave = output<ProductSave>();
     hasResults = true;
+
     crossJobParams = input<CrossJobParameters>({
         paymentReceived: false,
         dueDate: '',
         customer: '',
         carrier: ''
     });
+
+    selectedPart = input<ProductSave | null>(null);
+
+    effectiveSelectedProduct = computed(() => {
+        const part = this.selectedPart();
+        return part ? part.product : this.manualSelectedProduct();
+    });
+
     crossJobParamsChanged = output<CrossJobParameters>();
+    isEditing = computed(() => !!this.selectedPart());
+    buttonText = computed(() => this.isEditing() ? 'Update Product' : 'Add Product');
 
     @ViewChild('productsList') productsList!: AdminProductListComponent;
 
-    // reactive signal to track if "Add Product" can be clicked
     canAddProduct = computed(() => {
         const params = this.lastParamsSelected?.();
         return !!params && this.validateParams(params);
     });
 
-    // store last selected params as a signal
     lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
 
+    constructor() {
+        effect(() => {
+            const job = this.selectedPart();
+            if (!job) return;
+            this.loadJob(job);
+        });
+    }
+
     async onProductSelected(product: Product): Promise<void> {
-        this.selectedProduct.set(product);
-        this.productService.loadProductPhases(product.id);
+        console.log("PROD SELECTED")
+        this.manualSelectedProduct.set(product);
+        this.phaseParamsToShow.set([]);
+        this.lastParamsSelected.set(null);
     }
 
     phaseSelected(phases: PhasesSelected) {
+        console.log("PHASE SELECTED:" + this.crossJobParams().dueDate)
         const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
         const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: this.crossJobParams().carrier };
-        let params = [dateParam, paymentParam, customerParam, carrierParam, PHASE_PARAM_QUANTITY, ...phases.params, PHASE_PARAM_FINISHED, PHASE_PARAM_CALLOFF]
+
+        const params = [
+            dateParam,
+            paymentParam,
+            customerParam,
+            carrierParam,
+            PHASE_PARAM_QUANTITY,
+            ...phases.params,
+            PHASE_PARAM_FINISHED,
+            PHASE_PARAM_CALLOFF
+        ];
+
         this.phaseParamsToShow.set(params);
+
+        // If we are loading an existing job, prefill selected values
+        const selected = this.selectedPart();
+        if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
+            const crossJobParamValueMap = new Map<number, string>([
+                [paymentParam.phaseParamId, paymentParam.value ?? ""],
+                [dateParam.phaseParamId, dateParam.value ?? ""],
+                [customerParam.phaseParamId, customerParam.value ?? ""],
+                [carrierParam.phaseParamId, carrierParam.value ?? ""]
+            ]);
+
+            console.log("DATE:" + dateParam.value);
+
+            this.lastParamsSelected.set(
+                selected.params.map(p => ({
+                    ...p,
+                    value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
+                }))
+            );
+        }
     }
 
     paramsSelected(params: PhaseParamSelected[]) {
         this.lastParamsSelected.set(params);
+
         if (!this.validateParams(params)) {
             console.error('Invalid params detected:', params);
             return;
@@ -147,26 +209,27 @@ export class AdminJobComponent {
         const dueDateParam = params.find(p => p.phaseParamId === -5)?.value || '';
         const customerParam = params.find(p => p.phaseParamId === -6)?.value || '';
         const carrierParam = params.find(p => p.phaseParamId === -7)?.value || '';
+
         const newValue = {
             paymentReceived: paymentParam,
             dueDate: dueDateParam,
             customer: customerParam,
             carrier: carrierParam
-        }
+        };
 
-        const hasChanged = (newValue.paymentReceived !== current.paymentReceived) ||
+        const hasChanged =
+            (newValue.paymentReceived !== current.paymentReceived) ||
             (newValue.dueDate !== current.dueDate) ||
             (newValue.customer !== current.customer) ||
-            (newValue.carrier !== current.carrier)
+            (newValue.carrier !== current.carrier);
 
         if (hasChanged) {
             this.crossJobParamsChanged.emit(newValue);
         }
-
     }
 
     addProduct() {
-        const product = this.selectedProduct();
+        const product = this.effectiveSelectedProduct();
         const params = this.lastParamsSelected()?.slice() || [];
 
         if (!product) {
@@ -179,13 +242,19 @@ export class AdminJobComponent {
             return;
         }
 
-        this.productSelected.emit({
+        this.productSave.emit({
+            mode: this.isEditing() ? 'update' : 'add',
             product: product,
             params: params
         });
 
         this.productsList.clearFilter();
         this.reset();
+    }
+
+    private loadJob(job: ProductSave) {
+        console.log("LOADING JOB");
+        this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
     }
 
     private validateParams(params: PhaseParamSelected[]): boolean {
@@ -217,7 +286,7 @@ export class AdminJobComponent {
     }
 
     reset(): void {
-        this.selectedProduct.set(null);
+        this.manualSelectedProduct.set(null);
         this.phaseParamsToShow.set([]);
         this.lastParamsSelected.set(null);
         this.hasResults = true;
