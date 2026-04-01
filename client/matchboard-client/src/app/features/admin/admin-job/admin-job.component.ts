@@ -1,17 +1,19 @@
 import { Component, computed, effect, inject, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PhaseParam, Product, ProductService } from '../../../core/services/product.service';
+import { PhaseParam, Product } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
-import { AdminPhasesListComponent, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
+import { AdminPhasesListComponent, JobPhase, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
 import { AdminPhaseParamComponent, PhaseParamSelected, PhaseParamValidationError } from '../admin-phase-param/admin-phase-param.component';
 import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
 
 export interface ProductSave {
     mode: 'add' | 'update';
     product: Product,
+    phases: JobPhase[],
     params: PhaseParamSelected[]
 }
 export const PHASE_PARAM_QUANTITY: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -1,
     paramName: 'Quantity',
     paramConfig: '',
@@ -21,6 +23,7 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
 };
 
 const PHASE_PARAM_PAYMENT: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -2,
     paramName: 'Payment Received',
     paramConfig: '',
@@ -31,6 +34,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
 };
 
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -3,
     paramName: 'For Call Off',
     paramConfig: '',
@@ -41,6 +45,7 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
 };
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -4,
     paramName: 'From Call Off',
     paramConfig: '',
@@ -51,6 +56,7 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
 };
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -5,
     paramName: 'Due',
     paramConfig: '',
@@ -60,6 +66,7 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
 };
 
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -6,
     paramName: 'Customer',
     paramConfig: 'customer',
@@ -69,6 +76,7 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
 };
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -7,
     paramName: 'Carrier',
     paramConfig: 'carrier',
@@ -78,6 +86,7 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
 };
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
+    phaseId : 0,
     phaseParamId: -8,
     paramName: 'Material Available',
     paramConfig: '',
@@ -144,7 +153,8 @@ export class AdminJobComponent {
         return part ? part.product : this.manualSelectedProduct();
     });
 
-    hasSelectedPhases = signal(false);
+    selectedPhases = signal<JobPhase[]>([]);
+    hasSelectedPhases = computed(() => this.selectedPhases().length > 0);
     crossJobParamsChanged = output<CrossJobParameters>();
     isEditing = computed(() => !!this.selectedPart());
     buttonText = computed(() => this.isEditing() ? 'Update Product' : 'Add Product');
@@ -172,11 +182,12 @@ export class AdminJobComponent {
     async onProductSelected(product: Product): Promise<void> {
         this.manualSelectedProduct.set(product);
         this.phaseParamsToShow.set([]);
+        this.selectedPhases.set([]);
         this.lastParamsSelected.set(null);
     }
 
     phaseSelected(phases: PhasesSelected) {
-        this.hasSelectedPhases.set(phases.phases.length > 0);
+        this.selectedPhases.set(phases.phases);
         const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
@@ -276,6 +287,7 @@ export class AdminJobComponent {
         this.productSave.emit({
             mode: this.isEditing() ? 'update' : 'add',
             product: product,
+            phases: this.selectedPhases(),
             params: params
         });
 
@@ -290,6 +302,7 @@ export class AdminJobComponent {
     }
 
     private loadJob(job: ProductSave) {
+        this.selectedPhases.set([...job.phases]);
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
     }
 
@@ -390,6 +403,7 @@ export class AdminJobComponent {
 
     reset(): void {
         this.manualSelectedProduct.set(null);
+        this.selectedPhases.set([]);
         this.phaseParamsToShow.set([]);
         this.lastParamsSelected.set(null);
         this.validationErrors.set([]);

@@ -11,6 +11,7 @@ export interface Product {
 }
 
 export interface PhaseParam {
+  phaseId: number,
   phaseParamId: number,
   paramName: string,
   paramConfig: string,

@@ -1,5 +1,5 @@
 // admin-phase.component.ts
-import { Component, computed, inject, output, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Phase, ProductService } from '../../../core/services/product.service';
@@ -173,7 +173,7 @@ interface EditableParam {
   `,
   styleUrls: ['./admin-phase.component.css']
 })
-export class AdminPhaseComponent {
+export class AdminPhaseComponent implements OnInit {
 
   readonly INPUT_JOB_CREATE = 1;
   readonly INPUT_JOB_START = 2;
@@ -184,6 +184,7 @@ export class AdminPhaseComponent {
   // Outputs
   public close = output<void>();
   public phaseSelected = output<Phase>();
+  excludedPhaseIds = input<number[]>([]);
 
   // State
   editablePhases = signal<EditablePhase[]>([]);
@@ -201,7 +202,7 @@ export class AdminPhaseComponent {
     { label: 'PR', value: this.INPUT_PHASE_RUN }
   ];
 
-  constructor() {
+  ngOnInit() : void {
     this.loadAllPhases();
   }
 
@@ -209,8 +210,14 @@ export class AdminPhaseComponent {
   // LOAD
   // =========================
   async loadAllPhases() {
-    const phases = await this.productService.loadAllPhases()
-    const mapped: EditablePhase[] = phases.map(p => this.fromPhase(p, false));
+    const phases = await this.productService.loadAllPhases();
+
+    const excluded = new Set(this.excludedPhaseIds());
+
+    const mapped: EditablePhase[] = phases
+      .filter(p => !excluded.has(p.id))
+      .map(p => this.fromPhase(p, false));
+
     this.editablePhases.set(mapped);
   }
 
@@ -223,6 +230,7 @@ export class AdminPhaseComponent {
       description: p.description,
       order: p.order,
       params: p.params.map((pp, i) => ({
+        phaseId: p.id,
         phaseParamId: pp.id || i + 1,
         input: pp.input,
         paramName: pp.paramName,

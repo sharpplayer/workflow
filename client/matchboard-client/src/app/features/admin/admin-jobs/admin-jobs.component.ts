@@ -155,6 +155,7 @@ export class AdminJobsComponent {
             mode: save.mode,
             product: save.product,
             params: save.params,
+            phases: save.phases,
             paramMap
         };
 

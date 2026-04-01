@@ -30,6 +30,7 @@ export const UK_DATE_FORMATS = {
 };
 
 interface PhaseParamData {
+  phaseId: number;
   phaseParamId: number;
   key: string;
   value: string;
@@ -40,6 +41,7 @@ interface PhaseParamData {
 }
 
 export interface PhaseParamSelected {
+  phaseId: number;
   phaseParamId: number;
   key: string;
   value: string;
@@ -262,6 +264,7 @@ export class AdminPhaseParamComponent {
       }
 
       result.push({
+        phaseId: p.phaseId,
         phaseParamId: p.phaseParamId,
         key: p.paramName,
         value,
@@ -456,6 +459,7 @@ export class AdminPhaseParamComponent {
 
   private emitChanges() {
     const selected: PhaseParamSelected[] = this.filteredParams().map(p => ({
+      phaseId: p.phaseId,
       phaseParamId: p.phaseParamId,
       key: p.key,
       value: p.value,
