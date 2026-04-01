@@ -151,3 +151,11 @@ table .col-example {
 table .col-description {
   width: 300px;
 }
+
+.example-header {
+  white-space: nowrap;
+}
+
+.example-header button {
+  margin-left: 0.4rem;
+}

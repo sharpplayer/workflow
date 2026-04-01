@@ -12,6 +12,7 @@ interface EditablePhase {
   order: number;
   params: EditableParam[];
   editing?: EditingFlag;
+  expanded?: boolean;
 }
 
 interface EditableParam {
@@ -69,7 +70,9 @@ interface EditableParam {
                   <th>Input</th>
                   <th>Value</th>
                   @if (phase.editing === 'none') {
-                    <th>Example</th>
+                    <th class="example-header">Example<button type="button" (click)="toggleExpanded(phase)">
+                      {{ phase.expanded ? '▲' : '▼' }}
+                    </button></th>
                   }
                   @else {
                     <th></th>
@@ -78,53 +81,55 @@ interface EditableParam {
               </thead>
 
               <tbody>
-                @for (param of phase.params; track param.id) {
-                  <tr>
-                    @if (phase.editing !== 'none') {
-                      <td>
-                        <input [(ngModel)]="param.paramName" />
-                      </td>
-                      <td>
-                      <select [(ngModel)]="param.input">
-                          @for (opt of inputOptions; track opt.value) {
-                            <option [value]="opt.value">{{ opt.label }}</option>
-                          }
-                        </select> 
-                      </td>
-                      <td>
-                       <input [(ngModel)]="param.paramConfig" />
-                      </td>
-                      <td>
-                        <button (click)="removeParam(phase, param)">✕</button>
-                      </td>
-                    } @else {
-                      <td>{{ param.paramName }}</td>
-                      <td>{{ getInputLabel(param.input) }}</td>
-                      <td>{{ param.paramConfig }}</td>
-                      <td>{{ param.paramEvaluation }}</td>
-                    }
-                  </tr>
-                }
+                @if (phase.expanded) {
+                  @for (param of phase.params; track param.id) {
+                    <tr>
+                      @if (phase.editing !== 'none') {
+                        <td>
+                          <input [(ngModel)]="param.paramName" />
+                        </td>
+                        <td>
+                        <select [(ngModel)]="param.input">
+                            @for (opt of inputOptions; track opt.value) {
+                              <option [value]="opt.value">{{ opt.label }}</option>
+                            }
+                          </select> 
+                        </td>
+                        <td>
+                        <input [(ngModel)]="param.paramConfig" />
+                        </td>
+                        <td>
+                          <button (click)="removeParam(phase, param)">✕</button>
+                        </td>
+                      } @else {
+                        <td>{{ param.paramName }}</td>
+                        <td>{{ getInputLabel(param.input) }}</td>
+                        <td>{{ param.paramConfig }}</td>
+                        <td>{{ param.paramEvaluation }}</td>
+                      }
+                    </tr>
+                  }
 
-                @if (phase.editing !== 'none') {
-                  <tr class="add-param-row">
-                    <td>
-                      <input placeholder="Key" [(ngModel)]="newParamName" />
-                    </td>
-                    <td>
-                      <select [(ngModel)]="newParamInput">
-                          @for (opt of inputOptions; track opt.value) {
-                            <option [value]="opt.value">{{ opt.label }}</option>
-                          }
-                        </select> 
-                    </td>
-                    <td>
-                      <input placeholder="Value" [(ngModel)]="newParamValue" />
-                    </td>
-                    <td>
-                      <button (click)="addParam(phase)">+</button>
-                    </td>
-                  </tr>
+                  @if (phase.editing !== 'none') {
+                    <tr class="add-param-row">
+                      <td>
+                        <input placeholder="Key" [(ngModel)]="newParamName" />
+                      </td>
+                      <td>
+                        <select [(ngModel)]="newParamInput">
+                            @for (opt of inputOptions; track opt.value) {
+                              <option [value]="opt.value">{{ opt.label }}</option>
+                            }
+                          </select> 
+                      </td>
+                      <td>
+                        <input placeholder="Value" [(ngModel)]="newParamValue" />
+                      </td>
+                      <td>
+                        <button (click)="addParam(phase)">+</button>
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>
@@ -205,7 +210,7 @@ export class AdminPhaseComponent {
   // =========================
   async loadAllPhases() {
     const phases = await this.productService.loadAllPhases()
-    const mapped: EditablePhase[] = phases.map(p => this.fromPhase(p));
+    const mapped: EditablePhase[] = phases.map(p => this.fromPhase(p, false));
     this.editablePhases.set(mapped);
   }
 
@@ -227,7 +232,7 @@ export class AdminPhaseComponent {
     };
   }
 
-  private fromPhase(p: Phase): EditablePhase {
+  private fromPhase(p: Phase, expanded: boolean): EditablePhase {
     return {
       id: p.id,
       description: p.description,
@@ -241,7 +246,8 @@ export class AdminPhaseComponent {
           input: pp.input
         }
       }),
-      editing: 'none'
+      editing: 'none',
+      expanded: expanded
     };
   }
 
@@ -259,6 +265,7 @@ export class AdminPhaseComponent {
   startEdit(phase: EditablePhase) {
     this.snapshot = JSON.parse(JSON.stringify(this.editablePhases()));
     phase.editing = 'edit';
+    phase.expanded = true;
     this.editablePhases.set([...this.editablePhases()]);
   }
 
@@ -277,7 +284,7 @@ export class AdminPhaseComponent {
       // result = await this.productService.updatePhase(this.toPhase(phase));
     }
 
-    const newPhase = this.fromPhase(result);
+    const newPhase = this.fromPhase(result, false);
 
     if (phase.editing === 'create') {
       this.editablePhases.set([
@@ -313,7 +320,8 @@ export class AdminPhaseComponent {
       description: '',
       order: phases.length + 1,
       params: [],
-      editing: 'create'
+      editing: 'create',
+      expanded: true
     });
 
     this.editablePhases.set(phases);
@@ -356,5 +364,10 @@ export class AdminPhaseComponent {
   getInputLabel(value: number): string {
     const found = this.inputOptions.find(opt => opt.value === value);
     return found?.label || '';
+  }
+
+  toggleExpanded(phase: EditablePhase) {
+    phase.expanded = !phase.expanded;
+    this.editablePhases.set([...this.editablePhases()]);
   }
 }
