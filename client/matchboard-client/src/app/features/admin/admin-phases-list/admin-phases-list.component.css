@@ -75,6 +75,8 @@ button {
   color: white;
   cursor: pointer;
   margin-right: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 button:hover {
@@ -113,4 +115,8 @@ td {
 
 .phase-actions {
   text-align: right;
+}
+
+.error-message {
+  color: #d32f2f;
 }

@@ -49,8 +49,9 @@ button {
   color: white;
   cursor: pointer;
   float: right;
-  margin-right: 4px;
+  margin-right: 8px;
   margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 button:hover {

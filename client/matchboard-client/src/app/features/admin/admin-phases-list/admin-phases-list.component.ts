@@ -98,7 +98,12 @@ export interface PhasesSelected {
 
         <tfoot>
           <tr>
-            <td colspan="5" class="add-phase-row">
+            <td colspan="3">
+              @if (phaseCount === 0) {
+                <span class="error-message">This product has no phases.</span>
+              }
+            </td>
+            <td colspan="2" class="add-phase-row">
               <button (click)="addPhase()">Add Phase</button>
               <button
                 (click)="savePhases()"
@@ -165,6 +170,7 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
 
         this.editablePhases.set(phases);
         this.hasUnsavedChanges.set(false);
+        this.tableExpanded.set(phases.length === 0 || this.tableExpanded());
         this.emitFilteredParams();
     }
 

@@ -30,13 +30,14 @@ export interface CrossJobParameters {
                     <th>Quantity</th>
                     <th>From Call Off</th>
                     <th>Schedulable</th>
+                    <th></th>
                 </tr>
             </thead>
 
             <tbody>
                 @if (jobs().length === 0) {
                     <tr>
-                        <td colspan="6">No products added yet</td>
+                        <td colspan="7">No products added yet</td>
                     </tr>
                 } @else {
                     @for (job of jobs(); track $index; let jobIndex = $index) {
@@ -47,9 +48,12 @@ export interface CrossJobParameters {
                             <td>{{ jobIndex + 1 }}</td>
                             <td>{{ job.product.name }}</td>
                             <td>{{ job.product.oldName }}</td>
-                            <td>{{ job.paramMap.get(this.PHASE_PARAM_QUANTITY_ID) }}</td>
-                            <td>{{ job.paramMap.get(this.PHASE_PARAM_CALLOFF_ID) === 'true' ? 'YES' : 'NO' }}</td>
+                            <td>{{ job.paramMap.get(PHASE_PARAM_QUANTITY_ID) }}</td>
+                            <td>{{ job.paramMap.get(PHASE_PARAM_CALLOFF_ID) === 'true' ? 'YES' : 'NO' }}</td>
                             <td>{{ getSchedulableDisplay(job) }}</td>
+                            <td>
+                                <button type="button" (click)="removePart(job, $event)">-</button>
+                            </td>
                         </tr>
                     }
                 }
@@ -59,12 +63,12 @@ export interface CrossJobParameters {
                 <tr>
                     <td colspan="5">
                         <span>
-                        <strong>Due:</strong>
-                        {{
-                            crossJobParams().dueDate
-                            ? (crossJobParams().dueDate | date:'dd/MM/yyyy')
-                            : '(Unknown)'
-                        }}
+                            <strong>Due:</strong>
+                            {{
+                                crossJobParams().dueDate
+                                ? (crossJobParams().dueDate | date:'dd/MM/yyyy')
+                                : '(Unknown)'
+                            }}
                         </span>
                     </td>
                     <td colspan="2">
@@ -137,7 +141,7 @@ export class AdminJobsComponent {
         const jobs = this.jobs();
         const selected = this.selectedPart();
 
-        console.log("S:" + selected)
+        console.log("S:" + selected);
 
         if (jobs.length === 0) return false;
         if (selected) return false;
@@ -190,6 +194,27 @@ export class AdminJobsComponent {
         this.selectedPart.set(job);
     }
 
+    removePart(job: ProductSelectedWithMap, event: Event) {
+        event.stopPropagation();
+
+        this.jobs.update(jobs => jobs.filter(j => j !== job));
+
+        if (this.selectedPart() === job) {
+            this.selectedPart.set(null);
+            this.jobBuilder.reset();
+        }
+
+        if (this.jobs().length === 0) {
+            this.crossJobParams.set({
+                paymentReceived: false,
+                dueDate: '',
+                customer: '',
+                carrier: '',
+                callOff: false
+            });
+        }
+    }
+
     onCrossJobParams(crossJobParamsChange: CrossJobParameters) {
         this.crossJobParams.set(crossJobParamsChange);
     }
@@ -213,7 +238,6 @@ export class AdminJobsComponent {
     }
 
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
-
         if (!this.crossJobParams().paymentReceived) {
             return 'Unpaid';
         }
@@ -222,7 +246,6 @@ export class AdminJobsComponent {
         if (material !== 'true') {
             return 'Insufficient Material';
         }
-
 
         const invalidParams = job.params.filter(
             p => p.input !== 3 && (p.value === '' || p.value.startsWith('('))

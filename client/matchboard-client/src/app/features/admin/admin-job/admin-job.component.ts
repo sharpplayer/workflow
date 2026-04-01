@@ -144,6 +144,7 @@ export class AdminJobComponent {
         return part ? part.product : this.manualSelectedProduct();
     });
 
+    hasSelectedPhases = signal(false);
     crossJobParamsChanged = output<CrossJobParameters>();
     isEditing = computed(() => !!this.selectedPart());
     buttonText = computed(() => this.isEditing() ? 'Update Product' : 'Add Product');
@@ -152,6 +153,7 @@ export class AdminJobComponent {
     @ViewChild('productsList') productsList!: AdminProductListComponent;
 
     canAddProduct = computed(() => {
+        if (!this.hasSelectedPhases()) return false;
         const params = this.lastParamsSelected?.();
         if (!params) return false;
         return this.getValidationErrors(params).length === 0;
@@ -175,6 +177,7 @@ export class AdminJobComponent {
     }
 
     phaseSelected(phases: PhasesSelected) {
+        this.hasSelectedPhases.set(phases.phases.length > 0);
         console.log("PHASE SELECTED:" + this.crossJobParams().dueDate)
         const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
