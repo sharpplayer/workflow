@@ -141,8 +141,6 @@ export class AdminJobsComponent {
         const jobs = this.jobs();
         const selected = this.selectedPart();
 
-        console.log("S:" + selected);
-
         if (jobs.length === 0) return false;
         if (selected) return false;
         return true;
@@ -178,8 +176,6 @@ export class AdminJobsComponent {
         } else {
             this.jobs.update(jobs => [...jobs, updatedPart]);
         }
-
-        console.log("J:" + JSON.stringify(this.jobs()));
 
         this.selectedPart.set(null);
         this.jobBuilder.reset();
@@ -238,7 +234,7 @@ export class AdminJobsComponent {
     }
 
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
-        if (!this.crossJobParams().paymentReceived) {
+        if (!this.crossJobParams().paymentReceived && !this.crossJobParams().callOff) {
             return 'Unpaid';
         }
 
@@ -250,8 +246,6 @@ export class AdminJobsComponent {
         const invalidParams = job.params.filter(
             p => p.input !== 3 && (p.value === '' || p.value.startsWith('('))
         );
-
-        console.log("S:" + JSON.stringify(invalidParams));
 
         if (invalidParams.length === 0) {
             return 'YES';

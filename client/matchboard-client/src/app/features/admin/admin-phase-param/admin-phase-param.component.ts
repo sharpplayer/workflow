@@ -224,9 +224,6 @@ export class AdminPhaseParamComponent {
       (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
     );
 
-
-    console.log(JSON.stringify(filtered));
-
     const result: PhaseParamData[] = [];
 
     for (const p of filtered) {

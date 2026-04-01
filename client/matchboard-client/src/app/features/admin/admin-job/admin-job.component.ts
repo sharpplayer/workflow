@@ -170,7 +170,6 @@ export class AdminJobComponent {
     }
 
     async onProductSelected(product: Product): Promise<void> {
-        console.log("PROD SELECTED")
         this.manualSelectedProduct.set(product);
         this.phaseParamsToShow.set([]);
         this.lastParamsSelected.set(null);
@@ -178,7 +177,6 @@ export class AdminJobComponent {
 
     phaseSelected(phases: PhasesSelected) {
         this.hasSelectedPhases.set(phases.phases.length > 0);
-        console.log("PHASE SELECTED:" + this.crossJobParams().dueDate)
         const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
@@ -209,8 +207,6 @@ export class AdminJobComponent {
                 [carrierParam.phaseParamId, carrierParam.value ?? ""],
                 [callOffParam.phaseParamId, callOffParam.value ?? ""]
             ]);
-
-            console.log("DATE:" + dateParam.value);
 
             this.lastParamsSelected.set(
                 selected.params.map(p => ({
@@ -294,7 +290,6 @@ export class AdminJobComponent {
     }
 
     private loadJob(job: ProductSave) {
-        console.log("LOADING JOB");
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
     }
 
@@ -351,6 +346,15 @@ export class AdminJobComponent {
             }
         }
 
+        const paidParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId);
+        const isPaid = paidParam?.value === 'true';
+        if (isCallOff && isPaid) {
+            errors.push({
+                phaseParamId: paidParam.phaseParamId,
+                message: 'Payment should not be received for call off jobs.'
+            });
+        }
+
         const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId);
         if (carrierParam) {
             const carrierValue = Number(carrierParam.value);
@@ -372,38 +376,6 @@ export class AdminJobComponent {
         }
 
         return errors;
-    }
-
-    private invalidQuantity(p: PhaseParamSelected): boolean {
-        return p.phaseParamId === PHASE_PARAM_QUANTITY.phaseParamId && (!/^\d+$/.test(p.value) || Number(p.value) <= 0);
-    }
-
-    private invalidCustomer(ps: PhaseParamSelected[]): boolean {
-        return this.invalidCallOff(PHASE_PARAM_CUSTOMER.phaseParamId, ps);
-    }
-
-    private invalidCarrier(ps: PhaseParamSelected[]): boolean {
-        return this.invalidCallOff(PHASE_PARAM_CARRIER.phaseParamId, ps);
-    }
-
-    private invalidCallOff(id: number, params: PhaseParamSelected[]): boolean {
-        const callOffParam = params.find(
-            p => p.phaseParamId === PHASE_PARAM_CALLOFF.phaseParamId
-        );
-
-        const carrierParam = params.find(
-            p => p.phaseParamId === id
-        );
-
-        const isCallOff = callOffParam!.value === 'true';
-        const carrierValue = Number(carrierParam!.value);
-
-        console.log(isCallOff + ":" + carrierValue);
-        if (isCallOff) {
-            return carrierValue > 0;
-        } else {
-            return carrierValue <= 0;
-        }
     }
 
     private invalidDate(p: PhaseParamSelected): boolean {
