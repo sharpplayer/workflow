@@ -1,6 +1,6 @@
 import { Component, signal, ViewChild, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { AdminJobComponent, ProductSave } from '../admin-job/admin-job.component';
+import { AdminJobComponent, ProductSave, PHASE_PARAM_CALLOFF, PHASE_PARAM_QUANTITY, PHASE_PARAM_MATERIAL } from '../admin-job/admin-job.component';
 
 // Extend ProductSelected to include a paramMap for easy lookup
 export interface ProductSelectedWithMap extends ProductSave {
@@ -11,7 +11,8 @@ export interface CrossJobParameters {
     paymentReceived: boolean,
     dueDate: string,
     customer: string,
-    carrier: string
+    carrier: string,
+    callOff: boolean
 }
 
 @Component({
@@ -28,7 +29,6 @@ export interface CrossJobParameters {
                     <th>Sage Name</th>
                     <th>Quantity</th>
                     <th>From Call Off</th>
-                    <th>For Call Off</th>
                     <th>Schedulable</th>
                 </tr>
             </thead>
@@ -47,9 +47,8 @@ export interface CrossJobParameters {
                             <td>{{ jobIndex + 1 }}</td>
                             <td>{{ job.product.name }}</td>
                             <td>{{ job.product.oldName }}</td>
-                            <td>{{ job.paramMap.get(-1) }}</td>
-                            <td>{{ job.paramMap.get(-4) === 'true' ? 'YES' : 'NO' }}</td>
-                            <td>{{ job.paramMap.get(-3) === 'true' ? 'YES' : 'NO' }}</td>
+                            <td>{{ job.paramMap.get(this.PHASE_PARAM_QUANTITY_ID) }}</td>
+                            <td>{{ job.paramMap.get(this.PHASE_PARAM_CALLOFF_ID) === 'true' ? 'YES' : 'NO' }}</td>
                             <td>{{ getSchedulableDisplay(job) }}</td>
                         </tr>
                     }
@@ -99,11 +98,17 @@ export interface CrossJobParameters {
     styleUrl: './admin-jobs.component.css'
 })
 export class AdminJobsComponent {
+
+    PHASE_PARAM_QUANTITY_ID = PHASE_PARAM_QUANTITY.phaseParamId;
+    PHASE_PARAM_CALLOFF_ID = PHASE_PARAM_CALLOFF.phaseParamId;
+    PHASE_PARAM_MATERIAL_ID = PHASE_PARAM_MATERIAL.phaseParamId;
+
     crossJobParams = signal<CrossJobParameters>({
         paymentReceived: false,
         dueDate: '',
         customer: '',
-        carrier: ''
+        carrier: '',
+        callOff: false
     });
 
     jobs = signal<ProductSelectedWithMap[]>([]);
@@ -209,9 +214,15 @@ export class AdminJobsComponent {
 
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
 
-        if(!this.crossJobParams().paymentReceived) {
+        if (!this.crossJobParams().paymentReceived) {
             return 'Unpaid';
         }
+
+        const material = job.params.find(p => p.phaseParamId === this.PHASE_PARAM_MATERIAL_ID)?.value;
+        if (material !== 'true') {
+            return 'Insufficient Material';
+        }
+
 
         const invalidParams = job.params.filter(
             p => p.input !== 3 && (p.value === '' || p.value.startsWith('('))

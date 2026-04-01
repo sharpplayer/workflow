@@ -1,4 +1,4 @@
-import { Component, inject, input, output, LOCALE_ID, effect, signal } from '@angular/core';
+import { Component, inject, input, output, LOCALE_ID, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam } from '../../../core/services/product.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
@@ -12,6 +12,11 @@ import { NgSelectModule } from '@ng-select/ng-select';
 import { FormsModule } from '@angular/forms';
 import { AdminCustomerComponent, CustomerFormModel } from '../admin-customer/admin-customer.component';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
+
+export interface PhaseParamValidationError {
+    phaseParamId: number;
+    message: string;
+}
 
 export const UK_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -65,8 +70,9 @@ export interface PhaseParamSelected {
 <table>
   <thead>
     <tr>
-      <th>Information</th>
-      <th>Details</th>
+      <th class="col-small">Information</th>
+      <th class="col-big">Details</th>
+      <th class="col-medium"></th>
     </tr>
   </thead>
   <tbody>
@@ -138,11 +144,16 @@ export interface PhaseParamSelected {
               />
             }
           </td>
+          <td>
+            <div class="field-error" [class.has-error]="!!getError(param.phaseParamId)">
+              {{ getError(param.phaseParamId) }}
+            </div>
+          </td>
         </tr>
       }
     } @else {
       <tr>
-        <td colspan="2" class="no-data">No parameters need specifying</td>
+        <td colspan="3" class="no-data">No parameters need specifying</td>
       </tr>
     }
   </tbody>
@@ -171,6 +182,7 @@ export class AdminPhaseParamComponent {
 
   phaseParams = input<PhaseParam[]>([]);
   selectedParams = input<PhaseParamSelected[] | null>(null);
+  validationErrors = input<PhaseParamValidationError[]>([]);
   paramsSelected = output<PhaseParamSelected[]>();
 
   filteredParams = signal<PhaseParamData[]>([]);
@@ -184,6 +196,14 @@ export class AdminPhaseParamComponent {
   carrierFormData = signal<CarrierFormModel | null>(null);
 
   selectedParamForAdd = signal<PhaseParamData | null>(null);
+
+  errorMap = computed(() => {
+    const map = new Map<number, string>();
+    for (const err of this.validationErrors()) {
+      map.set(err.phaseParamId, err.message);
+    }
+    return map;
+  });
 
   constructor() {
     effect(() => {
@@ -204,12 +224,16 @@ export class AdminPhaseParamComponent {
       (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
     );
 
+
+    console.log(JSON.stringify(filtered));
+
     const result: PhaseParamData[] = [];
 
     for (const p of filtered) {
       let options: ConfigItem[] = [];
       let type = p.type ?? null;
 
+      let def = '';
       if (p.paramConfig) {
         try {
           const list = await this.configService.getList(p.paramConfig);
@@ -222,13 +246,14 @@ export class AdminPhaseParamComponent {
 
       const defaults: ConfigItem[] = [];
       if (p.input === 2) {
+        def = p.evaluation ?? '(Input At Job Start)';
         defaults.push({
-          key: '(Job Not Starting)',
-          value: '(Job Not Starting)'
+          key: def,
+          value: def
         });
       }
 
-      const value = selectedMap.get(p.phaseParamId) ?? p.value ?? '';
+      const value = selectedMap.get(p.phaseParamId) ?? p.value ?? def;
 
       let finalOptions = [...options];
       if (
@@ -290,9 +315,9 @@ export class AdminPhaseParamComponent {
       params.map(p =>
         p.phaseParamId === id
           ? {
-              ...p,
-              value: date ? date.format(UK_DATE_FORMATS.storage) : ''
-            }
+            ...p,
+            value: date ? date.format(UK_DATE_FORMATS.storage) : ''
+          }
           : p
       )
     );
@@ -365,10 +390,10 @@ export class AdminPhaseParamComponent {
         params.map(p =>
           p.phaseParamId === param.phaseParamId
             ? {
-                ...p,
-                options: [...p.options, newItem],
-                value: newItem.key
-              }
+              ...p,
+              options: [...p.options, newItem],
+              value: newItem.key
+            }
             : p
         )
       );
@@ -399,10 +424,10 @@ export class AdminPhaseParamComponent {
         params.map(p =>
           p.phaseParamId === param.phaseParamId
             ? {
-                ...p,
-                options: [...p.options, newItem],
-                value: newItem.key
-              }
+              ...p,
+              options: [...p.options, newItem],
+              value: newItem.key
+            }
             : p
         )
       );
@@ -422,9 +447,9 @@ export class AdminPhaseParamComponent {
       params.map(p =>
         p.phaseParamId === id
           ? {
-              ...p,
-              value: key ?? ''
-            }
+            ...p,
+            value: key ?? ''
+          }
           : p
       )
     );
@@ -441,5 +466,9 @@ export class AdminPhaseParamComponent {
     }));
 
     this.paramsSelected.emit(selected);
+  }
+
+  getError(paramId: number): string {
+    return this.errorMap().get(paramId) ?? '';
   }
 }

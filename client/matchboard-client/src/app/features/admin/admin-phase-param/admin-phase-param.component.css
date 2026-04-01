@@ -3,6 +3,7 @@ table {
   border-collapse: collapse;
   margin-top: 1rem;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  table-layout: fixed; /* key for consistent sizing */
 }
 
 /* Header styling */
@@ -91,4 +92,29 @@ button:hover {
 
 button:disabled {
   background-color: #959698;
+}
+
+.field-with-error {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-error {
+  color: transparent;
+}
+
+.field-error.has-error {
+  color: #d32f2f;
+}
+
+.col-small {
+  width: 20%;
+}
+
+.col-big {
+  width: 55%;
+}
+
+.col-medium {
+  width: 25%;
 }
