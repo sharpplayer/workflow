@@ -20,7 +20,7 @@ interface EditableParam {
   input: number;
   paramName: string;
   paramConfig: string;
-  paramEvaluation: string;
+  paramEvaluation: string
 }
 
 @Component({
@@ -232,6 +232,7 @@ export class AdminPhaseComponent implements OnInit {
       params: p.params.map((pp, i) => ({
         phaseId: p.id,
         phaseParamId: pp.id || i + 1,
+        phaseNumber: p.order,
         input: pp.input,
         paramName: pp.paramName,
         paramConfig: pp.paramConfig,

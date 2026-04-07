@@ -15,6 +15,7 @@ export interface ProductSave {
 export const PHASE_PARAM_QUANTITY: PhaseParam = {
     phaseId : 0,
     phaseParamId: -1,
+    phaseNumber: 0,
     paramName: 'Quantity',
     paramConfig: '',
     input: 1,
@@ -25,6 +26,7 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
 const PHASE_PARAM_PAYMENT: PhaseParam = {
     phaseId : 0,
     phaseParamId: -2,
+    phaseNumber: 0,
     paramName: 'Payment Received',
     paramConfig: '',
     input: 2,
@@ -36,6 +38,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
     phaseId : 0,
     phaseParamId: -3,
+    phaseNumber: 0,
     paramName: 'For Call Off',
     paramConfig: '',
     input: 1,
@@ -47,6 +50,7 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
 const PHASE_PARAM_FINISHED: PhaseParam = {
     phaseId : 0,
     phaseParamId: -4,
+    phaseNumber: 0,
     paramName: 'From Call Off',
     paramConfig: '',
     input: 1,
@@ -58,6 +62,7 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
     phaseId : 0,
     phaseParamId: -5,
+    phaseNumber: 0,
     paramName: 'Due',
     paramConfig: '',
     input: 1,
@@ -68,26 +73,31 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
     phaseId : 0,
     phaseParamId: -6,
+    phaseNumber: 0,
     paramName: 'Customer',
     paramConfig: 'customer',
     input: 1,
     evaluation: '(Select)',
-    type: 'string[]'
+    type: 'string[]',
+    editable: true
 };
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
     phaseId : 0,
     phaseParamId: -7,
+    phaseNumber: 0,
     paramName: 'Carrier',
     paramConfig: 'carrier',
     input: 1,
     evaluation: '(Select For Non Call Off)',
-    type: 'string[]'
+    type: 'string[]',
+    editable: true
 };
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
     phaseId : 0,
     phaseParamId: -8,
+    phaseNumber: 0,
     paramName: 'Material Available',
     paramConfig: '',
     input: 1,
@@ -139,6 +149,8 @@ export class AdminJobComponent {
     hasResults = true;
 
     crossJobParams = input<CrossJobParameters>({
+        jobId : 0,
+        jobNumber : 0,
         paymentReceived: false,
         dueDate: '',
         customer: '',
@@ -194,6 +206,7 @@ export class AdminJobComponent {
         const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: this.crossJobParams().carrier };
         const callOffParam: PhaseParam = { ...PHASE_PARAM_CALLOFF, value: this.crossJobParams().callOff ? "true" : "false" };
 
+        console.log(customerParam);
         const params = [
             dateParam,
             paymentParam,
@@ -248,6 +261,8 @@ export class AdminJobComponent {
         const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_CALLOFF.phaseParamId)?.value === 'true';
 
         const newValue = {
+            jobId : current.jobId,
+            jobNumber : current.jobNumber,
             paymentReceived: paymentParam,
             dueDate: dueDateParam,
             customer: customerParam,

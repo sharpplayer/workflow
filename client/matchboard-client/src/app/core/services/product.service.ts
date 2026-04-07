@@ -13,12 +13,14 @@ export interface Product {
 export interface PhaseParam {
   phaseId: number,
   phaseParamId: number,
+  phaseNumber: number,
   paramName: string,
   paramConfig: string,
   input: number,
   evaluation: string,
   type?: string,
-  value?: string
+  value?: string,
+  editable?: boolean
 }
 
 export interface Phase {

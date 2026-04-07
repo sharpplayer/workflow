@@ -32,17 +32,20 @@ export const UK_DATE_FORMATS = {
 interface PhaseParamData {
   phaseId: number;
   phaseParamId: number;
+  phaseNumber: number;
   key: string;
   value: string;
   paramConfig: string;
   type: string | null;
   options: ConfigItem[];
   input: number;
+  editable: boolean;
 }
 
 export interface PhaseParamSelected {
   phaseId: number;
   phaseParamId: number;
+  phaseNumber: number;
   key: string;
   value: string;
   input: number;
@@ -97,7 +100,7 @@ export interface PhaseParamSelected {
                   </option>
                 }
               </select>
-            } @else if (param.type === 'string[]') {
+            } @else if (param.type === 'string[]' && param.editable) {
               <div class="param-select-wrapper">
                 <ng-select
                   [items]="param.options"
@@ -113,6 +116,20 @@ export interface PhaseParamSelected {
                 </ng-select>
                 <button type="button" (click)="addItem(param)">+</button>
               </div>
+            } @else if (param.type === 'string[]') {
+              <select
+                [ngModel]="param.value"
+                (ngModelChange)="onValueChange(param.phaseParamId, $event)"
+              >
+                @for (opt of param.options; track opt.key) {
+                  <option
+                    [ngValue]="opt.key"
+                    [style.color]="opt.value.startsWith('(') ? null : opt.value.toLowerCase()"
+                  >
+                    {{ opt.value.startsWith('(') ? '' : '● ' }}{{ opt.value }}
+                  </option>
+                }
+              </select>
             } @else if (param.type === 'boolean') {
               <input
                 type="checkbox"
@@ -244,6 +261,9 @@ export class AdminPhaseParamComponent {
       }
 
       const defaults: ConfigItem[] = [];
+      if (p.input === 1 && options.length > 0) {
+        def = options[0].key;
+      }
       if (p.input === 2) {
         def = p.evaluation ?? '(Input At Job Start)';
         defaults.push({
@@ -266,12 +286,14 @@ export class AdminPhaseParamComponent {
       result.push({
         phaseId: p.phaseId,
         phaseParamId: p.phaseParamId,
+        phaseNumber: p.phaseNumber,
         key: p.paramName,
         value,
         paramConfig: p.paramConfig,
         type,
         options: [...defaults, ...finalOptions],
-        input: p.input
+        input: p.input,
+        editable: p.editable ?? false
       });
     }
 
@@ -461,6 +483,7 @@ export class AdminPhaseParamComponent {
     const selected: PhaseParamSelected[] = this.filteredParams().map(p => ({
       phaseId: p.phaseId,
       phaseParamId: p.phaseParamId,
+      phaseNumber: p.phaseNumber,
       key: p.key,
       value: p.value,
       input: p.input

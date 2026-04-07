@@ -1,14 +1,20 @@
 package uk.co.matchboard.app.service;
 
+import static uk.co.matchboard.generated.Sequences.JOB_NUMBER_SEQ;
 import static uk.co.matchboard.generated.Tables.CARRIER;
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
 import static uk.co.matchboard.generated.Tables.CUSTOMER;
+import static uk.co.matchboard.generated.Tables.JOB;
+import static uk.co.matchboard.generated.Tables.JOB_PART;
+import static uk.co.matchboard.generated.Tables.JOB_PART_PARAMS;
+import static uk.co.matchboard.generated.Tables.JOB_PART_PHASES;
 import static uk.co.matchboard.generated.Tables.PHASE;
 import static uk.co.matchboard.generated.Tables.PHASE_PARAM;
 import static uk.co.matchboard.generated.Tables.PRODUCTS;
 import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.jooq.DSLContext;
@@ -28,6 +34,14 @@ import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
+import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.CreateJobPart;
+import uk.co.matchboard.app.model.job.CreateJobPartParam;
+import uk.co.matchboard.app.model.job.CreateJobPartPhase;
+import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobPart;
+import uk.co.matchboard.app.model.job.JobPartParam;
+import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -409,6 +423,105 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .map(id -> new Carrier(id, carrier.code(), carrier.name(), true));
     }
 
+    @Override
+    public Result<Job> createJob(CreateJob job) {
+
+        return TryUtils.tryCatch(() ->
+                dsl.transactionResult(connection -> {
+                    OffsetDateTime now = OffsetDateTime.now();
+                    DSLContext dsl = DSL.using(connection);
+                    long jobNumber = getNextJobNumber(dsl);
+
+                    Integer jobId = dsl.insertInto(JOB)
+                            .set(JOB.NUMBER, jobNumber)
+                            .set(JOB.PARTS, job.parts().size())
+                            .set(JOB.DUE, job.due())
+                            .set(JOB.CUSTOMER_ID, job.customer())
+                            .set(JOB.CARRIER_ID, job.carrier())
+                            .set(JOB.CALL_OFF, job.callOff())
+                            .set(JOB.STATUS, job.status())
+                            .returning(JOB.ID)
+                            .fetchOne(JOB.ID);
+
+                    if (jobId == null) {
+                        throw new DataAccessException("Failed to insert Job, no ID returned") {
+                        };
+                    }
+
+                    int partNo = 1;
+                    List<JobPart> jobParts = new ArrayList<>();
+                    for (CreateJobPart part : job.parts()) {
+                        Integer partId = dsl.insertInto(JOB_PART)
+                                .set(JOB_PART.JOB_ID, jobId)
+                                .set(JOB_PART.PART_NUMBER, partNo)
+                                .set(JOB_PART.PRODUCT_ID, part.productId())
+                                .set(JOB_PART.QUANTITY, part.quantity())
+                                .set(JOB_PART.FROM_CALL_OFF, part.fromCallOff())
+                                .set(JOB_PART.MATERIAL_AVAILABLE, part.materialAvailable())
+                                .set(JOB_PART.STATUS, part.status())
+                                .returning(JOB_PART.ID)
+                                .fetchOne(JOB_PART.ID);
+                        if (partId == null) {
+                            throw new DataAccessException(
+                                    "Failed to insert Job Part, no ID returned") {
+                            };
+                        }
+
+                        int phaseNo = 1;
+                        List<JobPartPhase> jobPartPhases = new ArrayList<>();
+                        List<JobPartParam> partParams = new ArrayList<>();
+                        for (CreateJobPartPhase phase : part.phases()) {
+                            Integer partPhaseId = dsl.insertInto(JOB_PART_PHASES)
+                                    .set(JOB_PART_PHASES.JOB_PART_ID, partId)
+                                    .set(JOB_PART_PHASES.PHASE_ID, phase.phaseId())
+                                    .set(JOB_PART_PHASES.PHASE_NUMBER, phaseNo)
+                                    .set(JOB_PART_PHASES.SPECIAL_INSTRUCTION,
+                                            phase.specialInstructions())
+                                    .set(JOB_PART_PHASES.STATUS, phase.status())
+                                    .returning(JOB_PART_PHASES.ID)
+                                    .fetchOne(JOB_PART_PHASES.ID);
+                            if (partPhaseId == null) {
+                                throw new DataAccessException(
+                                        "Failed to insert Job Part Phase, no ID returned") {
+                                };
+                            }
+                            jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
+                                    phaseNo, phase.specialInstructions(), phase.status()));
+
+                            for (CreateJobPartParam param : part.params()) {
+                                if (param.phaseNumber() == phaseNo) {
+                                    OffsetDateTime valueTime = param.value() == null ? null : now;
+                                    Integer paramId = dsl.insertInto(JOB_PART_PARAMS)
+                                            .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId)
+                                            .set(JOB_PART_PARAMS.PARAM_ID, param.paramId())
+                                            .set(JOB_PART_PARAMS.VALUE, param.value())
+                                            .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
+                                            .returning(JOB_PART_PARAMS.ID)
+                                            .fetchOne(JOB_PART_PARAMS.ID);
+                                    if (paramId == null) {
+                                        throw new DataAccessException(
+                                                "Failed to insert Job Part Param, no ID returned") {
+                                        };
+                                    }
+                                    partParams.add(
+                                            new JobPartParam(paramId, param.paramId(),
+                                                    param.phaseNumber(),
+                                                    param.value(), valueTime));
+                                }
+                            }
+                            phaseNo++;
+                        }
+                        partNo++;
+                        jobParts.add(new JobPart(partId, part.productId(), part.quantity(),
+                                part.fromCallOff(), part.materialAvailable(), jobPartPhases,
+                                partParams,
+                                part.status()));
+                    }
+                    return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
+                            job.callOff(), jobParts, job.status());
+                }));
+    }
+
     private static Carrier getCarrier(CarrierRecord carrierRecord) {
         return new Carrier(carrierRecord.getId(),
                 carrierRecord.getCode(),
@@ -428,4 +541,38 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         rec.getType(),
                                         rec.getValue()))));
     }
+
+    private static long getNextJobNumber(DSLContext dsl) {
+
+        String nextJob = dsl.select(CONFIGURATION.VALUE)
+                .from(CONFIGURATION)
+                .where(CONFIGURATION.ID.eq("NEXTJOB"))
+                .fetchOne(CONFIGURATION.VALUE);
+
+        long configuredNext = 1L;
+        if (nextJob != null && !nextJob.isBlank()) {
+            configuredNext = Long.parseLong(nextJob);
+        }
+
+        Long maxJobNumber = dsl
+                .select(DSL.max(JOB.NUMBER))
+                .from(JOB)
+                .fetchOne(0, Long.class);
+
+        long sequenceFloor = Math.max(
+                maxJobNumber == null ? 1L : maxJobNumber + 1L,
+                configuredNext
+        );
+
+        dsl.execute("""
+                select setval(
+                    'job_number_seq',
+                    greatest(?, (select last_value from job_number_seq)),
+                    false
+                )
+                """, sequenceFloor);
+
+        return dsl.nextval(JOB_NUMBER_SEQ);
+    }
 }
+

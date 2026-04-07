@@ -15,7 +15,7 @@ CREATE TABLE products
     rack_type  VARCHAR(30) NOT NULL,
     machinery  TEXT[] NOT NULL DEFAULT '{}',
     enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_products_name
@@ -62,6 +62,8 @@ VALUES ('Material Logistics', TRUE),
        ('Palletising and Shrinkwrap', TRUE),
        ('Bearers, Labels, Shrinkwrap', TRUE),
        ('Loading and Dispatch Docs', TRUE);
+
+
 
 INSERT INTO phase_param (phase_id, name, config, input, "order")
 SELECT p.id, v.name, v.config, v.input, v."order"

@@ -8,6 +8,8 @@ import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
+import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -53,4 +55,6 @@ public interface DatabaseService {
     Result<Customer> createCustomer(CreateCustomer customer);
 
     Result<Carrier> createCarrier(CreateCarrier carrier);
+
+    Result<Job> createJob(CreateJob job);
 }

@@ -159,3 +159,12 @@ table .col-description {
 .example-header button {
   margin-left: 0.4rem;
 }
+
+.example-header button {
+  background: none;
+  border: none;
+  color: inherit; 
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.4rem;
+}

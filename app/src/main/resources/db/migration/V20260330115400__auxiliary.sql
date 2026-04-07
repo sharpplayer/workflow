@@ -7,7 +7,7 @@ CREATE TABLE customer
     contact        VARCHAR(50) NOT NULL,
     contact_number VARCHAR(50) NOT NULL,
     enabled        BOOLEAN     NOT NULL DEFAULT TRUE,
-    created_at     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_customer_code
@@ -19,7 +19,7 @@ CREATE TABLE carrier
     code       VARCHAR(20) NOT NULL,
     name       VARCHAR(50) NOT NULL,
     enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_carrier_code

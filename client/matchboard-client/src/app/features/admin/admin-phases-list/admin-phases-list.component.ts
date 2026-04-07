@@ -280,7 +280,8 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
         .filter(p => p.input === 1 || p.input === 2)
         .map(p => ({
           ...p,
-          phaseId: jp.phase.id
+          phaseId: jp.phase.id,
+          phaseNumber: jp.order
         }))
     );
 
