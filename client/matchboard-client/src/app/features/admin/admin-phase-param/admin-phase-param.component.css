@@ -118,3 +118,15 @@ button:disabled {
 .col-medium {
   width: 25%;
 }
+
+.clear-date-btn {
+  all: unset;              /* wipe global styles */
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+}

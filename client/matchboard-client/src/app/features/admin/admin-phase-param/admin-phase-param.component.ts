@@ -136,7 +136,7 @@ export interface PhaseParamSelected {
                 [checked]="param.value === 'true'"
                 (change)="onValueChange(param.phaseParamId, $any($event.target).checked, 'boolean')"
               />
-            } @else if (param.type === 'date') {
+            } @else if (param.type?.startsWith('date')) {
               <mat-form-field appearance="fill">
                 <input
                   matInput
@@ -145,6 +145,19 @@ export interface PhaseParamSelected {
                   (dateChange)="onDateChange(param.phaseParamId, $event.value)"
                   placeholder="Select a date"
                 />
+                 <!-- Clear button -->
+                @if(param.type?.endsWith('?'))
+                {
+                <button
+                  matSuffix
+                  mat-icon-button
+                  class="clear-date-btn"
+                  (click)="clearDate(param.phaseParamId)"
+                  aria-label="Clear date"
+                >
+                  ✕
+                </button>
+                }
                 <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
               </mat-form-field>
@@ -494,5 +507,9 @@ export class AdminPhaseParamComponent {
 
   getError(paramId: number): string {
     return this.errorMap().get(paramId) ?? '';
+  }
+
+  clearDate(id: number) {
+   this.onDateChange(id, null);
   }
 }

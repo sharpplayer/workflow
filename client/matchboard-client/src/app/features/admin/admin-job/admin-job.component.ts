@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam, Product } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
@@ -12,8 +12,9 @@ export interface ProductSave {
     phases: JobPhase[],
     params: PhaseParamSelected[]
 }
+
 export const PHASE_PARAM_QUANTITY: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -1,
     phaseNumber: 0,
     paramName: 'Quantity',
@@ -24,7 +25,7 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
 };
 
 const PHASE_PARAM_PAYMENT: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -2,
     phaseNumber: 0,
     paramName: 'Payment Received',
@@ -36,7 +37,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
 };
 
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -3,
     phaseNumber: 0,
     paramName: 'For Call Off',
@@ -48,7 +49,7 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
 };
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -4,
     phaseNumber: 0,
     paramName: 'From Call Off',
@@ -60,7 +61,7 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
 };
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -5,
     phaseNumber: 0,
     paramName: 'Due',
@@ -71,7 +72,7 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
 };
 
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -6,
     phaseNumber: 0,
     paramName: 'Customer',
@@ -83,7 +84,7 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
 };
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -7,
     phaseNumber: 0,
     paramName: 'Carrier',
@@ -95,7 +96,7 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
 };
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
-    phaseId : 0,
+    phaseId: 0,
     phaseParamId: -8,
     phaseNumber: 0,
     paramName: 'Material Available',
@@ -104,6 +105,17 @@ export const PHASE_PARAM_MATERIAL: PhaseParam = {
     evaluation: '(Input At Job Create)',
     type: 'boolean',
     value: 'true'
+};
+
+export const PHASE_PARAM_SCHEDULE: PhaseParam = {
+    phaseId: 0,
+    phaseParamId: -9,
+    phaseNumber: 0,
+    paramName: 'Run Job Part On',
+    paramConfig: '',
+    input: 1,
+    evaluation: '(Input At Job Start)',
+    type: 'date?'
 };
 
 @Component({
@@ -149,13 +161,15 @@ export class AdminJobComponent {
     hasResults = true;
 
     crossJobParams = input<CrossJobParameters>({
-        jobId : 0,
-        jobNumber : 0,
+        jobId: 0,
+        jobNumber: 0,
         paymentReceived: false,
         dueDate: '',
         customer: '',
         carrier: '',
-        callOff: false
+        callOff: false,
+        scheduledOn: '',
+        status: 0
     });
 
     selectedPart = input<ProductSave | null>(null);
@@ -169,25 +183,34 @@ export class AdminJobComponent {
     hasSelectedPhases = computed(() => this.selectedPhases().length > 0);
     crossJobParamsChanged = output<CrossJobParameters>();
     isEditing = computed(() => !!this.selectedPart());
-    buttonText = computed(() => this.isEditing() ? 'Update Product' : 'Add Product');
+    buttonText = computed(() => this.isEditing() ? 'Update Job Part' : 'Add Job Part');
     validationErrors = signal<PhaseParamValidationError[]>([]);
+    lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
 
     @ViewChild('productsList') productsList!: AdminProductListComponent;
 
     canAddProduct = computed(() => {
         if (!this.hasSelectedPhases()) return false;
-        const params = this.lastParamsSelected?.();
+        const params = this.lastParamsSelected();
         if (!params) return false;
         return this.getValidationErrors(params).length === 0;
     });
-
-    lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
 
     constructor() {
         effect(() => {
             const job = this.selectedPart();
             if (!job) return;
             this.loadJob(job);
+        });
+
+        effect(() => {
+            const params = this.lastParamsSelected();
+            if (!params) {
+                this.validationErrors.set([]);
+                return;
+            }
+
+            this.validationErrors.set(this.getValidationErrors(params));
         });
     }
 
@@ -200,13 +223,24 @@ export class AdminJobComponent {
 
     phaseSelected(phases: PhasesSelected) {
         this.selectedPhases.set(phases.phases);
-        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: this.crossJobParams().paymentReceived ? "true" : "false" };
-        const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: this.crossJobParams().dueDate };
-        const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: this.crossJobParams().customer };
-        const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: this.crossJobParams().carrier };
-        const callOffParam: PhaseParam = { ...PHASE_PARAM_CALLOFF, value: this.crossJobParams().callOff ? "true" : "false" };
 
-        console.log(customerParam);
+        const cross = this.crossJobParams();
+        const selected = this.selectedPart();
+
+        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: cross.paymentReceived ? 'true' : 'false' };
+        const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: cross.dueDate };
+        const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: cross.customer };
+        const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: cross.carrier };
+        const callOffParam: PhaseParam = { ...PHASE_PARAM_CALLOFF, value: cross.callOff ? 'true' : 'false' };
+
+        const existingSelectedSchedule =
+            selected?.params.find(p => p.phaseParamId === PHASE_PARAM_SCHEDULE.phaseParamId)?.value;
+
+        const scheduledParam: PhaseParam = {
+            ...PHASE_PARAM_SCHEDULE,
+            value: existingSelectedSchedule ?? cross.scheduledOn
+        };
+
         const params = [
             dateParam,
             paymentParam,
@@ -214,6 +248,7 @@ export class AdminJobComponent {
             customerParam,
             carrierParam,
             PHASE_PARAM_QUANTITY,
+            scheduledParam,
             ...phases.params,
             PHASE_PARAM_FINISHED,
             PHASE_PARAM_MATERIAL
@@ -221,21 +256,30 @@ export class AdminJobComponent {
 
         this.phaseParamsToShow.set(params);
 
-        // If we are loading an existing job, prefill selected values
-        const selected = this.selectedPart();
         if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
             const crossJobParamValueMap = new Map<number, string>([
-                [paymentParam.phaseParamId, paymentParam.value ?? ""],
-                [dateParam.phaseParamId, dateParam.value ?? ""],
-                [customerParam.phaseParamId, customerParam.value ?? ""],
-                [carrierParam.phaseParamId, carrierParam.value ?? ""],
-                [callOffParam.phaseParamId, callOffParam.value ?? ""]
+                [paymentParam.phaseParamId, paymentParam.value ?? ''],
+                [dateParam.phaseParamId, dateParam.value ?? ''],
+                [customerParam.phaseParamId, customerParam.value ?? ''],
+                [carrierParam.phaseParamId, carrierParam.value ?? ''],
+                [callOffParam.phaseParamId, callOffParam.value ?? '']
             ]);
 
             this.lastParamsSelected.set(
                 selected.params.map(p => ({
                     ...p,
                     value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
+                }))
+            );
+        } else {
+            this.lastParamsSelected.set(
+                params.map(p => ({
+                    phaseId: p.phaseId,
+                    phaseParamId: p.phaseParamId,
+                    phaseNumber: p.phaseNumber,
+                    key: p.paramName,
+                    value: p.value ?? p.evaluation ?? '',
+                    input: p.input
                 }))
             );
         }
@@ -245,8 +289,6 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(params);
 
         const errors = this.getValidationErrors(params);
-        this.validationErrors.set(errors);
-
         if (errors.length > 0) {
             console.error('Invalid params detected:', errors);
             return;
@@ -255,19 +297,24 @@ export class AdminJobComponent {
         const current = this.crossJobParams();
 
         const paymentParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId)?.value === 'true';
-        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId)?.value || '';
-        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_CUSTOMER.phaseParamId)?.value || '';
-        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId)?.value || '';
+        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId)?.value ?? '';
+        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_CUSTOMER.phaseParamId)?.value ?? '';
+        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId)?.value ?? '';
         const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_CALLOFF.phaseParamId)?.value === 'true';
+        const scheduledParam = params.find(p => p.phaseParamId === PHASE_PARAM_SCHEDULE.phaseParamId)?.value ?? '';
 
-        const newValue = {
-            jobId : current.jobId,
-            jobNumber : current.jobNumber,
+        // Keep schedule in shared state as the default for the next new part,
+        // but parent will not push it back into existing parts.
+        const newValue: CrossJobParameters = {
+            jobId: current.jobId,
+            jobNumber: current.jobNumber,
             paymentReceived: paymentParam,
             dueDate: dueDateParam,
             customer: customerParam,
             carrier: carrierParam,
-            callOff: callOffParam
+            callOff: callOffParam,
+            scheduledOn: scheduledParam,
+            status: current.status
         };
 
         const hasChanged =
@@ -275,7 +322,8 @@ export class AdminJobComponent {
             (newValue.dueDate !== current.dueDate) ||
             (newValue.customer !== current.customer) ||
             (newValue.carrier !== current.carrier) ||
-            (newValue.callOff !== current.callOff);
+            (newValue.callOff !== current.callOff) ||
+            (newValue.scheduledOn !== current.scheduledOn);
 
         if (hasChanged) {
             this.crossJobParamsChanged.emit(newValue);
@@ -292,7 +340,6 @@ export class AdminJobComponent {
         }
 
         const errors = this.getValidationErrors(params);
-        this.validationErrors.set(errors);
 
         if (errors.length > 0) {
             console.error('Invalid params detected:', errors);
@@ -333,11 +380,11 @@ export class AdminJobComponent {
         }
 
         const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         if (dueDateParam) {
             const selected = new Date(dueDateParam.value);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
             if (isNaN(selected.getTime())) {
                 errors.push({
                     phaseParamId: dueDateParam.phaseParamId,
@@ -347,6 +394,18 @@ export class AdminJobComponent {
                 errors.push({
                     phaseParamId: dueDateParam.phaseParamId,
                     message: 'Due date cannot be in the past.'
+                });
+            }
+        }
+
+        const scheduleParam = params.find(p => p.phaseParamId === PHASE_PARAM_SCHEDULE.phaseParamId);
+        if (scheduleParam && scheduleParam.value) {
+            const selected = new Date(scheduleParam.value);
+
+            if (!isNaN(selected.getTime()) && selected < today) {
+                errors.push({
+                    phaseParamId: scheduleParam.phaseParamId,
+                    message: 'Run date cannot be in the past.'
                 });
             }
         }

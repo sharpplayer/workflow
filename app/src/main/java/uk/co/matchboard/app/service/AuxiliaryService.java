@@ -1,16 +1,16 @@
 package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.config.ConfigItem;
+import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 
 public interface AuxiliaryService {
 
-    Result<ConfigItem> getCustomers();
+    Result<ConfigResponse> getCustomers();
 
-    Result<ConfigItem> getCarriers();
+    Result<ConfigResponse> getCarriers();
 
     Result<KeyValuePair> createCustomer(CreateCustomer customer);
 

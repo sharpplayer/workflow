@@ -17,6 +17,8 @@ import static uk.co.matchboard.generated.Tables.USERS;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
@@ -42,6 +44,7 @@ import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobPart;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
+import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -424,7 +427,8 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     @Override
-    public Result<Job> createJob(CreateJob job) {
+    public Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus) {
 
         return TryUtils.tryCatch(() ->
                 dsl.transactionResult(connection -> {
@@ -439,7 +443,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .set(JOB.CUSTOMER_ID, job.customer())
                             .set(JOB.CARRIER_ID, job.carrier())
                             .set(JOB.CALL_OFF, job.callOff())
-                            .set(JOB.STATUS, job.status())
+                            .set(JOB.STATUS, jobStatus)
                             .returning(JOB.ID)
                             .fetchOne(JOB.ID);
 
@@ -451,6 +455,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     int partNo = 1;
                     List<JobPart> jobParts = new ArrayList<>();
                     for (CreateJobPart part : job.parts()) {
+                        int partStatus = partStatusProvider.apply(part);
                         Integer partId = dsl.insertInto(JOB_PART)
                                 .set(JOB_PART.JOB_ID, jobId)
                                 .set(JOB_PART.PART_NUMBER, partNo)
@@ -458,7 +463,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .set(JOB_PART.QUANTITY, part.quantity())
                                 .set(JOB_PART.FROM_CALL_OFF, part.fromCallOff())
                                 .set(JOB_PART.MATERIAL_AVAILABLE, part.materialAvailable())
-                                .set(JOB_PART.STATUS, part.status())
+                                .set(JOB_PART.SCHEDULE_FOR, part.scheduleFor())
+                                .set(JOB_PART.STATUS, partStatus)
                                 .returning(JOB_PART.ID)
                                 .fetchOne(JOB_PART.ID);
                         if (partId == null) {
@@ -470,14 +476,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                         int phaseNo = 1;
                         List<JobPartPhase> jobPartPhases = new ArrayList<>();
                         List<JobPartParam> partParams = new ArrayList<>();
+                        Integer status = -1;
                         for (CreateJobPartPhase phase : part.phases()) {
+                            status = phaseStatusProvider.apply(phase, status);
                             Integer partPhaseId = dsl.insertInto(JOB_PART_PHASES)
                                     .set(JOB_PART_PHASES.JOB_PART_ID, partId)
                                     .set(JOB_PART_PHASES.PHASE_ID, phase.phaseId())
                                     .set(JOB_PART_PHASES.PHASE_NUMBER, phaseNo)
                                     .set(JOB_PART_PHASES.SPECIAL_INSTRUCTION,
                                             phase.specialInstructions())
-                                    .set(JOB_PART_PHASES.STATUS, phase.status())
+                                    .set(JOB_PART_PHASES.STATUS, status)
                                     .returning(JOB_PART_PHASES.ID)
                                     .fetchOne(JOB_PART_PHASES.ID);
                             if (partPhaseId == null) {
@@ -486,7 +494,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 };
                             }
                             jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
-                                    phaseNo, phase.specialInstructions(), phase.status()));
+                                    phaseNo, phase.specialInstructions(), status));
 
                             for (CreateJobPartParam param : part.params()) {
                                 if (param.phaseNumber() == phaseNo) {
@@ -513,13 +521,25 @@ public class DatabaseServiceImpl implements DatabaseService {
                         }
                         partNo++;
                         jobParts.add(new JobPart(partId, part.productId(), part.quantity(),
-                                part.fromCallOff(), part.materialAvailable(), jobPartPhases,
+                                part.fromCallOff(), part.materialAvailable(), part.scheduleFor(),
+                                jobPartPhases,
                                 partParams,
-                                part.status()));
+                                partStatus));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
-                            job.callOff(), jobParts, job.status());
+                            job.callOff(), jobParts, jobStatus);
                 }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<OffsetDateTime>> getScheduleDates() {
+        return TryUtils.tryCatch(() ->
+                dsl.selectDistinct(JOB_PART.SCHEDULE_FOR).from(JOB_PART)
+                        .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
+                        .fetch(JOB_PART.SCHEDULE_FOR)
+        );
     }
 
     private static Carrier getCarrier(CarrierRecord carrierRecord) {
@@ -564,7 +584,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 configuredNext
         );
 
-        dsl.execute("""
+        dsl.execute(
+                """
                 select setval(
                     'job_number_seq',
                     greatest(?, (select last_value from job_number_seq)),

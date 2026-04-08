@@ -1,9 +1,23 @@
 import { Component, signal, ViewChild, computed, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { AdminJobComponent, ProductSave, PHASE_PARAM_CALLOFF, PHASE_PARAM_QUANTITY, PHASE_PARAM_MATERIAL } from '../admin-job/admin-job.component';
-import { CreateJob, CreateJobPart, CreateJobPartParam, CreateJobPartPhase, JobService } from '../../../core/services/job.service';
+import {
+    AdminJobComponent,
+    ProductSave,
+    PHASE_PARAM_CALLOFF,
+    PHASE_PARAM_QUANTITY,
+    PHASE_PARAM_MATERIAL,
+    PHASE_PARAM_SCHEDULE
+} from '../admin-job/admin-job.component';
+import {
+    CreateJob,
+    CreateJobPart,
+    CreateJobPartParam,
+    CreateJobPartPhase,
+    JobService,
+    JobStatus,
+    JobStatusLabel
+} from '../../../core/services/job.service';
 
-// Extend ProductSelected to include a paramMap for easy lookup
 export interface ProductSelectedWithMap extends ProductSave {
     paramMap: Map<number, string>;
 }
@@ -15,13 +29,16 @@ export interface CrossJobParameters {
     dueDate: string,
     customer: string,
     carrier: string,
-    callOff: boolean
+    callOff: boolean,
+    scheduledOn: string,
+    status: number
 }
 
 @Component({
     selector: 'admin-jobs',
     standalone: true,
     imports: [CommonModule, AdminJobComponent, DatePipe],
+    providers: [DatePipe],
     template: `
     <div>
         <span>
@@ -38,7 +55,11 @@ export interface CrossJobParameters {
                 crossJobParams().dueDate
                 ? (crossJobParams().dueDate | date:'dd/MM/yyyy')
                 : '(New)'
-            }} 
+            }}
+        </span>
+        <span>
+            <strong>Status:</strong>
+            {{ jobStatusLabel(crossJobParams().status) }}
         </span>
     </div>
     <div>
@@ -50,7 +71,7 @@ export interface CrossJobParameters {
                     <th>Sage Name</th>
                     <th>Quantity</th>
                     <th>From Call Off</th>
-                    <th>Schedulable</th>
+                    <th>Schedule</th>
                     <th></th>
                 </tr>
             </thead>
@@ -84,14 +105,7 @@ export interface CrossJobParameters {
                 <tr>
                     <td colspan="7">
                         <button
-                            (click)="scheduleJob()"
-                            [disabled]="!canScheduleJob()"
-                        >
-                            Schedule Job
-                        </button>
-
-                        <button
-                            (click)="saveJob()"
+                            (click)="onSaveJob()"
                             [disabled]="!canSaveJob()"
                         >
                             Save Job
@@ -115,9 +129,12 @@ export interface CrossJobParameters {
 export class AdminJobsComponent {
 
     private jobService = inject(JobService);
+    private datePipe = inject(DatePipe);
+
     PHASE_PARAM_QUANTITY_ID = PHASE_PARAM_QUANTITY.phaseParamId;
     PHASE_PARAM_CALLOFF_ID = PHASE_PARAM_CALLOFF.phaseParamId;
     PHASE_PARAM_MATERIAL_ID = PHASE_PARAM_MATERIAL.phaseParamId;
+    PHASE_PARAM_SCHEDULE_ID = PHASE_PARAM_SCHEDULE.phaseParamId;
 
     crossJobParams = signal<CrossJobParameters>({
         jobId: 0,
@@ -126,7 +143,9 @@ export class AdminJobsComponent {
         dueDate: '',
         customer: '',
         carrier: '',
-        callOff: false
+        callOff: false,
+        scheduledOn: '',
+        status: 0
     });
 
     jobs = signal<ProductSelectedWithMap[]>([]);
@@ -217,76 +236,125 @@ export class AdminJobsComponent {
 
         if (this.jobs().length === 0) {
             this.crossJobParams.set({
-                jobId : 0,
-                jobNumber : 0,
+                jobId: 0,
+                jobNumber: 0,
                 paymentReceived: false,
                 dueDate: '',
                 customer: '',
                 carrier: '',
-                callOff: false
+                callOff: false,
+                scheduledOn: '',
+                status: 0
             });
         }
     }
 
     onCrossJobParams(crossJobParamsChange: CrossJobParameters) {
         this.crossJobParams.set(crossJobParamsChange);
+
+        // Update only truly shared fields on existing parts.
+        // Keep each part's own schedule untouched.
+        this.jobs.update(jobs => jobs.map(job => this.applyCrossJobParamsToPart(job, crossJobParamsChange)));
+
+        const selected = this.selectedPart();
+        if (selected) {
+            this.selectedPart.set(this.applyCrossJobParamsToPart(selected, crossJobParamsChange));
+        }
     }
 
-    scheduleJob() {
-        if (!this.canScheduleJob()) return;
-
-        console.log('Scheduling job...', {
-            crossJobParams: this.crossJobParams(),
-            jobs: this.jobs()
+    private applyCrossJobParamsToPart(
+        job: ProductSelectedWithMap,
+        cross: CrossJobParameters
+    ): ProductSelectedWithMap {
+        const params = job.params.map(p => {
+            switch (p.phaseParamId) {
+                case -2: // payment
+                    return { ...p, value: String(cross.paymentReceived) };
+                case -3: // call off
+                    return { ...p, value: String(cross.callOff) };
+                case -5: // due date
+                    return { ...p, value: cross.dueDate };
+                case -6: // customer
+                    return { ...p, value: cross.customer };
+                case -7: // carrier
+                    return { ...p, value: cross.carrier };
+                // IMPORTANT: do not sync -9 schedule here
+                default:
+                    return p;
+            }
         });
+
+        const paramMap = new Map(
+            params.map(p => [p.phaseParamId, p.value])
+        );
+
+        return {
+            ...job,
+            params,
+            paramMap
+        };
     }
 
-    async saveJob() {
+    async onSaveJob() {
         if (!this.canSaveJob()) return;
 
         console.log('Saving job...', {
             crossJobParams: this.crossJobParams(),
             jobs: this.jobs()
         });
+
+        await this.saveJob();
+    }
+
+    async saveJob() {
         try {
-            let job = await this.jobService.createJob(this.createJob(1, this.crossJobParams(), this.jobs()));
-            this.crossJobParams.set({...this.crossJobParams(), jobId : job.id, jobNumber : job.number});
+            const job = await this.jobService.createJob(
+                this.createJob(this.crossJobParams(), this.jobs())
+            );
+
+            this.crossJobParams.set({
+                ...this.crossJobParams(),
+                jobId: job.id,
+                jobNumber: job.number,
+                status: job.status
+            });
         } catch (err) {
             console.error('Job save failed', err);
         }
     }
 
     private createJob(
-        status: number,
         crossJobParams: CrossJobParameters,
         jobParts: ProductSelectedWithMap[]
     ): CreateJob {
         return {
-            due: new Date(crossJobParams.dueDate),
+            due: new Date(crossJobParams.dueDate).toISOString(),
             customer: Number(crossJobParams.customer),
             carrier: Number(crossJobParams.carrier),
             callOff: crossJobParams.callOff,
             parts: jobParts.map((jobPart): CreateJobPart => ({
                 productId: jobPart.product.id,
                 quantity: Number(jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_QUANTITY_ID)!.value),
-                fromCallOff: jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_MATERIAL_ID)?.value === 'true',
+                fromCallOff: jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_CALLOFF_ID)?.value === 'true',
                 materialAvailable: jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_MATERIAL_ID)?.value === 'true',
+                scheduleFor: (() => {
+                    const v = jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_SCHEDULE_ID)?.value;
+                    return v ? new Date(v).toISOString() : null;
+                })(),
                 phases: jobPart.phases.map((phase): CreateJobPartPhase => ({
                     phaseId: phase.phase.id,
-                    specialInstructions: phase.specialInstruction,
-                    status
+                    specialInstructions: phase.specialInstruction
                 })),
                 params: jobPart.params.filter(p => p.phaseParamId > 0)
-                .map((param): CreateJobPartParam => ({
-                    paramId: param.phaseParamId,
-                    phaseNumber: param.phaseNumber,
-                    value: param.value
-                })),
-                status
-            })),
-            status
+                    .map((param): CreateJobPartParam => ({
+                        paramId: param.phaseParamId,
+                        phaseNumber: param.phaseNumber,
+                        value: param.value
+                    }))
+            }))
         };
     }
+
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
         if (!this.crossJobParams().paymentReceived && !this.crossJobParams().callOff) {
             return 'Unpaid';
@@ -298,13 +366,22 @@ export class AdminJobsComponent {
         }
 
         const invalidParams = job.params.filter(
-            p => p.input !== 3 && (p.value === '' || p.value.startsWith('('))
+            p => p.input !== 3 &&
+                p.phaseParamId !== this.PHASE_PARAM_SCHEDULE_ID &&
+                (p.value === '' || p.value.startsWith('('))
         );
 
-        if (invalidParams.length === 0) {
-            return 'YES';
+        if (invalidParams.length > 0) {
+            return invalidParams.map(p => p.key).join(', ') + ' required';
         }
 
-        return invalidParams.map(p => p.key).join(', ') + " required";
+        const scheduledOn = job.params.find(p => p.phaseParamId === this.PHASE_PARAM_SCHEDULE_ID)?.value;
+        return scheduledOn
+            ? (this.datePipe.transform(scheduledOn, 'dd/MM/yyyy') ?? 'Invalid date')
+            : 'Not Scheduled';
+    }
+
+    jobStatusLabel(status: JobStatus): string {
+        return JobStatusLabel[status];
     }
 }

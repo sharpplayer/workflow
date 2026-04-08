@@ -3,7 +3,7 @@ CREATE TABLE job
     id           SERIAL PRIMARY KEY,
     number       BIGINT      NOT NULL UNIQUE,
     parts        INTEGER     NOT NULL,
-    due          TIMESTAMP   NOT NULL,
+    due          TIMESTAMPTZ NOT NULL,
     customer_id  INTEGER,
     carrier_id   INTEGER,
     call_off     BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -37,6 +37,9 @@ CREATE TABLE job_part
     from_call_off      BOOLEAN     NOT NULL DEFAULT FALSE,
     material_available BOOLEAN     NOT NULL DEFAULT TRUE,
     status             INTEGER     NOT NULL,
+    schedule_for       TIMESTAMPTZ,
+    run_on             TIMESTAMPTZ,
+    run_order          INTEGER,
     started_at         TIMESTAMPTZ,
     completed_at       TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -54,6 +57,12 @@ CREATE INDEX idx_job_part_completed_at_status
 
 CREATE INDEX idx_job_part_created_at_status
     ON job_part (created_at, status);
+
+CREATE INDEX idx_job_part_status_schedule_for
+    ON job_part (status, schedule_for);
+
+CREATE INDEX idx_job_part_run_on_status_run_order
+    ON job_part (run_on, status, run_order);
 
 CREATE TABLE job_part_phases
 (

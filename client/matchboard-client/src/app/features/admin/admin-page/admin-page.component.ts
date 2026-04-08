@@ -19,6 +19,7 @@ import { API_BASE_URL } from '../../../app.config';
     <div class="admin-body">
       <aside class="admin-sidebar">
         <a routerLink="jobs">Jobs</a>
+        <a routerLink="schedule">Schedule</a>
         <a routerLink="products">Products</a>
         <a routerLink="users">Users</a>
         <a routerLink="config">Config</a>

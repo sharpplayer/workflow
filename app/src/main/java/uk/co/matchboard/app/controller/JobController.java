@@ -1,6 +1,7 @@
 package uk.co.matchboard.app.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,12 @@ public class JobController {
     @PostMapping("/jobs")
     public ResponseEntity<?> createJob(@RequestBody CreateJob job) {
         return jobService.createJob(job)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @GetMapping("/schedule-dates")
+    public ResponseEntity<?> getScheduleDates() {
+        return jobService.getScheduleDates()
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
