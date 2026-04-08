@@ -14,6 +14,7 @@ import static uk.co.matchboard.generated.Tables.PRODUCTS;
 import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
+import jakarta.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.SelectOnConditionStep;
 import org.jooq.impl.DSL;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.TransientDataAccessException;
@@ -45,6 +47,7 @@ import uk.co.matchboard.app.model.job.JobPart;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -540,6 +543,51 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
                         .fetch(JOB_PART.SCHEDULE_FOR)
         );
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<SchedulableJobPart>> getUnscheduled() {
+        return TryUtils.tryCatch(() ->
+                getSchedulableQuery()
+                        .where(JOB_PART.STATUS.eq(JobStatus.SAVED.getCode()))
+                        .fetch(DatabaseServiceImpl::getSchedulableJobPart));
+    }
+
+    private static SchedulableJobPart getSchedulableJobPart(Record jobPartRecord) {
+        return new SchedulableJobPart(jobPartRecord.get(JOB_PART.ID),
+                jobPartRecord.get(PRODUCTS.NAME),
+                jobPartRecord.get(PRODUCTS.OLD_NAME),
+                jobPartRecord.get(JOB_PART.QUANTITY),
+                jobPartRecord.get(JOB_PART.FROM_CALL_OFF),
+                jobPartRecord.get(JOB.ID),
+                jobPartRecord.get(JOB.NUMBER),
+                jobPartRecord.get(JOB.STATUS),
+                jobPartRecord.get(JOB_PART.PART_NUMBER),
+                jobPartRecord.get(JOB.PARTS)
+        );
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date) {
+        return TryUtils.tryCatch(() ->
+                getSchedulableQuery()
+                        .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
+                        .and(JOB_PART.SCHEDULE_FOR.eq(date))
+                        .fetch(DatabaseServiceImpl::getSchedulableJobPart));
+    }
+
+    @Nonnull
+    private SelectOnConditionStep<Record> getSchedulableQuery() {
+        return dsl.select(JOB_PART.fields())
+                .select(JOB.ID, JOB.NUMBER, JOB.STATUS, JOB.PARTS)
+                .select(PRODUCTS.NAME, PRODUCTS.OLD_NAME)
+                .from(JOB_PART)
+                .join(JOB).on(JOB_PART.JOB_ID.eq(JOB.ID))
+                .join(PRODUCTS).on(JOB_PART.PRODUCT_ID.eq(PRODUCTS.ID));
     }
 
     private static Carrier getCarrier(CarrierRecord carrierRecord) {

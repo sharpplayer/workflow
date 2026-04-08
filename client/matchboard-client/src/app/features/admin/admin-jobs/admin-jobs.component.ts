@@ -332,6 +332,7 @@ export class AdminJobsComponent {
             customer: Number(crossJobParams.customer),
             carrier: Number(crossJobParams.carrier),
             callOff: crossJobParams.callOff,
+            paymentReceived: crossJobParams.paymentReceived,
             parts: jobParts.map((jobPart): CreateJobPart => ({
                 productId: jobPart.product.id,
                 quantity: Number(jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_QUANTITY_ID)!.value),

@@ -2,13 +2,17 @@ package uk.co.matchboard.app.service;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.SchedulableJobPart;
+import uk.co.matchboard.app.model.job.SchedulableJobParts;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -24,15 +28,20 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<Job> createJob(CreateJob job) {
         // Validate job
+
+        // If all don't match -> saved
+        // If some don't match -> partically schedulable
+        // If all match -> scheduleable
+
         JobStatus jobStatus =
-                job.parts().stream().anyMatch(p -> p.scheduleFor() == null) ? JobStatus.SAVED
-                        : JobStatus.SCHEDULABLE;
+                job.parts().stream().anyMatch(p -> isSchedulable(job, p, null))
+                        ? JobStatus.SCHEDULABLE
+                        : JobStatus.SAVED;
         return databaseService.createJob(job,
-                part -> jobStatus == JobStatus.SAVED ? JobStatus.SAVED.getCode()
-                        : (part.scheduleFor() != null ? JobStatus.SCHEDULABLE.getCode()
-                                : JobStatus.SAVED.getCode()),
+                part -> isSchedulable(job, part, jobStatus) ? JobStatus.SCHEDULABLE.getCode()
+                        : JobStatus.SAVED.getCode(),
                 (phase, lastStatus) -> {
-                    if (lastStatus == -1) {
+                    if (lastStatus == -1 && jobStatus == JobStatus.SCHEDULABLE) {
                         return JobStatus.READY.getCode();
                     } else {
                         return JobStatus.AWAITING.getCode();
@@ -41,13 +50,27 @@ public class JobServiceImpl implements JobService {
         );
     }
 
+    private static boolean isSchedulable(CreateJob job, CreateJobPart p, JobStatus jobStatus) {
+        return job.paymentReceived() && p.scheduleFor() != null && p.materialAvailable();
+    }
+
     @Override
     public Result<ConfigResponse> getScheduleDates() {
         return databaseService.getScheduleDates()
-                .map(dateList -> new ConfigResponse("schedule-dates", dateList.stream().map(date -> {
-                    String d = date.toString();
-                    return new KeyValuePair(d, OffsetDateTime.parse(d).format(
-                            DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-                }).toList(), "date[]"));
+                .map(dateList -> new ConfigResponse("schedule-dates",
+                        dateList.stream().map(date -> new KeyValuePair(date.format(
+                                DateTimeFormatter.ofPattern("yyyy-MM-dd")), date.format(
+                                DateTimeFormatter.ofPattern("dd/MM/yyyy")))).toList(), "date[]"));
+    }
+
+    @Override
+    public Result<SchedulableJobParts> getSchedule(String date) {
+        Result<List<SchedulableJobPart>> scheduled;
+        if (date == null) {
+            return databaseService.getUnscheduled().map(SchedulableJobParts::new);
+        } else {
+            return databaseService.getScheduleFor(OffsetDateTime.parse(date + "T00:00:00+00:00"))
+                    .map(SchedulableJobParts::new);
+        }
     }
 }

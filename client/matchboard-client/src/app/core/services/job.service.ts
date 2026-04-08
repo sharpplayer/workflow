@@ -2,7 +2,23 @@ import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { API_BASE_URL } from "../../app.config";
-import { ConfigItem } from "./config.service";
+
+export interface SchedulableJobPart {
+  jobPartId: number;
+  product: string;
+  oldName: string;
+  quantity: number;
+  fromCallOff: boolean;
+  jobId: number;
+  jobNumber: number;
+  jobStatus: number;
+  partNo: number;
+  jobParts: number;
+}
+
+export interface SchedulableJobParts {
+  schedulable: SchedulableJobPart[];
+}
 
 type JobPart = any;
 export interface Job {
@@ -42,6 +58,7 @@ export interface CreateJob {
   customer: number;
   carrier: number;
   callOff: boolean;
+  paymentReceived: boolean;
   parts: CreateJobPart[];
 }
 
@@ -83,6 +100,16 @@ export class JobService {
         job,
         { withCredentials: true }
       )
+    );
+  }
+
+  async getJobParts(date: string | null): Promise<SchedulableJobParts> {
+
+    return await firstValueFrom(
+      this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {
+        params: date ? { date } : {},
+        withCredentials: true
+      })
     );
   }
 }

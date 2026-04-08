@@ -1,7 +1,7 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { JobService } from '../../../core/services/job.service';
+import { JobService, SchedulableJobPart, SchedulableJobParts } from '../../../core/services/job.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 
 @Component({
@@ -40,10 +40,50 @@ import { ConfigItem, ConfigService } from '../../../core/services/config.service
             </div>
         }
 
-        @if (jobParts()) {
+        @if (jobParts().length > 0) {
             <div style="margin-top: 16px;">
                 <h3>Job Parts</h3>
-                <pre>{{ jobParts() | json }}</pre>
+
+                <table
+                    style="width: 100%; border-collapse: collapse; margin-top: 12px;"
+                >
+                    <thead>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Job Part ID</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Product</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Old Name</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Quantity</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">From Call Off</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Job ID</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Job Number</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Job Status</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Part No</th>
+                            <th style="border: 1px solid #ccc; padding: 8px;">Job Parts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (part of jobParts(); track part.jobPartId) {
+                            <tr>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobPartId }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.product }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.oldName }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.quantity }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">
+                                    {{ part.fromCallOff ? 'Yes' : 'No' }}
+                                </td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobId }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobNumber }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobStatus }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.partNo }}</td>
+                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobParts }}</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        } @else if (!loadingJobParts() && hasLoadedJobParts()) {
+            <div style="margin-top: 16px;">
+                No job parts found.
             </div>
         }
     `,
@@ -57,10 +97,11 @@ export class AdminScheduleComponent implements OnInit {
 
     readonly availableDates = signal<ConfigItem[]>([]);
     readonly selectedScheduleDate = signal<string>('');
-    readonly jobParts = signal<any | null>(null);
+    readonly jobParts = signal<SchedulableJobPart[]>([]);
 
     readonly loadingDates = signal(false);
     readonly loadingJobParts = signal(false);
+    readonly hasLoadedJobParts = signal(false);
     readonly errorMessage = signal('');
 
     readonly scheduleDates = computed<ConfigItem[]>(() => [
@@ -93,13 +134,15 @@ export class AdminScheduleComponent implements OnInit {
     async getJobParts(): Promise<void> {
         this.loadingJobParts.set(true);
         this.errorMessage.set('');
-        this.jobParts.set(null);
+        this.jobParts.set([]);
+        this.hasLoadedJobParts.set(false);
 
         try {
             const scheduleDate = this.selectedScheduleDate() || null;
 
-            // const parts = await this.jobService.getJobParts(scheduleDate);
-            // this.jobParts.set(parts);
+            const response: SchedulableJobParts = await this.jobService.getJobParts(scheduleDate);
+            this.jobParts.set(response.schedulable ?? []);
+            this.hasLoadedJobParts.set(true);
         } catch (error) {
             console.error('Failed to load job parts', error);
             this.errorMessage.set('Failed to load job parts.');
