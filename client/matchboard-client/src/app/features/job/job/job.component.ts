@@ -55,9 +55,8 @@ export class JobComponent {
         environmentInjector: this.environmentInjector
       });
 
-      ref.instance.username = username;
-      ref.instance.mode = 'pin';
-
+      ref.setInput('username', username);
+      ref.setInput('mode', 'pin');
       ref.instance.loginSubmit.subscribe(async (loginResult: LoginResult) => {
         const success = await this.authService.completeJob(jobId, loginResult);
         if (success) {

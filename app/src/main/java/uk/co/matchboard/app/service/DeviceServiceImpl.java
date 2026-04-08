@@ -47,7 +47,7 @@ public class DeviceServiceImpl implements DeviceService {
         return toOptionalResult(
                 sessionService.startSession(device.deviceId(), loginUser.username(),
                                 loginUser.password(),
-                                loginUser.admin())
+                                loginUser.role())
                         .map(s -> getDevice(device.deviceId(), s.passwordReset())));
     }
 

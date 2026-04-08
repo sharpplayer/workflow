@@ -1,8 +1,10 @@
 package uk.co.matchboard.app.service;
 
+import jakarta.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.DisabledUserException;
@@ -18,9 +20,8 @@ import uk.co.matchboard.app.model.user.Users;
 @Service
 public class UserServiceImpl implements UserService {
 
-    private static final String ROLE_ADMIN = "ADMIN";
+    public static final String LOGIN_ADMIN = "ADMIN";
 
-    private static final String LOGIN_OPT_ADMIN = "admin";
     private static final String LOGIN_OPT_PASSWORD = "password";
     private static final String LOGIN_OPT_PIN = "pin";
     private static final String LOGIN_OPT_RESET = "reset";
@@ -49,14 +50,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result<User> login(String user, String password, boolean adminMode) {
+    public Result<User> login(String user, String password, String role) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
         return userRecord.mapResult(data -> {
+            if (data == null) {
+                return Result.failure(new InvalidUserException());
+            }
             if (data.enabled()) {
                 if (!passwordEncoder.matches(password, data.passwordHash())) {
                     return Result.failure(new InvalidUserException());
                 }
-                if (adminMode && !data.roles().contains(ROLE_ADMIN)) {
+                if (!data.roles().contains(role)) {
                     return Result.failure(new InvalidUserException());
                 }
                 return Result.of(data);
@@ -149,27 +153,35 @@ public class UserServiceImpl implements UserService {
     @Override
     public LoginOptions getOptions(String user, boolean loggedInOnDevice) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        return new LoginOptions(userRecord.fold(data -> {
-            List<String> opts = new ArrayList<>();
-            if (data.enabled()) {
-                opts.add(LOGIN_OPT_PASSWORD);
-                if (data.roles().contains(ROLE_ADMIN)) {
-                    opts.add(LOGIN_OPT_ADMIN);
-                }
-                // Only if already logged in on device (probably should check session length)
-                if (loggedInOnDevice && data.pinHash() != null) {
-                    opts.add(LOGIN_OPT_PIN);
-                }
-                if (data.pinReset()) {
-                    opts.add(LOGIN_OPT_PIN_RESET);
-                }
-                if (data.passwordReset()) {
-                    opts.add(LOGIN_OPT_RESET);
-                }
-            } else {
-                opts.add(LOGIN_OPT_PASSWORD);
+        return userRecord.fold(getUserLoginOptionsFunction(loggedInOnDevice),
+                _ -> new LoginOptions(List.of(LOGIN_OPT_PASSWORD), List.of(LOGIN_ADMIN)),
+                () -> new LoginOptions(List.of(LOGIN_OPT_PASSWORD), List.of(LOGIN_ADMIN)));
+    }
+
+    @Nonnull
+    private static Function<User, LoginOptions> getUserLoginOptionsFunction(
+            boolean loggedInOnDevice) {
+        return data -> getLoginOptions(loggedInOnDevice, data);
+    }
+
+    @Nonnull
+    private static LoginOptions getLoginOptions(boolean loggedInOnDevice, User data) {
+        List<String> opts = new ArrayList<>();
+        if (data.enabled()) {
+            opts.add(LOGIN_OPT_PASSWORD);
+            // Only if already logged in on device (probably should check session length)
+            if (loggedInOnDevice && data.pinHash() != null) {
+                opts.add(LOGIN_OPT_PIN);
             }
-            return opts;
-        }, _ -> List.of(LOGIN_OPT_PASSWORD), () -> List.of(LOGIN_OPT_PASSWORD)));
+            if (data.pinReset()) {
+                opts.add(LOGIN_OPT_PIN_RESET);
+            }
+            if (data.passwordReset()) {
+                opts.add(LOGIN_OPT_RESET);
+            }
+        } else {
+            opts.add(LOGIN_OPT_PASSWORD);
+        }
+        return new LoginOptions(opts, data.roles());
     }
 }

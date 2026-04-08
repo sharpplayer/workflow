@@ -11,7 +11,7 @@
     width: 90%;
     background-color: #ffffff;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     z-index: 1001;
 }
 
@@ -90,19 +90,41 @@ label.disabled {
 
 /* ✅ Clean button styling (no floats) */
 button {
-  padding: 4px 8px;
-  border: none;
-  border-radius: 4px;
-  background-color: #4a90e2;
-  color: white;
-  cursor: pointer;
-  margin-top: 8px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    background-color: #4a90e2;
+    color: white;
+    cursor: pointer;
+    margin-top: 8px;
 }
 
 button:hover {
-  background-color: #357ab8;
+    background-color: #357ab8;
 }
 
 button:disabled {
-  background-color: #959698;
+    background-color: #959698;
+}
+
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.375rem;
+  background-color: #fff;
+}
+
+
+.field {
+    display: flex;
+    flex-direction: column;
+}
+
+.field input,
+.field select {
+    width: 100%;
+    box-sizing: border-box;
 }

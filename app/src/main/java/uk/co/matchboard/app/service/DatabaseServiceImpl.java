@@ -627,7 +627,6 @@ public class DatabaseServiceImpl implements DatabaseService {
         }));
     }
 
-
     @Nonnull
     private SelectOnConditionStep<Record> getSchedulableQuery() {
         return dsl.select(JOB_PART.fields())

@@ -14,7 +14,7 @@ public interface UserService {
 
     LoginOptions getOptions(String username, boolean loggedInDevice);
 
-    Result<User> login(String user, String password, boolean asAdmin);
+    Result<User> login(String user, String password, String role);
 
     Result<User> updatePassword(String username, String password);
 
@@ -22,5 +22,6 @@ public interface UserService {
 
     Result<Users> getUsers();
 
-    Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset, boolean enabled);
+    Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset,
+            boolean enabled);
 }

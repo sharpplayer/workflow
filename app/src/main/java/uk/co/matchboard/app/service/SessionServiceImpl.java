@@ -29,7 +29,8 @@ public class SessionServiceImpl implements SessionService {
         String mode;
         if (sessions.isEmpty()) {
             mode = MODE_NONE;
-        } else if (sessions.size() == 1 && sessions.iterator().next().admin()) {
+        } else if (sessions.size() == 1 && sessions.iterator().next().role()
+                .equals(UserServiceImpl.LOGIN_ADMIN)) {
             mode = "admin";
         } else {
             mode = "job";
@@ -43,10 +44,11 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public Result<Session> startSession(String deviceId, String user, String password,
-            boolean asAdmin) {
+            String role) {
         endSession(deviceId, user);
-        return userService.login(user, password, asAdmin).flatMap(u -> {
-            var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), asAdmin, u.passwordReset());
+        return userService.login(user, password, role).flatMap(u -> {
+            var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), role,
+                    u.passwordReset());
             addSession(deviceId, newSession);
             return Result.of(newSession);
         });
@@ -54,7 +56,7 @@ public class SessionServiceImpl implements SessionService {
 
     private void addSession(String deviceId, Session session) {
         var sessions = getSessionsOn(deviceId);
-        if (session.admin()) {
+        if (session.role().equals(UserServiceImpl.LOGIN_ADMIN)) {
             sessions.clear();
         }
         getSessionsOn(deviceId).put(session.userId(), session);

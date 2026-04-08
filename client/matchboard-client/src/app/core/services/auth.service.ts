@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 import { DeviceService, DeviceStatus } from './device.service';
@@ -21,21 +21,36 @@ export class AuthService {
   async registerSession(
     username: string,
     password: string,
-    adminMode: boolean
+    role: string
   ): Promise<DeviceStatus> {
+    try {
+      const status = await firstValueFrom(
+        this.http.post<DeviceStatus>(
+          `${API_BASE_URL}/api/session`,
+          { username, password, role },
+          { withCredentials: true }
+        )
+      );
 
-    const status = await firstValueFrom(
-      this.http.post<DeviceStatus>(
-        `${API_BASE_URL}/api/session`,
-        { username, password, admin: adminMode },
-        { withCredentials: true }
-      )
-    );
-
-    this.deviceService.setStatus(status);
-
-    return status;
+      this.deviceService.setStatus(status);
+      return status;
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Login failed.'));
+    }
   }
+
+  private getErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      return err.error?.message || err.message || fallback;
+    }
+
+    if (err instanceof Error) {
+      return err.message;
+    }
+
+    return fallback;
+  }
+
 
   async completeJob(phaseId: string, loginResult: LoginResult): Promise<boolean> {
     try {
