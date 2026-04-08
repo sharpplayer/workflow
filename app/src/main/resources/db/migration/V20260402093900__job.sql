@@ -49,20 +49,11 @@ CREATE TABLE job_part
 
 CREATE INDEX idx_job_part_status ON job_part (status);
 
-CREATE INDEX idx_job_part_started_at_status
-    ON job_part (started_at, status) WHERE started_at IS NOT NULL;
-
-CREATE INDEX idx_job_part_completed_at_status
-    ON job_part (completed_at, status) WHERE completed_at IS NOT NULL;
-
-CREATE INDEX idx_job_part_created_at_status
-    ON job_part (created_at, status);
-
 CREATE INDEX idx_job_part_status_schedule_for
-    ON job_part (status, schedule_for);
+    ON job_part (status, schedule_for) WHERE schedule_for IS NOT NULL;
 
 CREATE INDEX idx_job_part_run_on_status_run_order
-    ON job_part (run_on, status, run_order);
+    ON job_part (status, run_on, run_order) WHERE run_on IS NOT NULL;
 
 CREATE TABLE job_part_phases
 (

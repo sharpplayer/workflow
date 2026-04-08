@@ -11,9 +11,11 @@ export interface SchedulableJobPart {
   fromCallOff: boolean;
   jobId: number;
   jobNumber: number;
-  jobStatus: number;
+  partStatus: JobStatus;
+  jobStatus: JobStatus;
   partNo: number;
   jobParts: number;
+  order?: number;
 }
 
 export interface SchedulableJobParts {
@@ -73,6 +75,7 @@ export enum JobStatus {
   COMPLETED = 7,
   PARTIALLY_COMPLETED = 8,
   AWAITING = 9,
+  STARTED = 10,
 }
 
 export const JobStatusLabel: Record<JobStatus, string> = {
@@ -86,6 +89,7 @@ export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.COMPLETED]: "Completed",
   [JobStatus.PARTIALLY_COMPLETED]: "Partially Completed",
   [JobStatus.AWAITING]: "Awaiting",
+  [JobStatus.STARTED]: "Started",
 };
 
 @Injectable({ providedIn: 'root' })
@@ -111,5 +115,13 @@ export class JobService {
         withCredentials: true
       })
     );
+  }
+
+  async scheduleJobParts(date: string, jobPartIds: number[]) {
+    return await firstValueFrom(
+      this.http.post<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, { date, jobPartIds },
+        { withCredentials: true })
+    );
+
   }
 }

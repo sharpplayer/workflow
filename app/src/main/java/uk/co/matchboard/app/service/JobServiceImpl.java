@@ -13,6 +13,7 @@ import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
+import uk.co.matchboard.app.model.job.UpdateSchedule;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -65,12 +66,18 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public Result<SchedulableJobParts> getSchedule(String date) {
-        Result<List<SchedulableJobPart>> scheduled;
         if (date == null) {
             return databaseService.getUnscheduled().map(SchedulableJobParts::new);
         } else {
             return databaseService.getScheduleFor(OffsetDateTime.parse(date + "T00:00:00+00:00"))
                     .map(SchedulableJobParts::new);
         }
+    }
+
+    @Override
+    public Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule) {
+        return databaseService.updateSchedule(
+                        OffsetDateTime.parse(schedule.date()     + "T00:00:00+00:00"), schedule.jobPartIds())
+                .flatMap(_ -> getSchedule(schedule.date()));
     }
 }

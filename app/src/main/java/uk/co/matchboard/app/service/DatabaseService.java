@@ -71,4 +71,6 @@ public interface DatabaseService {
     Result<List<SchedulableJobPart>> getUnscheduled();
 
     Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date);
+
+    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds);
 }

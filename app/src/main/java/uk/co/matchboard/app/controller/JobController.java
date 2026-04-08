@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.UpdateSchedule;
 import uk.co.matchboard.app.service.JobService;
 
 @RestController
@@ -36,6 +37,12 @@ public class JobController {
             @RequestParam(required = false) String date
     ) {
         return jobService.getSchedule(date)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @PostMapping("/schedule")
+    public ResponseEntity<?> updateSchedule(@RequestBody UpdateSchedule schedule) {
+        return jobService.updateSchedule(schedule)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 

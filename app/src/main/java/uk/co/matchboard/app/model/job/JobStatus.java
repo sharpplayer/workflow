@@ -9,7 +9,8 @@ public enum JobStatus {
     SCHEDULED(6),
     COMPLETED(7),
     PARTIALLY_COMPLETED(8),
-    AWAITING(9);
+    AWAITING(9),
+    STARTED(10);
 
     private final int code;
 

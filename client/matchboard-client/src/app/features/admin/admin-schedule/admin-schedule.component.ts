@@ -1,8 +1,22 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { JobService, SchedulableJobPart, SchedulableJobParts } from '../../../core/services/job.service';
+import {
+    JobService,
+    JobStatusLabel,
+    SchedulableJobPart,
+    SchedulableJobParts
+} from '../../../core/services/job.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
+
+type JobPartRow = SchedulableJobPart & {
+    selected: boolean;
+};
+
+type TableColumn = {
+    key: string;
+    header: string;
+};
 
 @Component({
     selector: 'app-admin-schedule',
@@ -15,8 +29,8 @@ import { ConfigItem, ConfigService } from '../../../core/services/config.service
             <select
                 id="scheduleDate"
                 [ngModel]="selectedScheduleDate()"
-                (ngModelChange)="selectedScheduleDate.set($event)"
-                [disabled]="loadingDates()"
+                (ngModelChange)="onScheduleDateChange($event)"
+                [disabled]="loadingDates() || loadingJobParts() || scheduling()"
             >
                 @for (date of scheduleDates(); track date.key) {
                     <option [value]="date.key">
@@ -24,68 +38,84 @@ import { ConfigItem, ConfigService } from '../../../core/services/config.service
                     </option>
                 }
             </select>
-
-            <button
-                type="button"
-                (click)="getJobParts()"
-                [disabled]="loadingDates() || loadingJobParts()"
-            >
-                {{ loadingJobParts() ? 'Loading...' : 'Get Job Parts' }}
-            </button>
         </div>
 
         @if (errorMessage()) {
-            <div style="color: red; margin-top: 10px;">
+            <div>
                 {{ errorMessage() }}
             </div>
         }
 
-        @if (jobParts().length > 0) {
-            <div style="margin-top: 16px;">
-                <h3>Job Parts</h3>
-
-                <table
-                    style="width: 100%; border-collapse: collapse; margin-top: 12px;"
-                >
-                    <thead>
-                        <tr>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Job Part ID</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Product</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Old Name</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Quantity</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">From Call Off</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Job ID</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Job Number</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Job Status</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Part No</th>
-                            <th style="border: 1px solid #ccc; padding: 8px;">Job Parts</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @for (part of jobParts(); track part.jobPartId) {
-                            <tr>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobPartId }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.product }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.oldName }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.quantity }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">
-                                    {{ part.fromCallOff ? 'Yes' : 'No' }}
-                                </td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobId }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobNumber }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobStatus }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.partNo }}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px;">{{ part.jobParts }}</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        } @else if (!loadingJobParts() && hasLoadedJobParts()) {
-            <div style="margin-top: 16px;">
-                No job parts found.
+        @if (loadingJobParts()) {
+            <div>
+                Loading job parts...
             </div>
         }
+
+            <div>
+                <table>
+                    <thead>
+                        <tr>
+                            @if (!isUnscheduled()) {
+                                <th>
+                                    <input
+                                        type="checkbox"
+                                        [checked]="allSelected()"
+                                        [indeterminate]="someSelected() && !allSelected()"
+                                        (change)="toggleSelectAll($any($event.target).checked)"
+                                    />
+                                </th>
+                            }
+
+                            @for (column of tableColumns; track column.key) {
+                                <th>{{ column.header }}</th>
+                            }
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @if (jobParts().length > 0) {
+                            @for (part of jobParts(); track part.jobPartId) {
+                                <tr>
+                                    @if (!isUnscheduled()) {
+                                        <td>
+                                            <input
+                                                type="checkbox"
+                                                [ngModel]="part.selected"
+                                                (ngModelChange)="toggleRowSelection(part.jobPartId, $event)"
+                                                [disabled]="scheduling()"
+                                            />
+                                        </td>
+                                    }
+
+                                    @for (column of tableColumns; track column.key) {
+                                        <td>{{ getColumnValue(part, column.key) }}</td>
+                                    }
+                                </tr>
+                            }
+                        } @else if (!loadingJobParts() && hasLoadedJobParts()) {
+                            <tr>
+                                <td [attr.colspan]="tableColumns.length">
+                                No job parts found.
+                                </td>
+                            </tr>
+                        }   
+                        </tbody>
+                </table>
+
+                @if (!isUnscheduled()) {
+                    <div>
+                        <button
+                            type="button"
+                            (click)="scheduleSelected()"
+                            [disabled]="!canSchedule()"
+                        >
+                            {{ scheduling() ? 'Scheduling...' : 'Schedule' }}
+                        </button>
+                    </div>
+                }
+            </div>
+        
     `,
     styleUrl: './admin-schedule.component.css'
 })
@@ -95,13 +125,25 @@ export class AdminScheduleComponent implements OnInit {
 
     readonly unscheduledLabel = '(Unscheduled)';
 
+    readonly tableColumns: TableColumn[] = [
+        { key: 'jobNumber', header: 'Job Number' },
+        { key: 'partSummary', header: 'Part Number' },
+        { key: 'product', header: 'Product Name' },
+        { key: 'oldName', header: 'Sage Name' },
+        { key: 'quantity', header: 'Quantity' },
+        { key: 'fromCallOff', header: 'From Call Off' },
+        { key: 'jobPartStatus', header: 'Job Part Status' },
+        { key: 'order', header: 'Order'}
+    ];
+
     readonly availableDates = signal<ConfigItem[]>([]);
     readonly selectedScheduleDate = signal<string>('');
-    readonly jobParts = signal<SchedulableJobPart[]>([]);
+    readonly jobParts = signal<JobPartRow[]>([]);
 
     readonly loadingDates = signal(false);
     readonly loadingJobParts = signal(false);
     readonly hasLoadedJobParts = signal(false);
+    readonly scheduling = signal(false);
     readonly errorMessage = signal('');
 
     readonly scheduleDates = computed<ConfigItem[]>(() => [
@@ -109,8 +151,29 @@ export class AdminScheduleComponent implements OnInit {
         ...this.availableDates()
     ]);
 
+    readonly isUnscheduled = computed(() => !this.selectedScheduleDate());
+
+    readonly allSelected = computed(() =>
+        this.jobParts().length > 0 && this.jobParts().every(part => part.selected)
+    );
+
+    readonly someSelected = computed(() =>
+        this.jobParts().some(part => part.selected)
+    );
+
+    readonly selectedCount = computed(() =>
+        this.jobParts().filter(part => part.selected).length
+    );
+
+    readonly canSchedule = computed(() =>
+        !this.isUnscheduled() &&
+        !this.scheduling() &&
+        this.selectedCount() > 0
+    );
+
     async ngOnInit(): Promise<void> {
         await this.loadScheduleDates();
+        await this.getJobParts();
     }
 
     async loadScheduleDates(): Promise<void> {
@@ -119,8 +182,6 @@ export class AdminScheduleComponent implements OnInit {
 
         try {
             const response = await this.configService.getList('schedule-dates');
-            console.log(response);
-
             this.availableDates.set(response.value ?? []);
             this.selectedScheduleDate.set('');
         } catch (error) {
@@ -131,6 +192,18 @@ export class AdminScheduleComponent implements OnInit {
         }
     }
 
+    async onScheduleDateChange(scheduleDate: string): Promise<void> {
+        this.selectedScheduleDate.set(scheduleDate);
+
+        if (!scheduleDate) {
+            this.jobParts.update(parts =>
+                parts.map(p => ({ ...p, selected: false }))
+            );
+        }
+
+        await this.getJobParts();
+    }
+
     async getJobParts(): Promise<void> {
         this.loadingJobParts.set(true);
         this.errorMessage.set('');
@@ -139,15 +212,86 @@ export class AdminScheduleComponent implements OnInit {
 
         try {
             const scheduleDate = this.selectedScheduleDate() || null;
+            const response: SchedulableJobParts =
+                await this.jobService.getJobParts(scheduleDate);
 
-            const response: SchedulableJobParts = await this.jobService.getJobParts(scheduleDate);
-            this.jobParts.set(response.schedulable ?? []);
+            const rows: JobPartRow[] = (response.schedulable ?? []).map(part => ({
+                ...part,
+                selected: false
+            }));
+
+            this.jobParts.set(rows);
             this.hasLoadedJobParts.set(true);
         } catch (error) {
             console.error('Failed to load job parts', error);
             this.errorMessage.set('Failed to load job parts.');
         } finally {
             this.loadingJobParts.set(false);
+        }
+    }
+
+    async scheduleSelected(): Promise<void> {
+        if (!this.canSchedule()) {
+            return;
+        }
+
+        this.scheduling.set(true);
+        this.errorMessage.set('');
+
+        try {
+            const selectedParts = this.getSelectedJobParts();
+            await this.jobService.scheduleJobParts(this.selectedScheduleDate(),
+                selectedParts.map(part => part.jobPartId));
+
+            await this.getJobParts();
+        } catch (error) {
+            console.error('Failed to schedule job parts', error);
+            this.errorMessage.set('Failed to schedule job parts.');
+        } finally {
+            this.scheduling.set(false);
+        }
+    }
+
+    toggleRowSelection(jobPartId: number, selected: boolean): void {
+        this.jobParts.update(parts =>
+            parts.map(part =>
+                part.jobPartId === jobPartId
+                    ? { ...part, selected }
+                    : part
+            )
+        );
+    }
+
+    toggleSelectAll(selected: boolean): void {
+        this.jobParts.update(parts =>
+            parts.map(part => ({ ...part, selected }))
+        );
+    }
+
+    getSelectedJobParts(): JobPartRow[] {
+        return this.jobParts().filter(part => part.selected);
+    }
+
+    getColumnValue(part: JobPartRow, key: string): string | number {
+        switch (key) {
+            case 'jobNumber':
+                return part.jobNumber;
+            case 'partSummary':
+                return `${part.partNo} of ${part.jobParts}`;
+            case 'product':
+                return part.product;
+            case 'oldName':
+                return part.oldName;
+            case 'quantity':
+                return part.quantity;
+            case 'fromCallOff':
+                return part.fromCallOff ? 'YES' : 'NO';
+            case 'jobPartStatus':
+                return JobStatusLabel[part.partStatus];
+            case 'order':
+                return part.order || 'Unscheduled';
+            default:
+                return '';
         }
     }
 }

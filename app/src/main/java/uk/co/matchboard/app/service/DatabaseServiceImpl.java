@@ -540,7 +540,8 @@ public class DatabaseServiceImpl implements DatabaseService {
     public Result<List<OffsetDateTime>> getScheduleDates() {
         return TryUtils.tryCatch(() ->
                 dsl.selectDistinct(JOB_PART.SCHEDULE_FOR).from(JOB_PART)
-                        .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
+                        .where(JOB_PART.STATUS.in(JobStatus.SCHEDULABLE.getCode(),
+                                JobStatus.SCHEDULED.getCode()))
                         .fetch(JOB_PART.SCHEDULE_FOR)
         );
     }
@@ -563,9 +564,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                 jobPartRecord.get(JOB_PART.FROM_CALL_OFF),
                 jobPartRecord.get(JOB.ID),
                 jobPartRecord.get(JOB.NUMBER),
+                jobPartRecord.get(JOB_PART.STATUS),
                 jobPartRecord.get(JOB.STATUS),
                 jobPartRecord.get(JOB_PART.PART_NUMBER),
-                jobPartRecord.get(JOB.PARTS)
+                jobPartRecord.get(JOB.PARTS),
+                jobPartRecord.get(JOB_PART.RUN_ORDER)
         );
     }
 
@@ -575,10 +578,55 @@ public class DatabaseServiceImpl implements DatabaseService {
     public Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date) {
         return TryUtils.tryCatch(() ->
                 getSchedulableQuery()
-                        .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
+                        .where(JOB_PART.STATUS.in(
+                                JobStatus.SCHEDULABLE.getCode(),
+                                JobStatus.SCHEDULED.getCode()
+                        ))
                         .and(JOB_PART.SCHEDULE_FOR.eq(date))
+                        .orderBy(JOB_PART.RUN_ORDER)
                         .fetch(DatabaseServiceImpl::getSchedulableJobPart));
     }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds) {
+        if (jobPartIds == null || jobPartIds.isEmpty()) {
+            return Result.of(false);
+        }
+
+        return TryUtils.tryCatch(() -> dsl.transactionResult(configuration -> {
+            DSLContext ctx = configuration.dsl();
+
+            Integer maxRunOrder = ctx
+                    .select(DSL.max(JOB_PART.RUN_ORDER))
+                    .from(JOB_PART)
+                    .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode()))
+                    .and(JOB_PART.RUN_ON.eq(date))
+                    .fetchOne(0, Integer.class);
+
+            int nextRunOrder = maxRunOrder == null ? 1 : maxRunOrder + 1;
+
+            int updatedCount = 0;
+
+            for (Integer jobPartId : jobPartIds) {
+                int rows = ctx
+                        .update(JOB_PART)
+                        .set(JOB_PART.STATUS, JobStatus.SCHEDULED.getCode())
+                        .set(JOB_PART.SCHEDULE_FOR, date)
+                        .set(JOB_PART.RUN_ON, date)
+                        .set(JOB_PART.RUN_ORDER, nextRunOrder++)
+                        .where(JOB_PART.ID.eq(jobPartId))
+                        .and(JOB_PART.STATUS.eq(JobStatus.SCHEDULABLE.getCode()))
+                        .execute();
+
+                updatedCount += rows;
+            }
+
+            return updatedCount > 0;
+        }));
+    }
+
 
     @Nonnull
     private SelectOnConditionStep<Record> getSchedulableQuery() {
