@@ -41,10 +41,15 @@ public class JobController {
 
     @GetMapping("/schedule")
     public ResponseEntity<?> getSchedule(
-            @RequestParam(required = false) String date
+            @RequestParam(required = false) String date, @RequestParam(required = false) String role
     ) {
-        return jobService.getSchedule(date)
-                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+        if (role == null) {
+            return jobService.getSchedule(date)
+                    .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+        } else {
+            return jobService.getSchedule(date, role)
+                    .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+        }
     }
 
     @PostMapping("/schedule")

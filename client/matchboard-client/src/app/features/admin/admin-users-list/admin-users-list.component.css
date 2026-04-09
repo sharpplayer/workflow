@@ -64,3 +64,25 @@ div[ng-reflect-ng-if="true"] {
     background: rgba(0, 0, 0, 0.4);
     z-index: 1000;
 }
+
+
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+  float: right;
+  margin-right: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
+}

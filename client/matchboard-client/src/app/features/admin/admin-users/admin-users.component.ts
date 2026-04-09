@@ -1,14 +1,14 @@
 import { CommonModule } from "@angular/common";
-import { AdminUserListComponent } from "../admin-users-list/admin-users-list.component";
 import { AdminUserComponent, UserForm } from "../admin-user/admin-user.component";
 import { Component, inject, signal } from "@angular/core";
 import { User } from "../../../core/services/user.service";
 import { ConfigService } from "../../../core/services/config.service";
+import { AdminUsersListComponent } from "../admin-users-list/admin-users-list.component";
 
 @Component({
     selector: 'admin-users-page',
     standalone: true,
-    imports: [CommonModule, AdminUserListComponent, AdminUserComponent],
+    imports: [CommonModule, AdminUsersListComponent, AdminUserComponent],
     template: `
      <div class="user-container">
 

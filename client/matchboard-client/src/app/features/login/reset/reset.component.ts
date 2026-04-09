@@ -1,11 +1,9 @@
-import {
-  Component, EventEmitter, Output, OnInit, inject, ChangeDetectorRef,
-  Input
-} from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { CommonModule } from "@angular/common";
-import { ActivatedRoute } from "@angular/router";
-import { ResetResult } from "../../../core/services/auth.service";
+import { Component, computed, inject, input, model, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ResetResult } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-password-reset',
@@ -13,91 +11,110 @@ import { ResetResult } from "../../../core/services/auth.service";
   imports: [CommonModule, FormsModule],
   template: `
     <div class="modal-card">
-    
-      <h2>{{ isPin ? 'PIN' : 'Password' }} Reset</h2>
+      <h2>{{ isPin() ? 'PIN' : 'Password' }} Reset</h2>
 
       <div class="field">
         <label>Username</label>
-        <input type="text"
-               [value]="username"
-               disabled />
+        <input
+          type="text"
+          [value]="effectiveUsername()"
+          disabled
+        />
       </div>
 
       <div class="field">
-        <label>{{ credentialLabel }}</label>
-        <input type="password"
-               [(ngModel)]="credential"
-               [placeholder]="credentialLabel"
-               [maxlength]="isPin ? 4 : 30"
-               [pattern]="isPin ? '[0-9]*' : ''"
-               (input)="isPin && sanitisePin($event)"
-               autocomplete="one-time-code" />
-        <span class="hint">{{ isPin ? '4-digit PIN' : 'Password' }}</span>
+        <label>{{ credentialLabel() }}</label>
+        <input
+          type="password"
+          [(ngModel)]="credential"
+          [placeholder]="credentialLabel()"
+          [maxlength]="isPin() ? 4 : 30"
+          [pattern]="isPin() ? '[0-9]*' : ''"
+          (input)="isPin() && sanitisePin($event)"
+          autocomplete="one-time-code"
+        />
+        <span class="hint">{{ isPin() ? '4-digit PIN' : 'Password' }}</span>
       </div>
 
-      <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+      @if (errorMsg()) {
+        <div class="error">{{ errorMsg() }}</div>
+      }
 
       <div class="button-group">
-        <button [disabled]="!canSubmit" (click)="submit()">
-          Reset {{ isPin ? 'PIN' : 'Password' }}
+        <button
+          type="button"
+          [disabled]="!canSubmit()"
+          (click)="submit()">
+          Reset {{ isPin() ? 'PIN' : 'Password' }}
         </button>
       </div>
-
     </div>
   `,
-  styleUrls: ['./reset.component.css']
+  styleUrl: './reset.component.css'
 })
-export class LoginResetComponent implements OnInit {
+export class LoginResetComponent {
+  private readonly route = inject(ActivatedRoute);
 
-  @Input() username: string = '';
-  @Input() mode: string = 'password';
-  @Output() passwordReset = new EventEmitter<ResetResult>();
+  readonly username = input('');
+  readonly mode = input<'password' | 'pin'>('password');
 
-  credential = '';
-  errorMsg = '';
+  readonly passwordReset = output<ResetResult>();
 
-  private changeRef = inject(ChangeDetectorRef);
-  private route = inject(ActivatedRoute);
+  readonly credential = model('');
+  readonly errorMsg = signal('');
 
-  ngOnInit() {
-    // Read query params for username and mode
-    this.route.queryParamMap.subscribe(params => {
-      const user = params.get('username');
-      const modeParam = params.get('mode');
-      if (user) this.username = user;
-      if (modeParam) this.mode = modeParam;
-      this.changeRef.detectChanges();
-    });
-  }
+  private readonly routeUsername = signal<string | null>(null);
+  private readonly routeMode = signal<'password' | 'pin' | null>(null);
 
-  get isPin(): boolean {
-    return this.mode === 'pin';
-  }
+  readonly effectiveUsername = computed(() =>
+    this.routeUsername() ?? this.username()
+  );
 
-  get credentialLabel(): string {
-    return this.isPin ? 'PIN' : 'Password';
-  }
+  readonly effectiveMode = computed<'password' | 'pin'>(() =>
+    this.routeMode() ?? this.mode()
+  );
 
-  sanitisePin(event: Event) {
-    const input = event.target as HTMLInputElement;
-    input.value = input.value.replace(/\D/g, '').slice(0, 4);
-    this.credential = input.value;
-  }
+  readonly isPin = computed(() => this.effectiveMode() === 'pin');
 
-  get canSubmit(): boolean {
-    if (!this.username) return false;
-    if (!this.credential) return false;
-    if (this.isPin && this.credential.length !== 4) return false;
+  readonly credentialLabel = computed(() =>
+    this.isPin() ? 'PIN' : 'Password'
+  );
+
+  readonly canSubmit = computed(() => {
+    const username = this.effectiveUsername().trim();
+    const credential = this.credential().trim();
+
+    if (!username || !credential) return false;
+    if (this.isPin() && credential.length !== 4) return false;
+
     return true;
+  });
+
+  constructor() {
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed())
+      .subscribe(params => {
+        this.routeUsername.set(params.get('username'));
+
+        const mode = params.get('mode');
+        this.routeMode.set(mode === 'pin' ? 'pin' : mode === 'password' ? 'password' : null);
+      });
   }
 
-  submit() {
-    if (!this.canSubmit) return;
+  sanitisePin(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.replace(/\D/g, '').slice(0, 4);
+    input.value = value;
+    this.credential.set(value);
+  }
+
+  submit(): void {
+    if (!this.canSubmit()) return;
 
     this.passwordReset.emit({
-      username: this.username,
-      credential: this.credential,
-      pin: this.isPin
+      username: this.effectiveUsername(),
+      credential: this.credential(),
+      pin: this.isPin()
     });
   }
 }

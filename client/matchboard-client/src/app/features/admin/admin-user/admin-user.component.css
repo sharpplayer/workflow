@@ -71,7 +71,9 @@ form {
 
 .button-group {
     display: flex;
+    justify-content: flex-end;
     gap: .5rem;
+    width: 100%;
 }
 
 label.disabled {
@@ -97,8 +99,6 @@ button {
   background-color: #4a90e2;
   color: white;
   cursor: pointer;
-  float: right;
-  margin-right: 8px;
   margin-top: 8px;
   margin-bottom: 8px;
 }

@@ -1,67 +1,76 @@
-import { Component, EventEmitter, inject, Output, signal } from '@angular/core';
+import { Component, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { User, UserService } from '../../../core/services/user.service';
 
 @Component({
-    selector: 'admin-users-list',
-    standalone: true,
-    imports: [CommonModule],
-    template: `
+  selector: 'admin-users-list',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
     <div class="list-container">
-
       <div class="list-header">
-        <button (click)="create.emit()">Create User</button>
+        <button type="button" (click)="create.emit()">Create User</button>
       </div>
 
-      <div *ngIf="loading()">Loading users...</div>
-      <div *ngIf="error()">{{ error() }}</div>
-
-      <table *ngIf="!loading() && !error() && users().length > 0">
+      @if (loading()) {
+        <div>Loading users...</div>
+      } @else if (error()) {
+        <div>{{ error() }}</div>
+      } @else if (users().length > 0) {
+        <table>
           <thead>
-              <tr><th>Username</th><th>Roles</th><th>Enabled</th></tr>
+            <tr>
+              <th>Username</th>
+              <th>Roles</th>
+              <th>Enabled</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
-              <tr *ngFor="let user of users()">
-                  <td>{{ user.username }}</td>
-                  <td>{{ user.roles.join(', ') }}</td>
-                  <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
-                  <td>
-                      <button (click)="edit.emit(user)">Edit</button>
-                  </td>
+            @for (user of users(); track user.username) {
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.roles.join(', ') }}</td>
+                <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                <td>
+                  <button type="button" (click)="edit.emit(user)">Edit</button>
+                </td>
               </tr>
+            }
           </tbody>
-      </table>
-
-      <div *ngIf="!loading() && !error() && users().length === 0">No users found.</div>
-
+        </table>
+      } @else {
+        <div>No users found.</div>
+      }
     </div>
   `,
-    styleUrls: ['./admin-users-list.component.css']
+  styleUrl: './admin-users-list.component.css'
 })
-export class AdminUserListComponent {
-    private userService = inject(UserService);
+export class AdminUsersListComponent {
+  private readonly userService = inject(UserService);
 
-    @Output() edit = new EventEmitter<User>();
-    @Output() create = new EventEmitter<void>();
+  readonly edit = output<User>();
+  readonly create = output<void>();
 
-    users = this.userService.users;
-    loading = signal(true);
-    error = signal('');
+  readonly users = this.userService.users;
+  readonly loading = signal(true);
+  readonly error = signal('');
 
-    constructor() {
-        this.loadUsers();
+  constructor() {
+    void this.loadUsers();
+  }
+
+  async loadUsers(): Promise<void> {
+    this.loading.set(true);
+    this.error.set('');
+
+    try {
+      await this.userService.loadUsers();
+    } catch (err) {
+      console.error(err);
+      this.error.set('Failed to load users');
+    } finally {
+      this.loading.set(false);
     }
-
-    async loadUsers() {
-        this.loading.set(true);
-        this.error.set('');
-        try {
-            await this.userService.loadUsers();
-        } catch (err) {
-            console.error(err);
-            this.error.set('Failed to load users');
-        } finally {
-            this.loading.set(false);
-        }
-    }
+  }
 }

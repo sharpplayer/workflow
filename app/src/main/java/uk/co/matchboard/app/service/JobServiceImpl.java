@@ -1,7 +1,12 @@
 package uk.co.matchboard.app.service;
 
+import static uk.co.matchboard.app.service.ProductServiceImpl.INPUT_PHASE_RUN;
+
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.functional.Result;
@@ -11,11 +16,18 @@ import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.SchedulableJobPartParam;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
+import uk.co.matchboard.app.model.job.SchedulableJobPhase;
+import uk.co.matchboard.app.model.job.SchedulableJobPhases;
 import uk.co.matchboard.app.model.job.UpdateSchedule;
 
 @Service
 public class JobServiceImpl implements JobService {
+
+    private record PartPhaseKey(int partNumber, int phaseNumber) {
+
+    }
 
     public static final String CONFIG_SCHEDULE_DATES = "SCHEDULE-DATES";
 
@@ -77,6 +89,62 @@ public class JobServiceImpl implements JobService {
             return databaseService.getScheduleFor(OffsetDateTime.parse(date + "T00:00:00+00:00"))
                     .map(SchedulableJobParts::new);
         }
+    }
+
+    @Override
+    public Result<SchedulableJobPhases> getSchedule(String date, String role) {
+        OffsetDateTime fromDate = null;
+        OffsetDateTime toDate = null;
+        if (date == null) {
+            toDate = LocalDate.now(ZoneOffset.UTC).atStartOfDay()
+                    .atOffset(ZoneOffset.UTC);
+        } else {
+            toDate = LocalDate.parse(date)
+                    .atStartOfDay()
+                    .atOffset(ZoneOffset.UTC);
+            fromDate = toDate;
+        }
+
+        databaseService.getScheduleForRole(fromDate, toDate).map(params -> {
+            return params.stream()
+                    .collect(Collectors.groupingBy(
+                            r -> new PartPhaseKey(r.partNumber(), r.phaseNumber())
+                    ))
+                    .values().stream()
+                    .filter(group -> group.stream().anyMatch(r ->
+                            r.paramConfig() != null
+                                    && isForRole(r.paramConfig(), role)   // or equals(...)
+                                    && isPhaseRunInput(r.paramInput())
+                    ))
+                    .map(group -> {
+                        SchedulableJobPartParam r = group.getFirst();
+                        return new SchedulableJobPhase(
+                                r.jobNumber(),
+                                r.jobParts(),
+                                r.jobPartId(),
+                                r.partNumber(),
+                                r.name(),
+                                r.oldName(),
+                                r.quantity(),
+                                r.status(),
+                                r.phaseDescription(),
+                                r.phaseNumber(),
+                                r.specialInstruction(),
+                                r.phaseStatus()
+                        );
+                    })
+                    .toList();
+        });
+
+        return null;
+    }
+
+    private boolean isPhaseRunInput(int input) {
+        return input == INPUT_PHASE_RUN;
+    }
+
+    private boolean isForRole(String config, String role) {
+        return config.contains("(" + role + ")");
     }
 
     @Override

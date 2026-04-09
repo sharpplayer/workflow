@@ -3,6 +3,25 @@ import { inject, Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { API_BASE_URL } from "../../app.config";
 
+export interface SchedulableJobPhases {
+  schedulable: SchedulableJobPhase[];
+}
+
+export interface SchedulableJobPhase {
+  jobNumber: number;
+  jobParts: number;
+  jobPartId: number;
+  partNumber: number;
+  name: string;
+  oldName: string;
+  quantity: number;
+  status: number;
+  phaseDescription: string;
+  phaseNumber: number;
+  specialInstruction: string;
+  phaseStatus: number;
+}
+
 export interface SchedulableJobPart {
   jobPartId: number;
   product: string;
@@ -44,7 +63,7 @@ export interface JobPart {
   jobPartId: number;
   productId: number;
   name: string;
-  oldName : string;
+  oldName: string;
   quantity: number;
   fromCallOff: boolean;
   materialAvailable: boolean;
@@ -153,6 +172,16 @@ export class JobService {
     return await firstValueFrom(
       this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {
         params: date ? { date } : {},
+        withCredentials: true
+      })
+    );
+  }
+
+  async getJobSchedulablePartsForRole(date: string | null, role: string): Promise<SchedulableJobParts> {
+
+    return await firstValueFrom(
+      this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {
+        params: date ? { date, role } : { role },
         withCredentials: true
       })
     );

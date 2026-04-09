@@ -1,18 +1,16 @@
 import {
   Component,
-  computed,
   DestroyRef,
+  computed,
+  effect,
   inject,
-  Input,
-  OnChanges,
-  OnInit,
+  input,
   output,
-  signal,
-  SimpleChanges
+  signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Phase, PhaseParam, ProductService } from '../../../core/services/product.service';
 import { AdminPhaseComponent } from '../admin-phase/admin-phase.component';
+import { Phase, PhaseParam, ProductService } from '../../../core/services/product.service';
 
 export interface JobPhase {
   phase: Phase;
@@ -36,15 +34,16 @@ export interface PhasesSelected {
           <tr>
             <th colspan="3">
               Phases
-              <span class="phase-count">({{ phaseCount }})</span>
+              <span class="phase-count">({{ phaseCount() }})</span>
             </th>
             <th colspan="2" style="text-align:right">
-              <button (click)="tableExpanded.update(e => !e)">
+              <button type="button" (click)="tableExpanded.update(e => !e)">
                 {{ tableExpanded() ? '▲' : '▼' }}
               </button>
             </th>
           </tr>
-          @if(tableExpanded()){
+
+          @if (tableExpanded()) {
             <tr>
               <th>Phase</th>
               <th>Description</th>
@@ -55,66 +54,66 @@ export interface PhasesSelected {
           }
         </thead>
 
-        @if(tableExpanded()){
-        <tbody>
-          @for (jp of editablePhases(); track jp.order)
-          {
+        @if (tableExpanded()) {
+          <tbody>
+            @for (jp of editablePhases(); track jp.order) {
+              <tr>
+                <td>{{ jp.order }}</td>
+                <td>{{ jp.phase.description }}</td>
+                <td>
+                  <table class="phase-param-table">
+                    <thead>
+                      <tr>
+                        @for (phaseParam of jp.phase.params; track $index) {
+                          <th>{{ phaseParam.paramName }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        @for (phaseParam of jp.phase.params; track $index) {
+                          <td>{{ shrink(phaseParam.paramConfig, phaseParam.evaluation) }}</td>
+                        }
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+                <td>
+                  <textarea
+                    class="special-instruction"
+                    rows="2"
+                    [value]="jp.specialInstruction"
+                    (input)="updateSpecialInstruction(jp, $any($event.target).value)"
+                  ></textarea>
+                </td>
+                <td class="phase-actions">
+                  <button type="button" (click)="deletePhase(jp)">-</button>
+                  <button type="button" (click)="moveUp(jp)" [disabled]="jp.order === 1">↑</button>
+                  <button type="button" (click)="moveDown(jp)" [disabled]="jp.order === editablePhases().length">↓</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+
+          <tfoot>
             <tr>
-              <td>{{ jp.order }}</td>
-              <td>{{ jp.phase.description }}</td>
-              <td>
-                <table class="phase-param-table">
-                  <thead>
-                    <tr>
-                      @for (phaseParam of jp.phase.params; track $index) {
-                        <th>{{ phaseParam.paramName }}</th>
-                      }
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      @for (phaseParam of jp.phase.params; track $index) {
-                        <td>{{ shrink(phaseParam.evaluation) }}</td>
-                      }
-                    </tr>
-                  </tbody>
-                </table>
+              <td colspan="3">
+                @if (phaseCount() === 0) {
+                  <span class="error-message">This product has no phases.</span>
+                }
               </td>
-              <td>
-                <textarea
-                  class="special-instruction"
-                  rows="2"
-                  [value]="jp.specialInstruction"
-                  (input)="updateSpecialInstruction(jp, $any($event.target).value)"
-                ></textarea>
-              </td>
-              <td class="phase-actions">
-                <button (click)="deletePhase(jp)">-</button>
-                <button (click)="moveUp(jp)" [disabled]="jp.order === 1">↑</button>
-                <button (click)="moveDown(jp)" [disabled]="jp.order === editablePhases().length">↓</button>
+              <td colspan="2" class="add-phase-row">
+                <button type="button" (click)="addPhase()">Add Phase</button>
+                <button
+                  type="button"
+                  (click)="savePhases()"
+                  [disabled]="!hasUnsavedChanges()"
+                >
+                  Update Product
+                </button>
               </td>
             </tr>
-          }
-        </tbody>
-
-        <tfoot>
-          <tr>
-            <td colspan="3">
-              @if (phaseCount === 0) {
-                <span class="error-message">This product has no phases.</span>
-              }
-            </td>
-            <td colspan="2" class="add-phase-row">
-              <button (click)="addPhase()">Add Phase</button>
-              <button
-                (click)="savePhases()"
-                [disabled]="!hasUnsavedChanges()"
-              >
-                Update Product
-              </button>
-            </td>
-          </tr>
-        </tfoot>
+          </tfoot>
         }
       </table>
     </div>
@@ -127,45 +126,49 @@ export interface PhasesSelected {
       />
     }
   `,
-  styleUrls: ['./admin-phases-list.component.css']
+  styleUrl: './admin-phases-list.component.css'
 })
-export class AdminPhasesListComponent implements OnInit, OnChanges {
-  protected productService = inject(ProductService);
-  private destroyRef = inject(DestroyRef);
+export class AdminPhasesListComponent {
+  protected readonly productService = inject(ProductService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected isModalOpen = signal(false);
-  protected editablePhases = signal<JobPhase[]>([]);
-  protected tableExpanded = signal(false);
-  protected hasUnsavedChanges = signal(false);
+  readonly productId = input.required<number>();
+  readonly phasesSelected = output<PhasesSelected>();
 
-  @Input({ required: true }) productId!: number;
-  phasesSelected = output<PhasesSelected>();
-  protected selectedPhaseIds = computed(() =>
+  protected readonly isModalOpen = signal(false);
+  protected readonly editablePhases = signal<JobPhase[]>([]);
+  protected readonly tableExpanded = signal(false);
+  protected readonly hasUnsavedChanges = signal(false);
+
+  protected readonly selectedPhaseIds = computed(() =>
     this.editablePhases().map(jp => jp.phase.id)
   );
 
+  protected readonly phaseCount = computed(() => this.editablePhases().length);
+
   private destroyed = false;
+  private lastLoadedProductId: number | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
     });
+
+    effect(() => {
+      const productId = this.productId();
+
+      if (productId === this.lastLoadedProductId) return;
+
+      this.lastLoadedProductId = productId;
+      void this.loadInitialPhases(productId);
+    });
   }
 
-  ngOnInit(): void {
-    this.loadInitialPhases();
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['productId'] && !changes['productId'].firstChange) {
-      this.loadInitialPhases();
-    }
-  }
-
-  private async loadInitialPhases() {
-    const phasesFromService = await this.productService.loadProductPhases(this.productId);
+  private async loadInitialPhases(productId: number): Promise<void> {
+    const phasesFromService = await this.productService.loadProductPhases(productId);
 
     if (this.destroyed) return;
+    if (productId !== this.productId()) return;
 
     const phases: JobPhase[] = phasesFromService.map((p, i) => ({
       phase: p,
@@ -179,27 +182,24 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
     this.emitFilteredParams();
   }
 
-  get phaseCount() {
-    return this.editablePhases().length;
-  }
-
-  addPhase() {
+  addPhase(): void {
     this.isModalOpen.set(true);
   }
 
-  closeModal() {
+  closeModal(): void {
     this.isModalOpen.set(false);
   }
 
-  async onPhaseSelected(phase: Phase) {
-    const resolvedPhase = await this.productService.resolvePhase(this.productId, phase.id);
+  async onPhaseSelected(phase: Phase): Promise<void> {
+    const resolvedPhase = await this.productService.resolvePhase(this.productId(), phase.id);
 
     if (this.destroyed) return;
 
-    resolvedPhase.order = this.editablePhases().length + 1;
-
     const jobPhase: JobPhase = {
-      phase: resolvedPhase,
+      phase: {
+        ...resolvedPhase,
+        order: this.editablePhases().length + 1
+      },
       specialInstruction: '',
       order: this.editablePhases().length + 1
     };
@@ -211,19 +211,23 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
     this.emitFilteredParams();
   }
 
-  updateSpecialInstruction(jp: JobPhase, value: string) {
-    jp.specialInstruction = value;
-    this.editablePhases.set([...this.editablePhases()]);
+  updateSpecialInstruction(jp: JobPhase, value: string): void {
+    this.editablePhases.update(phases =>
+      phases.map(p =>
+        p === jp ? { ...p, specialInstruction: value } : p
+      )
+    );
+
     this.hasUnsavedChanges.set(true);
   }
 
-  savePhases() {
-    const phasesToSave = this.editablePhases().map(jp => {
-      jp.phase.order = jp.order;
-      return jp.phase;
-    });
+  savePhases(): void {
+    const phasesToSave = this.editablePhases().map(jp => ({
+      ...jp.phase,
+      order: jp.order
+    }));
 
-    this.productService.savePhases(this.productId, phasesToSave)
+    this.productService.savePhases(this.productId(), phasesToSave)
       .then(() => {
         if (this.destroyed) return;
         this.hasUnsavedChanges.set(false);
@@ -231,46 +235,59 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
       .catch(err => console.error('Failed to save phases', err));
   }
 
-  deletePhase(jp: JobPhase) {
-    this.editablePhases.update(phases => {
-      const newPhases = phases.filter(p => p !== jp);
-      newPhases.forEach((p, i) => (p.order = i + 1));
-      return newPhases;
-    });
+  deletePhase(jp: JobPhase): void {
+    this.editablePhases.update(phases =>
+      phases
+        .filter(p => p !== jp)
+        .map((p, i) => ({
+          ...p,
+          order: i + 1
+        }))
+    );
 
     this.hasUnsavedChanges.set(true);
     this.emitFilteredParams();
   }
 
-  moveUp(jp: JobPhase) {
+  moveUp(jp: JobPhase): void {
     this.editablePhases.update(phases => {
-      const index = phases.indexOf(jp);
+      const updated = [...phases];
+      const index = updated.indexOf(jp);
+
       if (index > 0) {
-        [phases[index - 1], phases[index]] = [phases[index], phases[index - 1]];
-        phases.forEach((p, i) => (p.order = i + 1));
+        [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
       }
-      return [...phases];
+
+      return updated.map((p, i) => ({
+        ...p,
+        order: i + 1
+      }));
     });
 
     this.hasUnsavedChanges.set(true);
     this.emitFilteredParams();
   }
 
-  moveDown(jp: JobPhase) {
+  moveDown(jp: JobPhase): void {
     this.editablePhases.update(phases => {
-      const index = phases.indexOf(jp);
-      if (index < phases.length - 1) {
-        [phases[index], phases[index + 1]] = [phases[index + 1], phases[index]];
-        phases.forEach((p, i) => (p.order = i + 1));
+      const updated = [...phases];
+      const index = updated.indexOf(jp);
+
+      if (index < updated.length - 1) {
+        [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
       }
-      return [...phases];
+
+      return updated.map((p, i) => ({
+        ...p,
+        order: i + 1
+      }));
     });
 
     this.hasUnsavedChanges.set(true);
     this.emitFilteredParams();
   }
 
-  private emitFilteredParams() {
+  private emitFilteredParams(): void {
     if (this.destroyed) return;
 
     const editable = this.editablePhases();
@@ -291,10 +308,15 @@ export class AdminPhasesListComponent implements OnInit, OnChanges {
     });
   }
 
-  shrink(value: string): string {
+  shrink(config: string, value: string): string {
+    if (config.startsWith('SIGN')) {
+      return config;
+    }
+
     if (value.startsWith('(Input')) {
       return '(Input)';
     }
+
     return value;
   }
 }

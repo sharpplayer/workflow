@@ -21,8 +21,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.Record16;
 import org.jooq.SelectOnConditionStep;
 import org.jooq.impl.DSL;
 import org.springframework.dao.DataAccessException;
@@ -49,6 +51,7 @@ import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
+import uk.co.matchboard.app.model.job.SchedulableJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -608,6 +611,82 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .and(JOB_PART.SCHEDULE_FOR.eq(date))
                         .orderBy(JOB_PART.RUN_ORDER)
                         .fetch(DatabaseServiceImpl::getSchedulableJobPart));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<SchedulableJobPartParam>> getScheduleForRole(OffsetDateTime from,
+            OffsetDateTime to) {
+        return TryUtils.tryCatch(() -> {
+            Condition condition = DSL.trueCondition();
+            if (from != null) {
+                condition = condition.and(JOB_PART.RUN_ON.ge(from));
+            }
+            if (to != null) {
+                condition = condition.and(JOB_PART.RUN_ON.le(to));
+            }
+
+            return dsl.select(
+                            JOB.NUMBER,
+                            JOB.PARTS,
+
+                            JOB_PART.ID,
+                            JOB_PART.PART_NUMBER,
+                            PRODUCTS.NAME,
+                            PRODUCTS.OLD_NAME,
+                            JOB_PART.QUANTITY,
+                            JOB_PART.STATUS,
+
+                            PHASE.DESCRIPTION,
+                            JOB_PART_PHASES.PHASE_NUMBER,
+                            JOB_PART_PHASES.SPECIAL_INSTRUCTION,
+                            JOB_PART_PHASES.STATUS,
+
+                            JOB_PART_PARAMS.ID,
+                            JOB_PART_PARAMS.NAME,
+                            JOB_PART_PARAMS.CONFIG,
+                            JOB_PART_PARAMS.INPUT
+                    )
+                    .from(JOB_PART)
+                    .join(JOB).on(JOB.ID.eq(JOB_PART.JOB_ID))
+                    .join(PRODUCTS).on(PRODUCTS.ID.eq(JOB_PART.PRODUCT_ID))
+                    .join(JOB_PART_PHASES).on(JOB_PART_PHASES.JOB_PART_ID.eq(JOB_PART.ID))
+                    .join(PHASE).on(PHASE.ID.eq(JOB_PART_PHASES.PHASE_ID))
+                    .leftJoin(JOB_PART_PARAMS)
+                    .on(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.ID))
+                    .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode()))
+                    .and(condition)
+                    .orderBy(
+                            JOB_PART.RUN_ON,
+                            JOB_PART.RUN_ORDER,
+                            JOB_PART_PHASES.PHASE_NUMBER,
+                            JOB_PART_PARAMS.ORDER.nullsLast(),
+                            JOB_PART_PARAMS.ID
+                    )
+                    .fetch(DatabaseServiceImpl::getSchedulableJobPartParam);
+        });
+    }
+
+    private static SchedulableJobPartParam getSchedulableJobPartParam(Record record) {
+        return new SchedulableJobPartParam(
+                record.get(JOB.NUMBER),
+                record.get(JOB.PARTS),
+                record.get(JOB_PART.ID),
+                record.get(JOB_PART.PART_NUMBER),
+                record.get(PRODUCTS.NAME),
+                record.get(PRODUCTS.OLD_NAME),
+                record.get(JOB_PART.QUANTITY),
+                record.get(JOB_PART.STATUS),
+                record.get(PHASE.DESCRIPTION),
+                record.get(JOB_PART_PHASES.PHASE_NUMBER),
+                record.get(JOB_PART_PHASES.SPECIAL_INSTRUCTION),
+                record.get(JOB_PART_PHASES.STATUS),
+                record.get(JOB_PART_PARAMS.ID),
+                record.get(JOB_PART_PARAMS.NAME),
+                record.get(JOB_PART_PARAMS.CONFIG),
+                record.get(JOB_PART_PARAMS.INPUT)
+        );
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
