@@ -16,18 +16,6 @@ CREATE TABLE job
 
 CREATE INDEX idx_job_status ON job (status);
 
-CREATE INDEX idx_job_created_at_status
-    ON job (created_at, status);
-
-CREATE INDEX idx_job_due_status
-    ON job (due, status);
-
-CREATE INDEX idx_job_started_at_status
-    ON job (started_at, status) WHERE started_at IS NOT NULL;
-
-CREATE INDEX idx_job_completed_at_status
-    ON job (completed_at, status) WHERE completed_at IS NOT NULL;
-
 CREATE TABLE job_part
 (
     id                 SERIAL PRIMARY KEY,
@@ -74,31 +62,18 @@ CREATE TABLE job_part_phases
 
 CREATE INDEX idx_job_part_phases_status ON job_part_phases (status);
 
-CREATE INDEX idx_job_part_phases_started_at_status
-    ON job_part_phases (started_at, status) WHERE started_at IS NOT NULL;
-
-CREATE INDEX idx_job_part_phases_completed_at_status
-    ON job_part_phases (completed_at, status) WHERE completed_at IS NOT NULL;
-
-CREATE INDEX idx_job_part_phases_created_at_status
-    ON job_part_phases (created_at, status);
-
 CREATE TABLE job_part_params
 (
     id                SERIAL PRIMARY KEY,
     job_part_phase_id INTEGER     NOT NULL,
-    param_id          INTEGER     NOT NULL,
+    name              VARCHAR(50) NOT NULL,
+    config            VARCHAR(50) NOT NULL,
+    input             INTEGER     NOT NULL,
     value             VARCHAR(20),
+    "order"           INTEGER     NOT NULL,
     valued_at         TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_job_part_params_job_part_phase_id
-    ON job_part_params (job_part_phase_id);
-
-
-CREATE INDEX idx_job_part_params_valued_at
-    ON job_part_params (valued_at) WHERE valued_at IS NOT NULL;
 
 CREATE SEQUENCE job_number_seq
     AS BIGINT

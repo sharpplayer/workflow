@@ -509,10 +509,22 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                             for (CreateJobPartParam param : part.params()) {
                                 if (param.phaseNumber() == phaseNo) {
+
+                                    var paramData = dsl.selectFrom(PHASE_PARAM)
+                                            .where(PHASE_PARAM.ID.eq(param.paramId())).fetchOne();
+                                    if (paramData == null) {
+                                        throw new DataAccessException(
+                                                "Failed to find Param, for id " + param.paramId()) {
+                                        };
+                                    }
+
                                     OffsetDateTime valueTime = param.value() == null ? null : now;
                                     Integer paramId = dsl.insertInto(JOB_PART_PARAMS)
                                             .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId)
-                                            .set(JOB_PART_PARAMS.PARAM_ID, param.paramId())
+                                            .set(JOB_PART_PARAMS.NAME, paramData.getName())
+                                            .set(JOB_PART_PARAMS.INPUT, paramData.getInput())
+                                            .set(JOB_PART_PARAMS.CONFIG, paramData.getConfig())
+                                            .set(JOB_PART_PARAMS.ORDER, paramData.getOrder())
                                             .set(JOB_PART_PARAMS.VALUE, param.value())
                                             .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
                                             .returning(JOB_PART_PARAMS.ID)
@@ -523,9 +535,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         };
                                     }
                                     partParams.add(
-                                            new JobPartParam(paramId, param.paramId(),
-                                                    param.phaseNumber(),
-                                                    0, 0, "()",
+                                            new JobPartParam(paramId,
+                                                    param.phaseNumber(), paramData.getInput(),
+                                                    partPhaseId, paramData.getName(),
                                                     param.value(), valueTime));
                                 }
                             }
@@ -693,36 +705,17 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     phaseRecord.getStatus()
                             ));
 
-                            var records = dsl.select(
-                                            JOB_PART_PARAMS.ID,
-                                            JOB_PART_PARAMS.PARAM_ID,
-                                            JOB_PART_PARAMS.VALUE,
-                                            JOB_PART_PARAMS.VALUED_AT,
-                                            PHASE_PARAM.INPUT,
-                                            PHASE_PARAM.NAME
-                                    )
-                                    .from(JOB_PART_PARAMS)
-                                    .leftJoin(PHASE_PARAM)
-                                    .on(PHASE_PARAM.ID.eq(JOB_PART_PARAMS.PARAM_ID))
+                            var records = dsl.selectFrom(JOB_PART_PARAMS)
                                     .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(partPhaseId))
                                     .fetch();
 
                             for (var record : records) {
-                                if (record.get(PHASE_PARAM.NAME) == null) {
-                                    throw new DataAccessException(
-                                            "Failed to find param with id " + record.get(
-                                                    JOB_PART_PARAMS.PARAM_ID)
-                                    ) {
-                                    };
-                                }
-
                                 partParams.add(new JobPartParam(
                                         record.get(JOB_PART_PARAMS.ID),
-                                        record.get(JOB_PART_PARAMS.PARAM_ID),
                                         phaseNumber,
-                                        record.get(PHASE_PARAM.INPUT),
+                                        record.get(JOB_PART_PARAMS.INPUT),
                                         partPhaseId,
-                                        record.get(PHASE_PARAM.NAME),
+                                        record.get(JOB_PART_PARAMS.NAME),
                                         record.get(JOB_PART_PARAMS.VALUE),
                                         record.get(JOB_PART_PARAMS.VALUED_AT)
                                 ));

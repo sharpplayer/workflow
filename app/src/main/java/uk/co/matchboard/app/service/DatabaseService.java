@@ -75,4 +75,5 @@ public interface DatabaseService {
     Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds);
 
     OptionalResult<Job> findJob(int jobId);
+
 }

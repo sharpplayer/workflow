@@ -32,7 +32,6 @@ export interface JobPartPhase {
 
 export interface JobPartParam {
   partParamId: number;
-  paramId: number;
   phaseId: number;
   phaseNumber: number;
   input: number;
