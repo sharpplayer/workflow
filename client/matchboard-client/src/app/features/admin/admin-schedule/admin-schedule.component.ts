@@ -1,6 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import {
     JobService,
     JobStatusLabel,
@@ -21,7 +22,7 @@ type TableColumn = {
 @Component({
     selector: 'app-admin-schedule',
     standalone: true,
-    imports: [CommonModule, FormsModule],
+    imports: [CommonModule, FormsModule, RouterModule],
     template: `
         <div>
             <label for="scheduleDate">Schedule Date:</label>
@@ -52,76 +53,81 @@ type TableColumn = {
             </div>
         }
 
-            <div>
-                <table>
-                    <thead>
-                        <tr>
-                            @if (!isUnscheduled()) {
-                                <th>
-                                    <input
-                                        type="checkbox"
-                                        [checked]="allSelected()"
-                                        [indeterminate]="someSelected() && !allSelected()"
-                                        (change)="toggleSelectAll($any($event.target).checked)"
-                                    />
-                                </th>
-                            }
+        <div>
+            <table>
+                <thead>
+                    <tr>
+                        @if (!isUnscheduled()) {
+                            <th>
+                                <input
+                                    type="checkbox"
+                                    [checked]="allSelected()"
+                                    [indeterminate]="someSelected() && !allSelected()"
+                                    (click)="$event.stopPropagation()"
+                                    (change)="toggleSelectAll($any($event.target).checked)"
+                                />
+                            </th>
+                        }
 
-                            @for (column of tableColumns; track column.key) {
-                                <th>{{ column.header }}</th>
-                            }
-                        </tr>
-                    </thead>
+                        @for (column of tableColumns; track column.key) {
+                            <th>{{ column.header }}</th>
+                        }
+                    </tr>
+                </thead>
 
-                    <tbody>
-                        @if (jobParts().length > 0) {
-                            @for (part of jobParts(); track part.jobPartId) {
-                                <tr>
-                                    @if (!isUnscheduled()) {
-                                        <td>
-                                            <input
-                                                type="checkbox"
-                                                [ngModel]="part.selected"
-                                                (ngModelChange)="toggleRowSelection(part.jobPartId, $event)"
-                                                [disabled]="scheduling()"
-                                            />
-                                        </td>
-                                    }
+                <tbody>
+                    @if (jobParts().length > 0) {
+                        @for (part of jobParts(); track part.jobPartId) {
+                            <tr
+                                class="clickable-row"
+                                (click)="goToJob(part.jobId)"
+                            >
+                                @if (!isUnscheduled()) {
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            [ngModel]="part.selected"
+                                            (click)="$event.stopPropagation()"
+                                            (ngModelChange)="toggleRowSelection(part.jobPartId, $event)"
+                                            [disabled]="scheduling()"
+                                        />
+                                    </td>
+                                }
 
-                                    @for (column of tableColumns; track column.key) {
-                                        <td>{{ getColumnValue(part, column.key) }}</td>
-                                    }
-                                </tr>
-                            }
-                        } @else if (!loadingJobParts() && hasLoadedJobParts()) {
-                            <tr>
-                                <td [attr.colspan]="tableColumns.length">
-                                No job parts found.
-                                </td>
+                                @for (column of tableColumns; track column.key) {
+                                    <td>{{ getColumnValue(part, column.key) }}</td>
+                                }
                             </tr>
-                        }   
-                        </tbody>
-                </table>
+                        }
+                    } @else if (!loadingJobParts() && hasLoadedJobParts()) {
+                        <tr>
+                            <td [attr.colspan]="tableColumns.length + (isUnscheduled() ? 0 : 1)">
+                                No job parts found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
 
-                @if (!isUnscheduled()) {
-                    <div>
-                        <button
-                            type="button"
-                            (click)="scheduleSelected()"
-                            [disabled]="!canSchedule()"
-                        >
-                            {{ scheduling() ? 'Scheduling...' : 'Schedule' }}
-                        </button>
-                    </div>
-                }
-            </div>
-        
+            @if (!isUnscheduled()) {
+                <div>
+                    <button
+                        type="button"
+                        (click)="scheduleSelected()"
+                        [disabled]="!canSchedule()"
+                    >
+                        {{ scheduling() ? 'Scheduling...' : 'Schedule' }}
+                    </button>
+                </div>
+            }
+        </div>
     `,
     styleUrl: './admin-schedule.component.css'
 })
 export class AdminScheduleComponent implements OnInit {
     private readonly jobService = inject(JobService);
     private readonly configService = inject(ConfigService);
+    private readonly router = inject(Router);
 
     readonly unscheduledLabel = '(Unscheduled)';
 
@@ -133,7 +139,7 @@ export class AdminScheduleComponent implements OnInit {
         { key: 'quantity', header: 'Quantity' },
         { key: 'fromCallOff', header: 'From Call Off' },
         { key: 'jobPartStatus', header: 'Job Part Status' },
-        { key: 'order', header: 'Order'}
+        { key: 'order', header: 'Order' }
     ];
 
     readonly availableDates = signal<ConfigItem[]>([]);
@@ -213,7 +219,7 @@ export class AdminScheduleComponent implements OnInit {
         try {
             const scheduleDate = this.selectedScheduleDate() || null;
             const response: SchedulableJobParts =
-                await this.jobService.getJobParts(scheduleDate);
+                await this.jobService.getJobSchedulableParts(scheduleDate);
 
             const rows: JobPartRow[] = (response.schedulable ?? []).map(part => ({
                 ...part,
@@ -240,8 +246,10 @@ export class AdminScheduleComponent implements OnInit {
 
         try {
             const selectedParts = this.getSelectedJobParts();
-            await this.jobService.scheduleJobParts(this.selectedScheduleDate(),
-                selectedParts.map(part => part.jobPartId));
+            await this.jobService.scheduleJobParts(
+                this.selectedScheduleDate(),
+                selectedParts.map(part => part.jobPartId)
+            );
 
             await this.getJobParts();
         } catch (error) {
@@ -270,6 +278,10 @@ export class AdminScheduleComponent implements OnInit {
 
     getSelectedJobParts(): JobPartRow[] {
         return this.jobParts().filter(part => part.selected);
+    }
+
+    goToJob(jobId: number): void {
+        void this.router.navigate(['/admin/jobs', jobId]);
     }
 
     getColumnValue(part: JobPartRow, key: string): string | number {

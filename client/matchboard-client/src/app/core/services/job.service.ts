@@ -22,7 +22,39 @@ export interface SchedulableJobParts {
   schedulable: SchedulableJobPart[];
 }
 
-type JobPart = any;
+export interface JobPartPhase {
+  phaseId: number;
+  partId: number;
+  phaseNumber: number;
+  specialInstructions: string | null;
+  status: number;
+}
+
+export interface JobPartParam {
+  partParamId: number;
+  paramId: number;
+  phaseId: number;
+  phaseNumber: number;
+  input: number;
+  name: string;
+  value: string | null;
+  valuedAt: Date | null;
+};
+
+export interface JobPart {
+  jobPartId: number;
+  productId: number;
+  name: string;
+  oldName : string;
+  quantity: number;
+  fromCallOff: boolean;
+  materialAvailable: boolean;
+  scheduleFor: Date; // equivalent to OffsetDateTime
+  phases: JobPartPhase[];
+  params: JobPartParam[];
+  status: number;
+};
+
 export interface Job {
   id: number;
   number: number; // Java long → number (note below)
@@ -30,6 +62,7 @@ export interface Job {
   customer: number | null;
   carrier: number | null;
   callOff: boolean;
+  paymentReceived: boolean;
   parts: JobPart[];
   status: number;
 }
@@ -107,7 +140,16 @@ export class JobService {
     );
   }
 
-  async getJobParts(date: string | null): Promise<SchedulableJobParts> {
+  async getJob(jobId: number): Promise<Job> {
+    return await firstValueFrom( //  Line 139
+      this.http.get<Job>(
+        `${API_BASE_URL}/api/jobs/${jobId}`,
+        { withCredentials: true }
+      )
+    );
+  }
+
+  async getJobSchedulableParts(date: string | null): Promise<SchedulableJobParts> {
 
     return await firstValueFrom(
       this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {

@@ -3,6 +3,7 @@ package uk.co.matchboard.app.service;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.KeyValuePair;
@@ -22,6 +23,12 @@ public class JobServiceImpl implements JobService {
 
     public JobServiceImpl(DatabaseService databaseService) {
         this.databaseService = databaseService;
+    }
+
+    @Override
+    public Result<Job> findJob(int jobId) {
+        return databaseService.findJob(jobId).fold(Result::of, Result::failure,
+                () -> Result.failure(new InvalidJobException(jobId)));
     }
 
     @Override
@@ -75,7 +82,7 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule) {
         return databaseService.updateSchedule(
-                        OffsetDateTime.parse(schedule.date()     + "T00:00:00+00:00"), schedule.jobPartIds())
+                        OffsetDateTime.parse(schedule.date() + "T00:00:00+00:00"), schedule.jobPartIds())
                 .flatMap(_ -> getSchedule(schedule.date()));
     }
 }

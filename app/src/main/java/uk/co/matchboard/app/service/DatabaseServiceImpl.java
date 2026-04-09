@@ -18,6 +18,7 @@ import jakarta.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.jooq.DSLContext;
@@ -401,6 +402,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .fetch(DatabaseServiceImpl::getCarrier));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Customer> createCustomer(CreateCustomer customer) {
         return TryUtils.tryCatch(() -> dsl.insertInto(CUSTOMER)
@@ -418,6 +421,8 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Carrier> createCarrier(CreateCarrier carrier) {
         return TryUtils.tryCatch(() -> dsl.insertInto(CARRIER)
@@ -429,6 +434,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .map(id -> new Carrier(id, carrier.code(), carrier.name(), true));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
             BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus) {
@@ -446,6 +453,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .set(JOB.CUSTOMER_ID, job.customer())
                             .set(JOB.CARRIER_ID, job.carrier())
                             .set(JOB.CALL_OFF, job.callOff())
+                            .set(JOB.PAYMENT_RECEIVED, job.paymentReceived())
                             .set(JOB.STATUS, jobStatus)
                             .returning(JOB.ID)
                             .fetchOne(JOB.ID);
@@ -517,20 +525,23 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     partParams.add(
                                             new JobPartParam(paramId, param.paramId(),
                                                     param.phaseNumber(),
+                                                    0, 0, "()",
                                                     param.value(), valueTime));
                                 }
                             }
                             phaseNo++;
                         }
                         partNo++;
-                        jobParts.add(new JobPart(partId, part.productId(), part.quantity(),
-                                part.fromCallOff(), part.materialAvailable(), part.scheduleFor(),
-                                jobPartPhases,
-                                partParams,
-                                partStatus));
+                        jobParts.add(
+                                new JobPart(partId, part.productId(), "()", "()", part.quantity(),
+                                        part.fromCallOff(), part.materialAvailable(),
+                                        part.scheduleFor(),
+                                        jobPartPhases,
+                                        partParams,
+                                        partStatus));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
-                            job.callOff(), jobParts, jobStatus);
+                            job.callOff(), jobParts, jobStatus, job.paymentReceived());
                 }));
     }
 
@@ -625,6 +636,126 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             return updatedCount > 0;
         }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public OptionalResult<Job> findJob(int jobId) {
+        return Result.toOptionalResult(TryUtils.tryCatch(() ->
+                dsl.transactionResult(connection -> {
+                    DSLContext dsl = DSL.using(connection);
+
+                    var jobRecord = dsl.selectFrom(JOB)
+                            .where(JOB.ID.eq(jobId))
+                            .fetchOne();
+
+                    if (jobRecord == null) {
+                        return Optional.empty();
+                    }
+
+                    List<JobPart> jobParts = new ArrayList<>();
+
+                    var partRecords = dsl.selectFrom(JOB_PART)
+                            .where(JOB_PART.JOB_ID.eq(jobId))
+                            .orderBy(JOB_PART.PART_NUMBER.asc())
+                            .fetch();
+
+                    for (var partRecord : partRecords) {
+                        Integer partId = partRecord.getId();
+
+                        List<JobPartPhase> jobPartPhases = new ArrayList<>();
+                        List<JobPartParam> partParams = new ArrayList<>();
+
+                        var product = dsl.selectFrom(PRODUCTS)
+                                .where(PRODUCTS.ID.eq(partRecord.getProductId())).fetchOne();
+                        if (product == null) {
+                            throw new DataAccessException(
+                                    "Failed to find Job, no product found with id "
+                                            + partRecord.getProductId()) {
+                            };
+                        }
+
+                        var phaseRecords = dsl.selectFrom(JOB_PART_PHASES)
+                                .where(JOB_PART_PHASES.JOB_PART_ID.eq(partId))
+                                .orderBy(JOB_PART_PHASES.PHASE_NUMBER.asc())
+                                .fetch();
+
+                        for (var phaseRecord : phaseRecords) {
+                            Integer partPhaseId = phaseRecord.getId();
+                            Integer phaseNumber = phaseRecord.getPhaseNumber();
+
+                            jobPartPhases.add(new JobPartPhase(
+                                    partPhaseId,
+                                    partId,
+                                    phaseNumber,
+                                    phaseRecord.getSpecialInstruction(),
+                                    phaseRecord.getStatus()
+                            ));
+
+                            var records = dsl.select(
+                                            JOB_PART_PARAMS.ID,
+                                            JOB_PART_PARAMS.PARAM_ID,
+                                            JOB_PART_PARAMS.VALUE,
+                                            JOB_PART_PARAMS.VALUED_AT,
+                                            PHASE_PARAM.INPUT,
+                                            PHASE_PARAM.NAME
+                                    )
+                                    .from(JOB_PART_PARAMS)
+                                    .leftJoin(PHASE_PARAM)
+                                    .on(PHASE_PARAM.ID.eq(JOB_PART_PARAMS.PARAM_ID))
+                                    .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(partPhaseId))
+                                    .fetch();
+
+                            for (var record : records) {
+                                if (record.get(PHASE_PARAM.NAME) == null) {
+                                    throw new DataAccessException(
+                                            "Failed to find param with id " + record.get(
+                                                    JOB_PART_PARAMS.PARAM_ID)
+                                    ) {
+                                    };
+                                }
+
+                                partParams.add(new JobPartParam(
+                                        record.get(JOB_PART_PARAMS.ID),
+                                        record.get(JOB_PART_PARAMS.PARAM_ID),
+                                        phaseNumber,
+                                        record.get(PHASE_PARAM.INPUT),
+                                        partPhaseId,
+                                        record.get(PHASE_PARAM.NAME),
+                                        record.get(JOB_PART_PARAMS.VALUE),
+                                        record.get(JOB_PART_PARAMS.VALUED_AT)
+                                ));
+                            }
+                        }
+
+                        jobParts.add(new JobPart(
+                                partId,
+                                partRecord.getProductId(),
+                                product.getName(),
+                                product.getOldName(),
+                                partRecord.getQuantity(),
+                                partRecord.getFromCallOff(),
+                                partRecord.getMaterialAvailable(),
+                                partRecord.getScheduleFor(),
+                                jobPartPhases,
+                                partParams,
+                                partRecord.getStatus()
+                        ));
+                    }
+
+                    return Optional.of(new Job(
+                            jobRecord.getId(),
+                            jobRecord.getNumber(),
+                            jobRecord.getDue(),
+                            jobRecord.getCustomerId(),
+                            jobRecord.getCarrierId(),
+                            jobRecord.getCallOff(),
+                            jobParts,
+                            jobRecord.getStatus(),
+                            jobRecord.getPaymentReceived()
+                    ));
+                })));
     }
 
     @Nonnull

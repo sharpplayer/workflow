@@ -2,6 +2,7 @@ package uk.co.matchboard.app.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,6 +24,12 @@ public class JobController {
     @PostMapping("/jobs")
     public ResponseEntity<?> createJob(@RequestBody CreateJob job) {
         return jobService.createJob(job)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @GetMapping("/jobs/{jobId}")
+    public ResponseEntity<?> createJob(@PathVariable int jobId) {
+        return jobService.findJob(jobId)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 

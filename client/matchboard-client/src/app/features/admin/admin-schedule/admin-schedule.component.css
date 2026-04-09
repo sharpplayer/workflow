@@ -52,3 +52,15 @@ button:hover {
 button:disabled {
   background-color: #959698;
 }
+
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row:hover {
+    background-color: #f3f4f6;
+}
+
+.clickable-row td {
+    transition: background-color 0.15s ease-in-out;
+}

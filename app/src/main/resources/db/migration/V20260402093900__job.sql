@@ -1,16 +1,17 @@
 CREATE TABLE job
 (
-    id           SERIAL PRIMARY KEY,
-    number       BIGINT      NOT NULL UNIQUE,
-    parts        INTEGER     NOT NULL,
-    due          TIMESTAMPTZ NOT NULL,
-    customer_id  INTEGER,
-    carrier_id   INTEGER,
-    call_off     BOOLEAN     NOT NULL DEFAULT FALSE,
-    status       INTEGER     NOT NULL,
-    started_at   TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id               SERIAL PRIMARY KEY,
+    number           BIGINT      NOT NULL UNIQUE,
+    parts            INTEGER     NOT NULL,
+    due              TIMESTAMPTZ NOT NULL,
+    customer_id      INTEGER,
+    carrier_id       INTEGER,
+    call_off         BOOLEAN     NOT NULL DEFAULT FALSE,
+    payment_received BOOLEAN     NOT NULL DEFAULT FALSE,
+    status           INTEGER     NOT NULL,
+    started_at       TIMESTAMPTZ,
+    completed_at     TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_job_status ON job (status);

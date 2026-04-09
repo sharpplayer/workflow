@@ -13,9 +13,19 @@ export interface ProductSave {
     params: PhaseParamSelected[]
 }
 
+export const PHASE_PARAM_ID_QUANTITY = -1;
+export const PHASE_PARAM_ID_PAYMENT = -2;
+export const PHASE_PARAM_ID_CALLOFF = -3;
+export const PHASE_PARAM_ID_FINISHED = -4;
+export const PHASE_PARAM_ID_DUE_DATE = -5;
+export const PHASE_PARAM_ID_CUSTOMER = -6;
+export const PHASE_PARAM_ID_CARRIER = -7;
+export const PHASE_PARAM_ID_MATERIAL = -8;
+export const PHASE_PARAM_ID_SCHEDULE = -9;
+
 export const PHASE_PARAM_QUANTITY: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -1,
+    phaseParamId: PHASE_PARAM_ID_QUANTITY,
     phaseNumber: 0,
     paramName: 'Quantity',
     paramConfig: '',
@@ -26,7 +36,7 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
 
 const PHASE_PARAM_PAYMENT: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -2,
+    phaseParamId: PHASE_PARAM_ID_PAYMENT,
     phaseNumber: 0,
     paramName: 'Payment Received',
     paramConfig: '',
@@ -38,7 +48,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
 
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -3,
+    phaseParamId: PHASE_PARAM_ID_CALLOFF,
     phaseNumber: 0,
     paramName: 'For Call Off',
     paramConfig: '',
@@ -50,7 +60,7 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -4,
+    phaseParamId: PHASE_PARAM_ID_FINISHED,
     phaseNumber: 0,
     paramName: 'From Call Off',
     paramConfig: '',
@@ -62,7 +72,7 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -5,
+    phaseParamId: PHASE_PARAM_ID_DUE_DATE,
     phaseNumber: 0,
     paramName: 'Due',
     paramConfig: '',
@@ -73,7 +83,7 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
 
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -6,
+    phaseParamId: PHASE_PARAM_ID_CUSTOMER,
     phaseNumber: 0,
     paramName: 'Customer',
     paramConfig: 'customer',
@@ -85,7 +95,7 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -7,
+    phaseParamId: PHASE_PARAM_ID_CARRIER,
     phaseNumber: 0,
     paramName: 'Carrier',
     paramConfig: 'carrier',
@@ -97,7 +107,7 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -8,
+    phaseParamId: PHASE_PARAM_ID_MATERIAL,
     phaseNumber: 0,
     paramName: 'Material Available',
     paramConfig: '',
@@ -109,7 +119,7 @@ export const PHASE_PARAM_MATERIAL: PhaseParam = {
 
 export const PHASE_PARAM_SCHEDULE: PhaseParam = {
     phaseId: 0,
-    phaseParamId: -9,
+    phaseParamId: PHASE_PARAM_ID_SCHEDULE,
     phaseNumber: 0,
     paramName: 'Run Job Part On',
     paramConfig: '',
@@ -117,6 +127,18 @@ export const PHASE_PARAM_SCHEDULE: PhaseParam = {
     evaluation: '(Input At Job Start)',
     type: 'date?'
 };
+
+export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
+    [PHASE_PARAM_ID_QUANTITY, PHASE_PARAM_QUANTITY],
+    [PHASE_PARAM_ID_PAYMENT, PHASE_PARAM_PAYMENT],
+    [PHASE_PARAM_ID_CALLOFF, PHASE_PARAM_CALLOFF],
+    [PHASE_PARAM_ID_FINISHED, PHASE_PARAM_FINISHED],
+    [PHASE_PARAM_ID_DUE_DATE, PHASE_PARAM_DUE_DATE],
+    [PHASE_PARAM_ID_CUSTOMER, PHASE_PARAM_CUSTOMER],
+    [PHASE_PARAM_ID_CARRIER, PHASE_PARAM_CARRIER],
+    [PHASE_PARAM_ID_MATERIAL, PHASE_PARAM_MATERIAL],
+    [PHASE_PARAM_ID_SCHEDULE, PHASE_PARAM_SCHEDULE],
+]);
 
 @Component({
     selector: 'admin-job-page',
@@ -278,7 +300,7 @@ export class AdminJobComponent {
                     phaseParamId: p.phaseParamId,
                     phaseNumber: p.phaseNumber,
                     key: p.paramName,
-                    value: p.value ?? p.evaluation ?? '',
+                    value: p.value /*?? p.evaluation */ || '',
                     input: p.input
                 }))
             );

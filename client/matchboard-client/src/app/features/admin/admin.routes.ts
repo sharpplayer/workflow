@@ -15,10 +15,11 @@ export const adminRoutes: Routes = [
     children: [
       { path: '', redirectTo: 'jobs', pathMatch: 'full' },
       { path: 'jobs', component: AdminJobsComponent },
+      { path: 'jobs/:id', component: AdminJobsComponent },
       { path: 'schedule', component: AdminScheduleComponent },
       { path: 'users', component: AdminUsersComponent, canDeactivate: [unsavedChangesGuard] },
       { path: 'products', component: AdminProductsComponent },
       { path: 'config', component: AdminProductsComponent }
     ]
   }
-];  
+];

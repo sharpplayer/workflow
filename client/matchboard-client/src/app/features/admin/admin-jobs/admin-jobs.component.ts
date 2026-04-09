@@ -1,24 +1,36 @@
-import { Component, signal, ViewChild, computed, inject } from '@angular/core';
+import { Component, signal, ViewChild, computed, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import {
     AdminJobComponent,
     ProductSave,
-    PHASE_PARAM_CALLOFF,
-    PHASE_PARAM_QUANTITY,
-    PHASE_PARAM_MATERIAL,
-    PHASE_PARAM_SCHEDULE
+    PHASE_PARAM_ID_CALLOFF,
+    PHASE_PARAM_ID_QUANTITY,
+    PHASE_PARAM_ID_MATERIAL,
+    PHASE_PARAM_ID_SCHEDULE,
+    PHASE_PARAM_ID_PAYMENT,
+    PHASE_PARAM_ID_DUE_DATE,
+    PHASE_PARAM_ID_CUSTOMER,
+    PHASE_PARAM_ID_CARRIER,
+    PHASE_PARAM_MAP
 } from '../admin-job/admin-job.component';
 import {
     CreateJob,
     CreateJobPart,
     CreateJobPartParam,
     CreateJobPartPhase,
+    Job,
+    JobPart,
     JobService,
     JobStatus,
     JobStatusLabel
 } from '../../../core/services/job.service';
+import { ActivatedRoute } from '@angular/router';
+import { PhaseParam } from '../../../core/services/product.service';
+import { PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
+import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
 
 export interface ProductSelectedWithMap extends ProductSave {
+    clientId: string;
     paramMap: Map<number, string>;
 }
 
@@ -82,16 +94,17 @@ export interface CrossJobParameters {
                         <td colspan="7">No products added yet</td>
                     </tr>
                 } @else {
-                    @for (job of jobs(); track $index; let jobIndex = $index) {
+                    @for (job of jobs(); track job.clientId; let jobIndex = $index)
+                    {
                         <tr
                             (click)="selectPart(job)"
-                            [class.selected]="selectedPart() === job"
+                            [class.selected]="selectedPart()?.clientId === job.clientId"
                         >
                             <td>{{ jobIndex + 1 }}</td>
                             <td>{{ job.product.name }}</td>
                             <td>{{ job.product.oldName }}</td>
-                            <td>{{ job.paramMap.get(PHASE_PARAM_QUANTITY_ID) }}</td>
-                            <td>{{ job.paramMap.get(PHASE_PARAM_CALLOFF_ID) === 'true' ? 'YES' : 'NO' }}</td>
+                            <td>{{ job.paramMap.get(PHASE_PARAM_ID_QUANTITY) }}</td>
+                            <td>{{ job.paramMap.get(PHASE_PARAM_ID_CALLOFF) === 'true' ? 'YES' : 'NO' }}</td>
                             <td>{{ getSchedulableDisplay(job) }}</td>
                             <td>
                                 <button type="button" (click)="removePart(job, $event)">-</button>
@@ -126,15 +139,20 @@ export interface CrossJobParameters {
   `,
     styleUrl: './admin-jobs.component.css'
 })
-export class AdminJobsComponent {
+export class AdminJobsComponent implements OnInit {
+
+    PHASE_PARAM_ID_QUANTITY = PHASE_PARAM_ID_QUANTITY;
+    PHASE_PARAM_ID_CALLOFF = PHASE_PARAM_ID_CALLOFF;
+    private staticParamIds = [
+        PHASE_PARAM_ID_QUANTITY,
+        PHASE_PARAM_ID_CALLOFF,
+        PHASE_PARAM_ID_MATERIAL,
+        PHASE_PARAM_ID_SCHEDULE
+    ];
 
     private jobService = inject(JobService);
     private datePipe = inject(DatePipe);
-
-    PHASE_PARAM_QUANTITY_ID = PHASE_PARAM_QUANTITY.phaseParamId;
-    PHASE_PARAM_CALLOFF_ID = PHASE_PARAM_CALLOFF.phaseParamId;
-    PHASE_PARAM_MATERIAL_ID = PHASE_PARAM_MATERIAL.phaseParamId;
-    PHASE_PARAM_SCHEDULE_ID = PHASE_PARAM_SCHEDULE.phaseParamId;
+    private route = inject(ActivatedRoute);
 
     crossJobParams = signal<CrossJobParameters>({
         jobId: 0,
@@ -153,6 +171,120 @@ export class AdminJobsComponent {
 
     @ViewChild(AdminJobComponent)
     jobBuilder!: AdminJobComponent;
+
+    ngOnInit(): void {
+        const idParam = this.route.snapshot.paramMap.get('id');
+        const jobId = idParam ? Number(idParam) : 0;
+
+        if (jobId > 0) {
+            void this.loadJob(jobId);
+        }
+    }
+
+    async loadJob(jobId: number) {
+        try {
+            const job = await this.jobService.getJob(jobId);
+
+            this.crossJobParams.set({
+                jobId: job.id,
+                jobNumber: job.number,
+                paymentReceived: job.paymentReceived,
+                dueDate: job.due ? this.toDateInputValue(job.due) : '',
+                customer: String(job.customer),
+                carrier: String(job.carrier),
+                callOff: job.callOff,
+                scheduledOn: '',
+                status: job.status
+            });
+
+            this.jobs.set(job.parts.map(part => this.mapJobPartToSelected(part)));
+            this.selectedPart.set(null);
+        } catch (err) {
+            console.error('Failed to load job', err);
+        }
+    }
+
+    private mapJobPartToSelected(part: JobPart): ProductSelectedWithMap {
+        const params = [
+            ...(part.params ?? []).map((p): PhaseParamSelected => ({
+                phaseId: p.phaseId,
+                phaseParamId: p.paramId,
+                phaseNumber: p.phaseNumber,
+                value: p.value || '',
+                key: p.name,
+                input: p.input
+            })),
+
+            ...this.staticParamIds.map((id): PhaseParamSelected => {
+                const base = PHASE_PARAM_MAP.get(id)!;
+
+                return {
+                    phaseId: 0,
+                    phaseParamId: id,
+                    phaseNumber: 0,
+                    key: base.paramName,
+                    value: this.getValueByParamId(id, part),
+                    input: base.input
+                };
+            })
+        ];
+
+        const paramMap = new Map(
+            params.map((p: any) => [p.phaseParamId, p.value])
+        );
+
+        return {
+            clientId: this.createId(),
+            mode: 'update',
+            product: {
+                id: part.productId,
+                name: part.name,
+                oldName: part.oldName,
+                enabled: true
+            },
+            params,
+            phases: (part.phases ?? []).map((phase): JobPhase => ({
+                phase: {
+                    id: phase.phaseId,
+                    order: 1,
+                    params: [],
+                    description: ''
+                },
+                specialInstruction: phase.specialInstructions ?? '',
+                order: 1
+            })),
+            paramMap
+        };
+    }
+
+    getValueByParamId(id: number, part: any): string {
+        switch (id) {
+            case PHASE_PARAM_ID_QUANTITY:
+                return String(part.quantity ?? '');
+
+            case PHASE_PARAM_ID_CALLOFF:
+                return String(part.fromCallOff ?? false);
+
+            case PHASE_PARAM_ID_MATERIAL:
+                return String(part.materialAvailable ?? false);
+
+            case PHASE_PARAM_ID_SCHEDULE:
+                return part.scheduleFor
+                    ? this.toDateInputValue(part.scheduleFor)
+                    : '';
+
+            default:
+                return '';
+        }
+    };
+
+    private toDateInputValue(value: string | Date): string {
+        const d = new Date(value);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
 
     canScheduleJob = computed(() => {
         const jobs = this.jobs();
@@ -184,7 +316,10 @@ export class AdminJobsComponent {
             save.params.map(p => [p.phaseParamId, p.value])
         );
 
+        const originalPart = this.selectedPart();
+
         const updatedPart: ProductSelectedWithMap = {
+            clientId: originalPart?.clientId ?? this.createId(),
             mode: save.mode,
             product: save.product,
             params: save.params,
@@ -192,11 +327,9 @@ export class AdminJobsComponent {
             paramMap
         };
 
-        const originalPart = this.selectedPart();
-
         if (save.mode === 'update' && originalPart) {
             this.jobs.update(jobs => {
-                const index = jobs.findIndex(j => j === originalPart);
+                const index = jobs.findIndex(j => j.clientId === originalPart.clientId);
 
                 if (index === -1) {
                     console.warn('Original part not found, adding instead');
@@ -227,9 +360,9 @@ export class AdminJobsComponent {
     removePart(job: ProductSelectedWithMap, event: Event) {
         event.stopPropagation();
 
-        this.jobs.update(jobs => jobs.filter(j => j !== job));
+        this.jobs.update(jobs => jobs.filter(j => j.clientId !== job.clientId));
 
-        if (this.selectedPart() === job) {
+        if (this.selectedPart()?.clientId === job.clientId) {
             this.selectedPart.set(null);
             this.jobBuilder.reset();
         }
@@ -268,15 +401,15 @@ export class AdminJobsComponent {
     ): ProductSelectedWithMap {
         const params = job.params.map(p => {
             switch (p.phaseParamId) {
-                case -2: // payment
+                case PHASE_PARAM_ID_PAYMENT:
                     return { ...p, value: String(cross.paymentReceived) };
-                case -3: // call off
+                case PHASE_PARAM_ID_CALLOFF: // call off
                     return { ...p, value: String(cross.callOff) };
-                case -5: // due date
+                case PHASE_PARAM_ID_DUE_DATE:
                     return { ...p, value: cross.dueDate };
-                case -6: // customer
+                case PHASE_PARAM_ID_CUSTOMER:
                     return { ...p, value: cross.customer };
-                case -7: // carrier
+                case PHASE_PARAM_ID_CARRIER:
                     return { ...p, value: cross.carrier };
                 // IMPORTANT: do not sync -9 schedule here
                 default:
@@ -335,11 +468,11 @@ export class AdminJobsComponent {
             paymentReceived: crossJobParams.paymentReceived,
             parts: jobParts.map((jobPart): CreateJobPart => ({
                 productId: jobPart.product.id,
-                quantity: Number(jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_QUANTITY_ID)!.value),
-                fromCallOff: jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_CALLOFF_ID)?.value === 'true',
-                materialAvailable: jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_MATERIAL_ID)?.value === 'true',
+                quantity: Number(jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_QUANTITY)!.value),
+                fromCallOff: jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_CALLOFF)?.value === 'true',
+                materialAvailable: jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_MATERIAL)?.value === 'true',
                 scheduleFor: (() => {
-                    const v = jobPart.params.find(i => i.phaseParamId == this.PHASE_PARAM_SCHEDULE_ID)?.value;
+                    const v = jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_SCHEDULE)?.value;
                     return v ? new Date(v).toISOString() : null;
                 })(),
                 phases: jobPart.phases.map((phase): CreateJobPartPhase => ({
@@ -361,14 +494,14 @@ export class AdminJobsComponent {
             return 'Unpaid';
         }
 
-        const material = job.params.find(p => p.phaseParamId === this.PHASE_PARAM_MATERIAL_ID)?.value;
+        const material = job.params.find(p => p.phaseParamId === PHASE_PARAM_ID_MATERIAL)?.value;
         if (material !== 'true') {
             return 'Insufficient Material';
         }
 
         const invalidParams = job.params.filter(
             p => p.input !== 3 &&
-                p.phaseParamId !== this.PHASE_PARAM_SCHEDULE_ID &&
+                p.phaseParamId !== PHASE_PARAM_ID_SCHEDULE &&
                 (p.value === '' || p.value.startsWith('('))
         );
 
@@ -376,7 +509,7 @@ export class AdminJobsComponent {
             return invalidParams.map(p => p.key).join(', ') + ' required';
         }
 
-        const scheduledOn = job.params.find(p => p.phaseParamId === this.PHASE_PARAM_SCHEDULE_ID)?.value;
+        const scheduledOn = job.params.find(p => p.phaseParamId === PHASE_PARAM_ID_SCHEDULE)?.value;
         return scheduledOn
             ? (this.datePipe.transform(scheduledOn, 'dd/MM/yyyy') ?? 'Invalid date')
             : 'Not Scheduled';
@@ -384,5 +517,9 @@ export class AdminJobsComponent {
 
     jobStatusLabel(status: JobStatus): string {
         return JobStatusLabel[status];
+    }
+
+    private createId(): string {
+        return crypto.randomUUID();
     }
 }

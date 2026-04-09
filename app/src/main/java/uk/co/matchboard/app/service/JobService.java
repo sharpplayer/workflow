@@ -9,6 +9,8 @@ import uk.co.matchboard.app.model.job.UpdateSchedule;
 
 public interface JobService {
 
+    Result<Job> findJob(int jobId);
+
     Result<Job> createJob(CreateJob job);
 
     Result<ConfigResponse> getScheduleDates();
