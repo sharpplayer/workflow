@@ -27,8 +27,14 @@ public class JobController {
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
+    @GetMapping("/jobs/next")
+    public ResponseEntity<?> nextJob(@RequestParam String role) {
+        return jobService.nextJob(role)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse, () -> ResponseEntity.noContent().build());
+    }
+
     @GetMapping("/jobs/{jobId}")
-    public ResponseEntity<?> createJob(@PathVariable int jobId) {
+    public ResponseEntity<?> getJob(@PathVariable int jobId) {
         return jobService.findJob(jobId)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }

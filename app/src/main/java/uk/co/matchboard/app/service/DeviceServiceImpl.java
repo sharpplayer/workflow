@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.InvalidRoleException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.product.PhaseComplete;
@@ -29,14 +30,14 @@ public class DeviceServiceImpl implements DeviceService {
     public Device registerDevice(String id) {
         return getDevice(id, false).orElseGet(
                 () -> new Device(UUID.randomUUID().toString(), Collections.emptyList(),
-                        SessionServiceImpl.MODE_NONE, false));
+                        false, SessionServiceImpl.ROLE_NONE));
     }
 
     private Optional<Device> getDevice(String id, boolean passwordReset) {
         if (id != null && !id.isBlank()) {
             SessionUsers deviceUsers = sessionService.getUsersOn(id);
             return Optional.of(
-                    new Device(id, deviceUsers.users(), deviceUsers.mode(), passwordReset));
+                    new Device(id, deviceUsers.users(), passwordReset, deviceUsers.primaryRole()));
         }
         return Optional.empty();
     }
@@ -44,11 +45,16 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     public OptionalResult<Device> registerSession(String id, LoginUser loginUser) {
         Device device = registerDevice(id);
-        return toOptionalResult(
-                sessionService.startSession(device.deviceId(), loginUser.username(),
-                                loginUser.password(),
-                                loginUser.role())
-                        .map(s -> getDevice(device.deviceId(), s.passwordReset())));
+        if (device.primaryRole().equals(SessionServiceImpl.ROLE_NONE) || device.primaryRole()
+                .equals(loginUser.role()) || loginUser.role().equals(UserServiceImpl.LOGIN_ADMIN)) {
+            return toOptionalResult(
+                    sessionService.startSession(device.deviceId(), loginUser.username(),
+                                    loginUser.password(),
+                                    loginUser.role())
+                            .map(s -> getDevice(device.deviceId(), s.passwordReset())));
+        }
+        return OptionalResult.failure(
+                new InvalidRoleException(loginUser.role(), device.primaryRole()));
     }
 
     @Override

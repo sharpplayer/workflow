@@ -15,8 +15,9 @@ import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartPhase;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobPart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
-import uk.co.matchboard.app.model.job.SchedulableJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
@@ -77,5 +78,7 @@ public interface DatabaseService {
 
     OptionalResult<Job> findJob(int jobId);
 
-    Result<List<SchedulableJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
+    Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
+
+    OptionalResult<JobPart> completePhasesAndStart(List<Integer> phasesToMarkDone, Integer jobPhaseId);
 }

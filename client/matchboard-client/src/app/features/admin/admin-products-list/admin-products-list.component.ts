@@ -42,7 +42,8 @@ import { Product, ProductService, ProductsResponse } from '../../../core/service
                                 <tr class="selected">
                                     <td>{{ product.name }}</td>
                                     <td>{{ product.oldName }}</td>
-                                    <td>{{ product.enabled ? 'Yes' : 'No' }}</td>
+                                    <td [class.status-yes]="product.enabled"
+                                        [class.status-no]="!product.enabled">{{ product.enabled ? 'Yes' : 'No' }}</td>
                                 </tr>
                             } @else {
                                 @for (product of filteredProducts(); track product.name) {

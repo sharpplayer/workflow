@@ -6,7 +6,7 @@ import { API_BASE_URL } from '../../app.config';
 export interface DeviceStatus {
   deviceId: string;
   users: string[];
-  mode: string;
+  primaryRole: string;
   passwordReset: boolean;
 }
 

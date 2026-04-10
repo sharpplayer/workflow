@@ -125,6 +125,14 @@ public class Result<T> {
         return function.apply(value);
     }
 
+    public <R> OptionalResult<R> flatMapOptional(Function<T, OptionalResult<R>> function) {
+        if (isFaulted()) {
+            return OptionalResult.failure(exception);
+        }
+
+        return function.apply(value);
+    }
+
     public <R> R fold(Function<T, R> onSuccess, Function<Exception, R> onFailure) {
         if (isFaulted()) {
             return onFailure.apply(exception);
@@ -142,5 +150,4 @@ public class Result<T> {
         }
         return OptionalResult.of(value);
     }
-
 }

@@ -38,14 +38,14 @@ tbody tr:hover {
   background-color: #e6f2ff;
 }
 
-/* Optional: highlight enabled column */
-tbody td:last-child {
+.status-yes {
   font-weight: bold;
-  color: #2d862d; /* green for Yes */
+  color: #2d862d;
 }
 
-tbody td:last-child:contains("No") {
-  color: #d9534f; /* red for No */
+.status-no {
+  font-weight: bold;
+  color: #d9534f;
 }
 
 /* Loading/Error messages */

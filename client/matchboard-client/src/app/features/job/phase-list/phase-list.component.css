@@ -1,0 +1,52 @@
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  table-layout: fixed;
+}
+
+/* Header styling */
+thead {
+  background-color: #4a90e2;
+  color: white;
+}
+
+thead th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 1rem;
+}
+
+/* Body rows */
+tbody td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Keep cell sizing consistent */
+th,
+td {
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+/* Alternating row colors */
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Hover effect */
+tbody tr:hover {
+  background-color: #e6f2ff;
+}
+
+.nowrap {
+  white-space: nowrap;
+}

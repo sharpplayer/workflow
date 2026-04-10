@@ -2,11 +2,20 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { DeviceService } from '../services/device.service';
 
-export const jobGuard = (): boolean | UrlTree => {
+export const jobGuard: CanActivateFn = () => {
+  const deviceService = inject(DeviceService);
   const router = inject(Router);
-  const status = inject(DeviceService).getStatus();
 
-  if (status?.mode !== 'job') return router.createUrlTree(['/login']);
+  const status = deviceService.getStatus();
+
+  if (!status) {
+    return router.createUrlTree(['/login']);
+  }
+
+  if (status.primaryRole === 'none') {
+    return router.createUrlTree(['/login']);
+  }
+
   return true;
 };
 
@@ -16,7 +25,7 @@ export const adminGuard: CanActivateFn = () => {
 
   const status = device.status();
 
-  if (!status || status.mode !== 'admin') {
+  if (!status || status.primaryRole !== 'ADMIN') {
     router.navigate(['/login']);
     return false;
   }

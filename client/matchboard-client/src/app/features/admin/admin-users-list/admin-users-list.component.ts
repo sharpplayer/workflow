@@ -31,7 +31,8 @@ import { User, UserService } from '../../../core/services/user.service';
               <tr>
                 <td>{{ user.username }}</td>
                 <td>{{ user.roles.join(', ') }}</td>
-                <td>{{ user.enabled ? 'Yes' : 'No' }}</td>
+                <td [class.status-yes]="user.enabled"
+                    [class.status-no]="!user.enabled">{{ user.enabled ? 'Yes' : 'No' }}</td>
                 <td>
                   <button type="button" (click)="edit.emit(user)">Edit</button>
                 </td>

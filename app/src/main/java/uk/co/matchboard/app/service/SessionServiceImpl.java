@@ -1,10 +1,12 @@
 package uk.co.matchboard.app.service;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.InvalidRoleException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.session.Session;
@@ -13,7 +15,7 @@ import uk.co.matchboard.app.model.session.SessionUsers;
 @Service
 public class SessionServiceImpl implements SessionService {
 
-    public static final String MODE_NONE = "none";
+    public static final String ROLE_NONE = "none";
 
     private final Map<String, Map<String, Session>> sessions = new ConcurrentHashMap<>();
 
@@ -26,16 +28,13 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public SessionUsers getUsersOn(String id) {
         var sessions = getSessionsOn(id).values();
-        String mode;
         if (sessions.isEmpty()) {
-            mode = MODE_NONE;
-        } else if (sessions.size() == 1 && sessions.iterator().next().role()
-                .equals(UserServiceImpl.LOGIN_ADMIN)) {
-            mode = "admin";
-        } else {
-            mode = "job";
+            return new SessionUsers(Collections.emptyList(), ROLE_NONE);
+
         }
-        return new SessionUsers(sessions.stream().map(Session::userId).toList(), mode);
+        return new SessionUsers(sessions.stream().map(Session::userId).toList(),
+                sessions.stream().toList().getFirst().role());
+
     }
 
     private Map<String, Session> getSessionsOn(String id) {
@@ -49,17 +48,33 @@ public class SessionServiceImpl implements SessionService {
         return userService.login(user, password, role).flatMap(u -> {
             var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), role,
                     u.passwordReset());
-            addSession(deviceId, newSession);
-            return Result.of(newSession);
+            return addSession(deviceId, newSession);
         });
     }
 
-    private void addSession(String deviceId, Session session) {
+    private Result<Session> addSession(String deviceId, Session session) {
         var sessions = getSessionsOn(deviceId);
-        if (session.role().equals(UserServiceImpl.LOGIN_ADMIN)) {
+
+        if (UserServiceImpl.LOGIN_ADMIN.equals(session.role())) {
             sessions.clear();
+            sessions.put(session.userId(), session);
+            return Result.of(session);
         }
-        getSessionsOn(deviceId).put(session.userId(), session);
+
+        var firstSession = sessions.values().stream().findFirst();
+        if (firstSession.isPresent()) {
+            var existing = firstSession.get();
+
+            if (existing.role().equals(session.role())) {
+                sessions.put(session.userId(), session);
+                return Result.of(session);
+            }
+
+            return Result.failure(new InvalidRoleException(session.role(), existing.role()));
+        }
+
+        sessions.put(session.userId(), session);
+        return Result.of(session);
     }
 
     @Override

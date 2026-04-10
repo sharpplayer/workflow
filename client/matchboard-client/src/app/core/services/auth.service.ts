@@ -69,21 +69,24 @@ export class AuthService {
     }
   }
 
-  redirectAfterLogin(status: DeviceStatus, username: string = "") {
+  redirectAfterLogin(status: DeviceStatus, username: string = '') {
     if (status.passwordReset) {
       return this.router.navigate(['/reset-password'], {
-        queryParams: { username, mode: status.mode }
+        queryParams: { username }
       });
     }
 
-    switch (status.mode) {
-      case 'job':
-        return this.router.navigate(['/job']);
-      case 'admin':
-        return this.router.navigate(['/admin']);
-      default:
-        return this.router.navigate(['/login']);
+    const role = status.primaryRole;
+
+    if (role === 'ADMIN') {
+      return this.router.navigate(['/admin'], {
+        state: { username, role: status.primaryRole }
+      });
     }
+
+    return this.router.navigate(['/job'], {
+      state: { username, role: status.primaryRole }
+    });
   }
 
   async resetPassword(reset: ResetResult): Promise<DeviceStatus> {

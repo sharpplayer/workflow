@@ -39,6 +39,7 @@ CREATE TABLE product_phase
     CONSTRAINT product_phase_pkey PRIMARY KEY (product_id, phase_id, "order")
 );
 
+
 CREATE TABLE phase_param
 (
     id       SERIAL PRIMARY KEY,
@@ -48,6 +49,10 @@ CREATE TABLE phase_param
     input    INTEGER     NOT NULL,
     "order"  INTEGER     NOT NULL
 );
+
+CREATE INDEX idx_phase_param_phase_id_input_order
+    ON phase_param (phase_id, input, "order");
+
 
 INSERT INTO phase (description, enabled)
 VALUES ('Material Logistics', TRUE),

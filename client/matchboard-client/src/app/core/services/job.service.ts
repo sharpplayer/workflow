@@ -3,11 +3,11 @@ import { inject, Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { API_BASE_URL } from "../../app.config";
 
-export interface SchedulableJobPhases {
-  schedulable: SchedulableJobPhase[];
+export interface ScheduledJobPhases {
+  scheduled: ScheduledJobPhase[];
 }
 
-export interface SchedulableJobPhase {
+export interface ScheduledJobPhase {
   jobNumber: number;
   jobParts: number;
   jobPartId: number;
@@ -51,6 +51,7 @@ export interface JobPartPhase {
 
 export interface JobPartParam {
   partParamId: number;
+  partPhaseId: number;
   phaseId: number;
   phaseNumber: number;
   input: number;
@@ -167,6 +168,18 @@ export class JobService {
     );
   }
 
+  async nextJob(role: string): Promise<JobPart> {
+    return await firstValueFrom( //  Line 139
+      this.http.get<JobPart>(
+        `${API_BASE_URL}/api/jobs/next`,
+        {
+          params: { role },
+          withCredentials: true
+        }
+      )
+    );
+  }
+
   async getJobSchedulableParts(date: string | null): Promise<SchedulableJobParts> {
 
     return await firstValueFrom(
@@ -177,10 +190,10 @@ export class JobService {
     );
   }
 
-  async getJobSchedulablePartsForRole(date: string | null, role: string): Promise<SchedulableJobParts> {
+  async getJobScheduledPhases(date: string | null, role: string): Promise<ScheduledJobPhases> {
 
     return await firstValueFrom(
-      this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {
+      this.http.get<ScheduledJobPhases>(`${API_BASE_URL}/api/schedule`, {
         params: date ? { date, role } : { role },
         withCredentials: true
       })

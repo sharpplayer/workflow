@@ -207,7 +207,7 @@ export class AdminJobsComponent implements OnInit {
     private mapJobPartToSelected(part: JobPart): ProductSelectedWithMap {
         const params = [
             ...(part.params ?? []).map((p): PhaseParamSelected => ({
-                phaseId: p.phaseId,
+                phaseId: p.partPhaseId,
                 phaseParamId: p.partParamId,
                 phaseNumber: p.phaseNumber,
                 value: p.value || '',

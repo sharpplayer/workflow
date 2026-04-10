@@ -57,12 +57,6 @@ tbody tr:hover {
   background-color: #e6f2ff;
 }
 
-/* Highlight enabled column */
-tbody td:last-child {
-  font-weight: bold;
-  color: #2d862d;
-}
-
 /* Loading/Error messages */
 div[ng-reflect-ng-if="true"] {
   font-size: 1rem;
@@ -78,4 +72,14 @@ div[ng-reflect-ng-if="true"] {
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 1000;
+}
+
+.status-yes {
+  font-weight: bold;
+  color: #2d862d;
+}
+
+.status-no {
+  font-weight: bold;
+  color: #d9534f;
 }
