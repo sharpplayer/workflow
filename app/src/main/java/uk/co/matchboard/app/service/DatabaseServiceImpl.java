@@ -679,8 +679,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .join(JOB_PART_PHASES).on(JOB_PART_PHASES.JOB_PART_ID.eq(JOB_PART.ID))
                     .join(PHASE).on(PHASE.ID.eq(JOB_PART_PHASES.PHASE_ID))
                     .leftJoin(JOB_PART_PARAMS)
-                    .on(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.PHASE_ID))
-                    .where(JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode()))
+                    .on(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.ID))
+                    .where(JOB_PART.STATUS.in(
+                            JobStatus.SCHEDULED.getCode(),
+                            JobStatus.STARTED.getCode()
+                    ))
                     .and(condition)
                     .orderBy(
                             JOB_PART.RUN_ON,
