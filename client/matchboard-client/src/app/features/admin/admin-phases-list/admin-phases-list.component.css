@@ -120,3 +120,12 @@ td {
 .error-message {
   color: #d32f2f;
 }
+
+.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.clickable:hover {
+  opacity: 0.8;
+}

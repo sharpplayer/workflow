@@ -64,3 +64,17 @@ button:disabled {
 .clickable-row td {
     transition: background-color 0.15s ease-in-out;
 }
+
+.overdue {
+    color: red;
+    font-weight: bold;
+}
+
+.today {
+    color: orange;
+    font-weight: bold;
+}
+
+.future {
+    color: green;
+}

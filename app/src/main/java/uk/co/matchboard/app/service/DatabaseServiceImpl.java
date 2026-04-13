@@ -616,7 +616,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 jobPartRecord.get(JOB.STATUS),
                 jobPartRecord.get(JOB_PART.PART_NUMBER),
                 jobPartRecord.get(JOB.PARTS),
-                jobPartRecord.get(JOB_PART.RUN_ORDER)
+                jobPartRecord.get(JOB_PART.RUN_ORDER),
+                jobPartRecord.get(JOB.DUE)
         );
     }
 
@@ -1024,7 +1025,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Nonnull
     private SelectOnConditionStep<Record> getSchedulableQuery() {
         return outerDsl.select(JOB_PART.fields())
-                .select(JOB.ID, JOB.NUMBER, JOB.STATUS, JOB.PARTS)
+                .select(JOB.ID, JOB.NUMBER, JOB.STATUS, JOB.PARTS, JOB.DUE)
                 .select(PRODUCTS.NAME, PRODUCTS.OLD_NAME)
                 .from(JOB_PART)
                 .join(JOB).on(JOB_PART.JOB_ID.eq(JOB.ID))

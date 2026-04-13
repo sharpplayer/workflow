@@ -35,6 +35,7 @@ export interface PhasesSelected {
             <th colspan="3">
               Phases
               <span class="phase-count">({{ phaseCount() }})</span>
+              and <span class="clickable" (click)="tableExpanded.update(e => true)">Special Instructions</span>
             </th>
             <th colspan="2" style="text-align:right">
               <button type="button" (click)="tableExpanded.update(e => !e)">

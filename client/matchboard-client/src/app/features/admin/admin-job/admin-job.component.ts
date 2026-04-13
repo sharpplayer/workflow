@@ -31,7 +31,8 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
-    type: 'int'
+    type: 'int',
+    optional : false
 };
 
 const PHASE_PARAM_PAYMENT: PhaseParam = {
@@ -43,7 +44,8 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
     input: 2,
     evaluation: '(Input At Job Start)',
     type: 'boolean',
-    value: 'false'
+    value: 'false',
+    optional : false
 };
 
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
@@ -55,7 +57,8 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'boolean',
-    value: 'false'
+    value: 'false',
+    optional : false
 };
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
@@ -67,7 +70,8 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'boolean',
-    value: 'false'
+    value: 'false',
+    optional : false
 };
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
@@ -78,7 +82,8 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Create)',
-    type: 'date'
+    type: 'date',
+    optional : false
 };
 
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
@@ -90,7 +95,8 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
     input: 1,
     evaluation: '(Select)',
     type: 'string[]',
-    editable: true
+    editable: true,
+    optional : true
 };
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
@@ -102,7 +108,8 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
     input: 1,
     evaluation: '(Select For Non Call Off)',
     type: 'string[]',
-    editable: true
+    editable: true,
+    optional : true
 };
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
@@ -114,7 +121,8 @@ export const PHASE_PARAM_MATERIAL: PhaseParam = {
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'boolean',
-    value: 'true'
+    value: 'true',
+    optional : false
 };
 
 export const PHASE_PARAM_SCHEDULE: PhaseParam = {
@@ -125,7 +133,8 @@ export const PHASE_PARAM_SCHEDULE: PhaseParam = {
     paramConfig: '',
     input: 1,
     evaluation: '(Input At Job Start)',
-    type: 'date?'
+    type: 'date',
+    optional : true
 };
 
 export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([

@@ -35,6 +35,7 @@ export interface SchedulableJobPart {
   partNo: number;
   jobParts: number;
   order?: number;
+  dueDate: Date
 }
 
 export interface SchedulableJobParts {
@@ -206,5 +207,9 @@ export class JobService {
         { withCredentials: true })
     );
 
+  }
+
+  getJobRef(jobNumber : number){
+    return (jobNumber % 1000).toString().padStart(3, '0');
   }
 }

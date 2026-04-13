@@ -54,11 +54,9 @@ export interface CrossJobParameters {
     template: `
     <div>
         <span>
-            <strong>Job Number:</strong>
+            <strong>Job Ref:</strong>
             {{
-                crossJobParams().jobNumber > 0
-                ? crossJobParams().jobNumber
-                : '(New)'
+                getJobRef()
             }}
         </span>
         <span>
@@ -72,6 +70,14 @@ export interface CrossJobParameters {
         <span>
             <strong>Status:</strong>
             {{ jobStatusLabel(crossJobParams().status) }}
+        </span>
+        <span>
+            <strong>Job Number:</strong>
+            {{
+                crossJobParams().jobNumber > 0
+                ? crossJobParams().jobNumber
+                : '(New)'
+            }}
         </span>
     </div>
     <div>
@@ -521,5 +527,11 @@ export class AdminJobsComponent implements OnInit {
 
     private createId(): string {
         return crypto.randomUUID();
+    }
+
+    getJobRef() {
+        return this.crossJobParams().jobNumber > 0
+            ? this.jobService.getJobRef(this.crossJobParams().jobNumber)
+            : '(New)'
     }
 }

@@ -20,7 +20,7 @@ template: `
     <thead>
       <tr>
         <th></th>
-        <th>Job Number</th>
+        <th>Job Ref</th>
         <th>Part</th>
         <th>Product</th>
         <th>Quantity</th>
@@ -35,7 +35,7 @@ template: `
         @for (phase of phases(); track phase.jobPartId; let i = $index) {
           <tr>
             <td>{{ i + 1 }}</td>
-            <td>{{ phase.jobNumber }}</td>
+            <td>{{ getJobRef(phase.jobNumber) }}</td>
             <td>{{ phase.partNumber }} of {{ phase.jobParts }}</td>
             <td class="nowrap">
               {{ phase.name }} ({{ phase.oldName }})
@@ -80,5 +80,9 @@ export class PhaseListComponent {
 
   statusLabel(status : JobStatus){
     return JobStatusLabel[status];
+  }
+
+  getJobRef(job : number){
+    return this.jobService.getJobRef(job);
   }
 }

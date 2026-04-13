@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import {
@@ -23,6 +23,7 @@ type TableColumn = {
     selector: 'app-admin-schedule',
     standalone: true,
     imports: [CommonModule, FormsModule, RouterModule],
+    providers: [DatePipe],
     template: `
         <div>
             <label for="scheduleDate">Schedule Date:</label>
@@ -95,7 +96,9 @@ type TableColumn = {
                                 }
 
                                 @for (column of tableColumns; track column.key) {
-                                    <td>{{ getColumnValue(part, column.key) }}</td>
+                                    <td [ngClass]="column.key === 'due' ? getDueDateStatus(part.dueDate) : ''">
+                                        {{ getColumnValue(part, column.key) }}
+                                    </td>
                                 }
                             </tr>
                         }
@@ -128,18 +131,21 @@ export class AdminScheduleComponent implements OnInit {
     private readonly jobService = inject(JobService);
     private readonly configService = inject(ConfigService);
     private readonly router = inject(Router);
+    private readonly datePipe = inject(DatePipe);
 
     readonly unscheduledLabel = '(Unscheduled)';
 
     readonly tableColumns: TableColumn[] = [
-        { key: 'jobNumber', header: 'Job Number' },
+        { key: 'order', header: 'Order' },
+        { key: 'jobRef', header: 'Job Ref' },
         { key: 'partSummary', header: 'Part Number' },
         { key: 'product', header: 'Product Name' },
         { key: 'oldName', header: 'Sage Name' },
         { key: 'quantity', header: 'Quantity' },
         { key: 'fromCallOff', header: 'From Call Off' },
         { key: 'jobPartStatus', header: 'Job Part Status' },
-        { key: 'order', header: 'Order' }
+        { key: 'jobNumber', header: 'Job Number' },
+        { key: 'due', header: 'Due' }
     ];
 
     readonly availableDates = signal<ConfigItem[]>([]);
@@ -288,6 +294,8 @@ export class AdminScheduleComponent implements OnInit {
         switch (key) {
             case 'jobNumber':
                 return part.jobNumber;
+            case 'jobRef':
+                return this.jobService.getJobRef(part.jobNumber);
             case 'partSummary':
                 return `${part.partNo} of ${part.jobParts}`;
             case 'product':
@@ -302,8 +310,25 @@ export class AdminScheduleComponent implements OnInit {
                 return JobStatusLabel[part.partStatus];
             case 'order':
                 return part.order || 'Unscheduled';
+            case 'due':
+                return this.datePipe.transform(part.dueDate, 'dd/MM/yyyy') ?? '';
             default:
                 return '';
         }
+    }
+
+    getDueDateStatus(dueDate: string | Date | null): 'overdue' | 'today' | 'future' {
+        if (!dueDate) return 'future';
+
+        const due = new Date(dueDate);
+        const today = new Date();
+
+        // Normalize times (important!)
+        due.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+
+        if (due < today) return 'overdue';
+        if (due.getTime() === today.getTime()) return 'today';
+        return 'future';
     }
 }

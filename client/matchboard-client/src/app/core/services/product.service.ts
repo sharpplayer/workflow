@@ -20,7 +20,8 @@ export interface PhaseParam {
   evaluation: string,
   type?: string,
   value?: string,
-  editable?: boolean
+  editable?: boolean,
+  optional?: boolean
 }
 
 export interface Phase {

@@ -40,6 +40,7 @@ interface PhaseParamData {
   options: ConfigItem[];
   input: number;
   editable: boolean;
+  optional: boolean;
 }
 
 export interface PhaseParamSelected {
@@ -124,9 +125,8 @@ export interface PhaseParamSelected {
                 @for (opt of param.options; track opt.key) {
                   <option
                     [ngValue]="opt.key"
-                    [style.color]="opt.value.startsWith('(') ? null : opt.value.toLowerCase()"
                   >
-                    {{ opt.value.startsWith('(') ? '' : '● ' }}{{ opt.value }}
+                    {{ opt.value }}
                   </option>
                 }
               </select>
@@ -146,7 +146,7 @@ export interface PhaseParamSelected {
                   placeholder="Select a date"
                 />
                  <!-- Clear button -->
-                @if(param.type?.endsWith('?'))
+                @if(param.optional)
                 {
                 <button
                   matSuffix
@@ -274,7 +274,7 @@ export class AdminPhaseParamComponent {
       }
 
       const defaults: ConfigItem[] = [];
-      if (p.input === 1 && options.length > 0) {
+      if (p.input === 1 && options.length > 0 && !p.optional) {
         def = options[0].key;
         const v = selectedMap.get(p.phaseParamId) ?? p.value ?? def;
         console.log(p.paramConfig + ":" + options[0].key + "(" + v + ")");
@@ -308,7 +308,8 @@ export class AdminPhaseParamComponent {
         type,
         options: [...defaults, ...finalOptions],
         input: p.input,
-        editable: p.editable ?? false
+        editable: p.editable ?? false,
+        optional: p.optional ?? false
       });
     }
 
