@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { JobComponent } from '../job/job.component';
 import { PhaseListComponent } from '../phase-list/phase-list.component';
-import { JobService } from '../../../core/services/job.service';
+import { JobService, JobWithOnePart } from '../../../core/services/job.service';
 
 @Component({
   selector: 'app-job-page',
@@ -11,13 +11,17 @@ import { JobService } from '../../../core/services/job.service';
   template: `
     @if (role()) {
       <div class="full-screen-center">
-        <div>
-            <button (click)="logout()">Log Out</button>
-        </div>
-        <phase-list [role]="role()"></phase-list>
-        <div>
+        @if (!currentJob()) {
+          <phase-list [role]="role()"></phase-list>
+          <div>
             <button (click)="nextJob()">Next</button>
-        </div>
+          </div>
+        } @else {
+          <job
+            [job]="currentJob()"
+            (schedule)="showPhaseList()">
+          </job>
+        }
       </div>
     } @else {
       <p>Missing role.</p>
@@ -27,12 +31,13 @@ import { JobService } from '../../../core/services/job.service';
 })
 export class JobPageComponent {
   private readonly router = inject(Router);
-  private jobService = inject(JobService)
+  private readonly jobService = inject(JobService);
+
   readonly role = signal<string>(history.state?.role ?? '');
+  readonly currentJob = signal<JobWithOnePart | null>(null);
 
   constructor() {
     if (!this.role()) {
-      // fallback if someone lands directly on /job
       void this.router.navigate(['/login']);
     }
   }
@@ -41,8 +46,13 @@ export class JobPageComponent {
     this.router.navigate(['/login']);
   }
 
-  async nextJob() {
-    let p = await this.jobService.nextJob(this.role());
-    console.log(p);
+  async nextJob(): Promise<void> {
+    const job = await this.jobService.nextJob(this.role());
+    console.log(job);
+    this.currentJob.set(job);
+  }
+
+  showPhaseList(): void {
+    this.currentJob.set(null);
   }
 }

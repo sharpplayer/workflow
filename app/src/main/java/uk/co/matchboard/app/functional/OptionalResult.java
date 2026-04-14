@@ -96,5 +96,16 @@ public class OptionalResult<T> {
         }
         return function.apply(value).toOptional();
     }
+
+    public <R> OptionalResult<R> flatMapOptional(Function<T, OptionalResult<R>> function) {
+        if (isFaulted()) {
+            return cast();
+        }
+        if (value == null) {
+            return OptionalResult.empty();
+        }
+        return function.apply(value);
+    }
+
 }
 

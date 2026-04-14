@@ -5,7 +5,7 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.Job;
-import uk.co.matchboard.app.model.job.JobPart;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateSchedule;
@@ -24,5 +24,5 @@ public interface JobService {
 
     Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule);
 
-    OptionalResult<JobPart> nextJob(String role);
+    OptionalResult<JobWithOnePart> nextJob(String role);
 }

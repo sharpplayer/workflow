@@ -18,9 +18,11 @@ import jakarta.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -49,6 +51,7 @@ import uk.co.matchboard.app.model.job.JobPart;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
@@ -66,6 +69,14 @@ import uk.co.matchboard.generated.tables.records.UsersRecord;
 
 @Service
 public class DatabaseServiceImpl implements DatabaseService {
+
+    private record JobWithOnePartSelection(int jobId, int jobPartId) {
+
+    }
+
+    private record PartWithIndex(JobPart part, int index) {
+
+    }
 
     private final DSLContext outerDsl;
 
@@ -589,7 +600,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         return TryUtils.tryCatch(() ->
                 outerDsl.selectDistinct(JOB_PART.SCHEDULE_FOR).from(JOB_PART)
                         .where(JOB_PART.STATUS.in(JobStatus.SCHEDULABLE.getCode(),
-                                JobStatus.SCHEDULED.getCode()))
+                                JobStatus.SCHEDULED.getCode(), JobStatus.STARTED.getCode()))
                         .fetch(JOB_PART.SCHEDULE_FOR)
         );
     }
@@ -629,7 +640,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 getSchedulableQuery()
                         .where(JOB_PART.STATUS.in(
                                 JobStatus.SCHEDULABLE.getCode(),
-                                JobStatus.SCHEDULED.getCode()
+                                JobStatus.SCHEDULED.getCode(), JobStatus.STARTED.getCode()
                         ))
                         .and(JOB_PART.SCHEDULE_FOR.eq(date))
                         .orderBy(JOB_PART.RUN_ORDER)
@@ -700,128 +711,151 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public OptionalResult<JobPart> completePhasesAndStart(List<Integer> phasesToMarkDone,
+    public OptionalResult<JobWithOnePart> completePhasesAndStart(
+            List<Integer> phasesToMarkDone,
             Integer jobPartPhaseId) {
+
         return Result.toOptionalResult(
-                TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
-                    OffsetDateTime now = OffsetDateTime.now();
-                    DSLContext innerDsl = configuration.dsl();
+                        TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+                            OffsetDateTime now = OffsetDateTime.now();
+                            DSLContext innerDsl = configuration.dsl();
 
-                    if (!phasesToMarkDone.isEmpty()) {
-                        Integer completedStatus = JobStatus.COMPLETED.getCode();
+                            if (!phasesToMarkDone.isEmpty()) {
+                                Integer completedStatus = JobStatus.COMPLETED.getCode();
 
-                        // 1) Complete phases, but only ones not already completed.
-                        List<Integer> updatedJobPartIds =
-                                innerDsl.update(JOB_PART_PHASES)
-                                        .set(JOB_PART_PHASES.COMPLETED_AT, now)
-                                        .set(JOB_PART_PHASES.STATUS, completedStatus)
-                                        .set(JOB_PART_PHASES.STARTED_AT,
-                                                DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
-                                        .where(JOB_PART_PHASES.PHASE_ID.in(phasesToMarkDone))
-                                        .and(JOB_PART_PHASES.STATUS.ne(completedStatus))
-                                        .returningResult(JOB_PART_PHASES.JOB_PART_ID)
-                                        .fetch(JOB_PART_PHASES.JOB_PART_ID);
+                                List<Integer> updatedJobPartIds =
+                                        innerDsl.update(JOB_PART_PHASES)
+                                                .set(JOB_PART_PHASES.COMPLETED_AT, now)
+                                                .set(JOB_PART_PHASES.STATUS, completedStatus)
+                                                .set(JOB_PART_PHASES.STARTED_AT,
+                                                        DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
+                                                .where(JOB_PART_PHASES.PHASE_ID.in(phasesToMarkDone))
+                                                .and(JOB_PART_PHASES.STATUS.ne(completedStatus))
+                                                .returningResult(JOB_PART_PHASES.JOB_PART_ID)
+                                                .fetch(JOB_PART_PHASES.JOB_PART_ID);
 
-                        if (!updatedJobPartIds.isEmpty()) {
-                            // 2) Complete only affected job parts whose phases are now all completed.
-                            List<Integer> updatedJobIds =
-                                    innerDsl.update(JOB_PART)
-                                            .set(JOB_PART.STATUS, completedStatus)
-                                            .set(JOB_PART.COMPLETED_AT, now)
-                                            .set(JOB_PART.STARTED_AT,
-                                                    DSL.coalesce(JOB_PART.STARTED_AT, now))
-                                            .where(JOB_PART.ID.in(updatedJobPartIds))
-                                            .and(JOB_PART.STATUS.ne(completedStatus))
-                                            .andExists(
-                                                    DSL.selectOne()
-                                                            .from(JOB_PART_PHASES)
-                                                            .where(JOB_PART_PHASES.JOB_PART_ID.eq(
-                                                                    JOB_PART.ID))
-                                            )
-                                            .andNotExists(
-                                                    DSL.selectOne()
-                                                            .from(JOB_PART_PHASES)
-                                                            .where(JOB_PART_PHASES.JOB_PART_ID.eq(
-                                                                    JOB_PART.ID))
-                                                            .and(JOB_PART_PHASES.STATUS.ne(
-                                                                    completedStatus))
-                                            )
-                                            .returningResult(JOB_PART.JOB_ID)
-                                            .fetch(JOB_PART.JOB_ID);
+                                if (!updatedJobPartIds.isEmpty()) {
+                                    List<Integer> updatedJobIds =
+                                            innerDsl.update(JOB_PART)
+                                                    .set(JOB_PART.STATUS, completedStatus)
+                                                    .set(JOB_PART.COMPLETED_AT, now)
+                                                    .set(JOB_PART.STARTED_AT,
+                                                            DSL.coalesce(JOB_PART.STARTED_AT, now))
+                                                    .where(JOB_PART.ID.in(updatedJobPartIds))
+                                                    .and(JOB_PART.STATUS.ne(completedStatus))
+                                                    .andExists(
+                                                            DSL.selectOne()
+                                                                    .from(JOB_PART_PHASES)
+                                                                    .where(JOB_PART_PHASES.JOB_PART_ID.eq(
+                                                                            JOB_PART.ID))
+                                                    )
+                                                    .andNotExists(
+                                                            DSL.selectOne()
+                                                                    .from(JOB_PART_PHASES)
+                                                                    .where(JOB_PART_PHASES.JOB_PART_ID.eq(
+                                                                            JOB_PART.ID))
+                                                                    .and(JOB_PART_PHASES.STATUS.ne(
+                                                                            completedStatus))
+                                                    )
+                                                    .returningResult(JOB_PART.JOB_ID)
+                                                    .fetch(JOB_PART.JOB_ID);
 
-                            if (!updatedJobIds.isEmpty()) {
-                                // 3) Complete only affected jobs whose parts are now all completed.
-                                innerDsl.update(JOB)
-                                        .set(JOB.STATUS, completedStatus)
-                                        .set(JOB.COMPLETED_AT, now)
-                                        .set(JOB.STARTED_AT,
-                                                DSL.coalesce(JOB.STARTED_AT, now))
-                                        .where(JOB.ID.in(updatedJobIds))
-                                        .and(JOB.STATUS.ne(completedStatus))
-                                        .andExists(
-                                                DSL.selectOne()
-                                                        .from(JOB_PART)
-                                                        .where(JOB_PART.JOB_ID.eq(JOB.ID))
-                                        )
-                                        .andNotExists(
-                                                DSL.selectOne()
-                                                        .from(JOB_PART)
-                                                        .where(JOB_PART.JOB_ID.eq(JOB.ID))
-                                                        .and(JOB_PART.STATUS.ne(completedStatus))
-                                        )
-                                        .execute();
+                                    if (!updatedJobIds.isEmpty()) {
+                                        innerDsl.update(JOB)
+                                                .set(JOB.STATUS, completedStatus)
+                                                .set(JOB.COMPLETED_AT, now)
+                                                .set(JOB.STARTED_AT,
+                                                        DSL.coalesce(JOB.STARTED_AT, now))
+                                                .where(JOB.ID.in(updatedJobIds))
+                                                .and(JOB.STATUS.ne(completedStatus))
+                                                .andExists(
+                                                        DSL.selectOne()
+                                                                .from(JOB_PART)
+                                                                .where(JOB_PART.JOB_ID.eq(JOB.ID))
+                                                )
+                                                .andNotExists(
+                                                        DSL.selectOne()
+                                                                .from(JOB_PART)
+                                                                .where(JOB_PART.JOB_ID.eq(JOB.ID))
+                                                                .and(JOB_PART.STATUS.ne(completedStatus))
+                                                )
+                                                .execute();
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    if (jobPartPhaseId != null) {
-                        Integer jobPartId =
-                                innerDsl.update(JOB_PART_PHASES)
-                                        .set(JOB_PART_PHASES.STARTED_AT,
-                                                DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
-                                        .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
-                                        .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
-                                        .and(JOB_PART_PHASES.STATUS.ne(
-                                                JobStatus.COMPLETED.getCode()))
-                                        .returningResult(JOB_PART_PHASES.JOB_PART_ID)
-                                        .fetchOne(JOB_PART_PHASES.JOB_PART_ID);
+                            if (jobPartPhaseId != null) {
+                                Integer jobPartId =
+                                        innerDsl.update(JOB_PART_PHASES)
+                                                .set(JOB_PART_PHASES.STARTED_AT,
+                                                        DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
+                                                .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
+                                                .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
+                                                .and(JOB_PART_PHASES.STATUS.ne(
+                                                        JobStatus.COMPLETED.getCode()))
+                                                .returningResult(JOB_PART_PHASES.JOB_PART_ID)
+                                                .fetchOne(JOB_PART_PHASES.JOB_PART_ID);
 
-                        if (jobPartId != null) {
-                            Integer jobId =
+                                if (jobPartId != null) {
+                                    Integer jobId = innerDsl
+                                            .select(JOB_PART.JOB_ID)
+                                            .from(JOB_PART)
+                                            .where(JOB_PART.ID.eq(jobPartId))
+                                            .fetchOne(JOB_PART.JOB_ID);
+
+                                    if (jobId == null) {
+                                        throw new DataAccessException(
+                                                "Failed to find Job with part id " + jobPartId) {
+                                        };
+                                    }
+
                                     innerDsl.update(JOB_PART)
                                             .set(JOB_PART.STARTED_AT,
                                                     DSL.coalesce(JOB_PART.STARTED_AT, now))
                                             .set(JOB_PART.STATUS, JobStatus.STARTED.getCode())
                                             .where(JOB_PART.ID.eq(jobPartId))
                                             .and(JOB_PART.STATUS.ne(JobStatus.COMPLETED.getCode()))
-                                            .returningResult(JOB_PART.JOB_ID)
-                                            .fetchOne(JOB_PART.JOB_ID);
+                                            .execute();
 
-                            if (jobId != null) {
-                                innerDsl.update(JOB)
-                                        .set(JOB.STARTED_AT,
-                                                DSL.coalesce(JOB.STARTED_AT, now))
-                                        .set(JOB.STATUS, JobStatus.STARTED.getCode())
-                                        .where(JOB.ID.eq(jobId))
-                                        .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
-                                        .execute();
+                                    innerDsl.update(JOB)
+                                            .set(JOB.STARTED_AT,
+                                                    DSL.coalesce(JOB.STARTED_AT, now))
+                                            .set(JOB.STATUS, JobStatus.STARTED.getCode())
+                                            .where(JOB.ID.eq(jobId))
+                                            .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
+                                            .execute();
+
+                                    return Optional.of(new JobWithOnePartSelection(jobId, jobPartId));
+                                }
                             }
-                        }
 
-                        var record = innerDsl.selectFrom(JOB_PART)
-                                .where(JOB_PART.ID.eq(jobPartId))
-                                .fetchOne();
-                        if (record == null) {
-                            throw new DataAccessException(
-                                    "Failed to find Job part with id " + jobPartId) {
-                            };
-                        }
-                        return Optional.of(
-                                getJobPart(innerDsl, record));
-                    }
+                            return Optional.empty();
+                        })))
+                .flatMapOptional(selected ->
+                        findJob(selected.jobId()).fold(j -> {
+                                    PartWithIndex part = IntStream.range(0, j.parts().size())
+                                            .filter(i -> Objects.equals(
+                                                    j.parts().get(i).jobPartId(),
+                                                    selected.jobPartId()
+                                            ))
+                                            .mapToObj(i -> new PartWithIndex(j.parts().get(i), i))
+                                            .findFirst().orElse(new PartWithIndex(null, -1));
 
-                    return Optional.empty();
-                })));
+                                    return findProduct(part.part.productId()).map(p -> new JobWithOnePart(
+                                            j.id(),
+                                            j.number(),
+                                            j.due(),
+                                            j.customer(),
+                                            j.carrier(),
+                                            j.callOff(),
+                                            part.part,
+                                            j.status(),
+                                            j.paymentReceived(), part.index + 1, j.parts().size(), p
+                                    ));
+                                },
+                                OptionalResult::failure,
+                                OptionalResult::<JobWithOnePart>empty
+                        ));
     }
 
     private static ScheduledJobPartParam getScheduledJobPartParam(Record record) {

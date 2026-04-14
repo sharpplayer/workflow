@@ -2,6 +2,7 @@ import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { API_BASE_URL } from "../../app.config";
+import { Product } from "./product.service";
 
 export interface ScheduledJobPhases {
   scheduled: ScheduledJobPhase[];
@@ -69,7 +70,7 @@ export interface JobPart {
   quantity: number;
   fromCallOff: boolean;
   materialAvailable: boolean;
-  scheduleFor: Date; // equivalent to OffsetDateTime
+  scheduleFor: Date; 
   phases: JobPartPhase[];
   params: JobPartParam[];
   status: number;
@@ -77,14 +78,29 @@ export interface JobPart {
 
 export interface Job {
   id: number;
-  number: number; // Java long → number (note below)
-  due: Date;      // LocalDateTime → Date
+  number: number; 
+  due: Date; 
   customer: number | null;
   carrier: number | null;
   callOff: boolean;
   paymentReceived: boolean;
   parts: JobPart[];
   status: number;
+}
+
+export interface JobWithOnePart {
+  id: number;
+  number: number; 
+  due: Date;
+  customer: number | null;
+  carrier: number | null;
+  callOff: boolean;
+  paymentReceived: boolean;
+  part: JobPart;
+  status: number;
+  partNumber: number;
+  parts: number;
+  product: Product;
 }
 
 export interface CreateJobPartParam {
@@ -161,7 +177,7 @@ export class JobService {
   }
 
   async getJob(jobId: number): Promise<Job> {
-    return await firstValueFrom( //  Line 139
+    return await firstValueFrom(
       this.http.get<Job>(
         `${API_BASE_URL}/api/jobs/${jobId}`,
         { withCredentials: true }
@@ -169,9 +185,9 @@ export class JobService {
     );
   }
 
-  async nextJob(role: string): Promise<JobPart> {
-    return await firstValueFrom( //  Line 139
-      this.http.get<JobPart>(
+  async nextJob(role: string): Promise<JobWithOnePart> {
+    return await firstValueFrom(
+      this.http.get<JobWithOnePart>(
         `${API_BASE_URL}/api/jobs/next`,
         {
           params: { role },
@@ -209,7 +225,7 @@ export class JobService {
 
   }
 
-  getJobRef(jobNumber : number){
+  getJobRef(jobNumber: number) {
     return (jobNumber % 1000).toString().padStart(3, '0');
   }
 }

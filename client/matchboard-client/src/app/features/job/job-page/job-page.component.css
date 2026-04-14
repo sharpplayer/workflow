@@ -1,14 +1,170 @@
+:host {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.job-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+}
+
+.job-top-panel,
+.product-details,
+.special-instructions-panel,
+.job-actions {
+  background: #ffffff;
+  border: 1px solid #d9dfe7;
+  border-radius: 6px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.job-top-panel {
+  padding-top: 6px;
+}
+
+.job-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.job-top-actions button {
+  margin: 0;
+  padding: 2px 8px;
+  line-height: 1.1;
+  font-size: 13px;
+  float: none;
+}
+
+.job-summary-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.job-ref-block,
+.summary-main,
+.product-details,
+.special-instructions-panel,
+.job-actions {
+  min-width: 0;
+}
+
+.summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-row,
+.details-top-row,
+.details-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.details-top-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.details-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field {
+  min-width: 0;
+}
+
+.caption {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5e6b7a;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.value,
+.job-ref-value {
+  font-size: 14px;
+  color: #1f2933;
+  word-break: break-word;
+}
+
+.job-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #1f2933;
+}
+
+.special-instructions-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.special-instructions-table th,
+.special-instructions-table td {
+  border: 1px solid #d9dfe7;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.special-instructions-table th {
+  background: #f3f6fa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.special-instructions-table td:first-child,
+.special-instructions-table th:first-child {
+  width: 140px;
+}
+
+.no-special-instructions {
+  font-size: 14px;
+  color: #5e6b7a;
+}
+
+.job-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.job-actions button {
+  margin: 0;
+  float: none;
+}
+
 button {
   padding: 4px 8px;
   border: none;
   border-radius: 4px;
   background-color: #4a90e2;
-  color: white;
+  color: #fff;
   cursor: pointer;
-  float: right;
-  margin-right: 8px;
-  margin-top: 8px;
-  margin-bottom: 8px;
+  margin: 0;
+  float: none;
 }
 
 button:hover {
@@ -17,4 +173,21 @@ button:hover {
 
 button:disabled {
   background-color: #959698;
+}
+
+@media (max-width: 900px) {
+  .job-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-row,
+  .details-grid,
+  .details-top-row {
+    grid-template-columns: 1fr;
+  }
+
+  .special-instructions-table td:first-child,
+  .special-instructions-table th:first-child {
+    width: auto;
+  }
 }

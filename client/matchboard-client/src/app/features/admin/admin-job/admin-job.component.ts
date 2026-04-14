@@ -1,6 +1,6 @@
 import { Component, computed, effect, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PhaseParam, Product } from '../../../core/services/product.service';
+import { PhaseParam, ProductView } from '../../../core/services/product.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
 import { AdminPhasesListComponent, JobPhase, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
 import { AdminPhaseParamComponent, PhaseParamSelected, PhaseParamValidationError } from '../admin-phase-param/admin-phase-param.component';
@@ -8,7 +8,7 @@ import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
 
 export interface ProductSave {
     mode: 'add' | 'update';
-    product: Product,
+    product: ProductView,
     phases: JobPhase[],
     params: PhaseParamSelected[]
 }
@@ -185,7 +185,7 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
     styleUrls: ['./admin-job.component.css']
 })
 export class AdminJobComponent {
-    manualSelectedProduct = signal<Product | null>(null);
+    manualSelectedProduct = signal<ProductView | null>(null);
     phaseParamsToShow = signal<PhaseParam[]>([]);
     productSave = output<ProductSave>();
     cancel = output<void>();
@@ -245,7 +245,7 @@ export class AdminJobComponent {
         });
     }
 
-    async onProductSelected(product: Product): Promise<void> {
+    async onProductSelected(product: ProductView): Promise<void> {
         this.manualSelectedProduct.set(product);
         this.phaseParamsToShow.set([]);
         this.selectedPhases.set([]);

@@ -141,7 +141,11 @@ public class Result<T> {
     }
 
     public static <T> OptionalResult<T> toOptionalResult(Result<Optional<T>> result) {
-        return result.fold(value -> OptionalResult.of(value.orElse(null)), OptionalResult::failure);
+        return result.fold(
+                opt -> opt.map(OptionalResult::of)
+                        .orElseGet(OptionalResult::empty),
+                OptionalResult::failure
+        );
     }
 
     public OptionalResult<T> toOptional() {

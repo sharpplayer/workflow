@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Output, signal, computed, effect, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Product, ProductService, ProductsResponse } from '../../../core/services/product.service';
+import { ProductView, ProductService, ProductsResponse } from '../../../core/services/product.service';
 
 @Component({
     selector: 'admin-products-list',
@@ -88,7 +88,7 @@ import { Product, ProductService, ProductsResponse } from '../../../core/service
 export class AdminProductListComponent {
     private productService = inject(ProductService);
 
-    @Output() productSelected = new EventEmitter<Product>();
+    @Output() productSelected = new EventEmitter<ProductView>();
     @Output() hasResults = new EventEmitter<boolean>();
     @Output() selectionCleared = new EventEmitter<void>();
 
@@ -99,9 +99,9 @@ export class AdminProductListComponent {
     loading = signal(true);
     error = signal('');
     filterText = signal('');
-    selectedProduct = signal<Product | null>(null);
+    selectedProduct = signal<ProductView | null>(null);
     collapsed = signal(false);
-    selectedProductInput = input<Product | null>(null);
+    selectedProductInput = input<ProductView | null>(null);
     locked = input(false);
 
     filteredProducts = computed(() => {
@@ -145,7 +145,7 @@ export class AdminProductListComponent {
         }
     }
 
-    selectProduct(product: Product): void {
+    selectProduct(product: ProductView): void {
         if (!this.productSelected.observed) return;
         this.selectedProduct.set(product);
         this.productSelected.emit(product);

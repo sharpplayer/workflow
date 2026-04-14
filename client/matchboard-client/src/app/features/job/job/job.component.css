@@ -1,270 +1,191 @@
- @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+:host {
+  display: block;
+}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.job-page {
+  min-height: 100vh;
+  background: #fff;
+}
 
-  body {
-    background: #f0ede8;
-    padding: 32px 16px;
-    color: #1a1a1a;
-  }
+.job-top-panel {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 1000;
+  padding: 0 1.25rem;
+  background: #fff;
+}
 
-  .page {
-    max-width: 900px;
-    margin: 0 auto;
-    background: #fff;
-    border: 2px solid #1a1a1a;
-    box-shadow: 6px 6px 0 #1a1a1a;
-    z-index: 1;
-  }
+.job-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  background: #fff;
+}
 
-  /* ── Header ── */
-  .header {
-    display: grid;
-    grid-template-columns: 90px 1fr auto auto;
-    align-items: stretch;
-    border-bottom: 2px solid #1a1a1a;
-  }
+.job-summary-grid {
+  display: grid;
+  grid-template-columns: 20rem 1fr;
+  gap: 0;
+  padding: 0;
+}
 
-  .header-cell {
-    padding: 10px 12px;
-    border-right: 2px solid #1a1a1a;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .header-cell:last-child { border-right: none; }
+.summary-main {
+  display: grid;
+  gap: 0.75rem;
+}
 
-  .label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: #666;
-    margin-bottom: 2px;
-  }
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
 
-  .val { font-size: 14px; font-weight: 600; }
+.field {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
 
-  .job-num {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 52px;
-    font-weight: 700;
-    color: #d32f2f;
-    line-height: 1;
-  }
+.caption {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  background: #000;
+  color: #fff;
+}
 
-  .landscape-badge {
-    background: #f5a623;
-    color: #fff;
-    font-size: 22px;
-    font-weight: 700;
-    padding: 8px 18px;
-    letter-spacing: .04em;
-    white-space: nowrap;
-  }
+.value {
+  padding: 0.5rem 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #000;
+  text-align: center;
+  word-break: break-word;
+}
 
-  .zone-badge {
-    background: #1a1a1a;
-    color: #fff;
-    font-size: 28px;
-    font-weight: 700;
-    padding: 8px 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
+.job-ref-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 0.5rem 0.6rem;
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 400;
+  line-height: 1;
+  color: #ff2b2b;
+  text-align: center;
+}
 
-  .dims-row {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: 90px 1fr auto;
-    border-top: 2px solid #1a1a1a;
-  }
+.product-details {
+  padding: 1rem 0 0;
+  margin-top: 0rem;
+  background: transparent;
+}
 
-  .dims-val {
-    background: #f5a623;
-    color: #fff;
-    font-size: 22px;
-    font-weight: 700;
-    padding: 8px 18px;
-    letter-spacing: .04em;
-  }
+.details-top-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 1rem;
+}
 
-  /* ── Info row ── */
-  .info-row {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    border-bottom: 2px solid #1a1a1a;
-  }
+.details-top-row .value {
+  font-size: 1.5rem;
+}
 
-  .info-cell {
-    padding: 8px 10px;
-    border-right: 1px solid #ccc;
-  }
-  .info-cell:last-child { border-right: none; }
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+}
 
-  /* ── Section header ── */
-  .section-header {
-    background: #1a3a5c;
-    color: #fff;
-    font-weight: 700;
-    font-size: 13px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    padding: 7px 14px;
-    border-bottom: 2px solid #1a1a1a;
-  }
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: #fff;
+  cursor: pointer;
+  margin-right: 4px;
+  float: right;
+}
 
-  .section-header.red {
-    background: #fff;
-    color: #d32f2f;
-    border-bottom: 1px solid #ccc;
-  }
+button:hover {
+  background-color: #357ab8;
+}
 
-  /* ── Process table ── */
-  .process-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
+button:disabled {
+  background-color: #959698;
+  cursor: default;
+}
 
-  .process-table td, .process-table th {
-    border: 1px solid #ccc;
-    padding: 6px 10px;
-    vertical-align: middle;
-  }
+.special-instructions-table td:first-child,
+.special-instructions-table th:first-child {
+  width: 140px;
+}
 
-  .process-table .row-num {
-    background: #e8f0fe;
-    font-weight: 700;
-    text-align: center;
-    width: 28px;
-  }
+.no-special-instructions {
+  font-size: 14px;
+  color: #5e6b7a;
+}
 
-  .process-table .row-label {
-    background: #f5f5f5;
-    font-weight: 600;
-    width: 110px;
-  }
+.job-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
 
-  .dot {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    background: #2e7d32;
-    display: inline-block;
-  }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  table-layout: fixed;
+}
 
-  /* ── QC table ── */
-  .qc-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .qc-table th {
-    background: #e8f0fe;
-    border: 1px solid #ccc;
-    padding: 6px 8px;
-    font-weight: 600;
-    text-align: center;
-    font-size: 11px;
-  }
-
-  .qc-table td {
-    border: 1px solid #ccc;
-    padding: 6px 8px;
-    text-align: center;
-  }
-
-  /* ── Wastage table ── */
-  .wastage-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .wastage-table th {
-    background: #e8f0fe;
-    border: 1px solid #ccc;
-    padding: 6px 8px;
-    font-weight: 700;
-    text-align: center;
-  }
-
-  .wastage-table .sub-th {
-    background: #f5f5f5;
-    font-weight: 500;
-  }
-
-  .wastage-table td {
-    border: 1px solid #ccc;
-    padding: 6px 8px;
-    text-align: center;
-  }
-
-  .dispatch-row {
-    display: grid;
-    grid-template-columns: 28px 120px 60px 60px 80px 80px 1fr 80px;
-    border-top: 1px solid #ccc;
-    font-size: 13px;
-  }
-
-  .dispatch-row > div {
-    padding: 7px 10px;
-    border-right: 1px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .dispatch-row > div:last-child { border-right: none; }
-
-  /* ── Office admin ── */
-  .office-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .office-table th, .office-table td {
-    border: 1px solid #ccc;
-    padding: 6px 10px;
-  }
-
-  .office-table th {
-    background: #f5f5f5;
-    font-weight: 600;
-    font-size: 11px;
-  }
-
-  .on-time {
-    background: #2e7d32;
-    color: #fff;
-    font-weight: 700;
-    padding: 2px 10px;
-    border-radius: 3px;
-    display: inline-block;
-  }
-
-  .special-instructions {
-    padding: 10px 14px;
-    font-size: 13px;
-    border-bottom: 2px solid #1a1a1a;
-    min-height: 60px;
-  }
-
-  .sig-box {
-    background: #f3a92a;
-    display: block;
-    width: 100%;
-    min-height: 32px;
-  }
-
-  .sig-box.completed {
-  background-color: #4caf50; /* or any color you want */
+/* Header styling */
+thead {
+  background-color: #4a90e2;
   color: white;
 }
 
-  td.sig-cell, th.sig-cell {
-    padding: 0 !important;
-  }
+thead th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 1rem;
+}
+
+/* Body rows */
+tbody td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Keep cell sizing consistent */
+th,
+td {
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+/* Alternating row colors */
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Hover effect */
+tbody tr:hover {
+  background-color: #e6f2ff;
+}

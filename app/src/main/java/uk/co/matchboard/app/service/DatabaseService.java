@@ -15,7 +15,7 @@ import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartPhase;
 import uk.co.matchboard.app.model.job.Job;
-import uk.co.matchboard.app.model.job.JobPart;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
@@ -80,5 +80,5 @@ public interface DatabaseService {
 
     Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
 
-    OptionalResult<JobPart> completePhasesAndStart(List<Integer> phasesToMarkDone, Integer jobPhaseId);
+    OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone, Integer jobPhaseId);
 }

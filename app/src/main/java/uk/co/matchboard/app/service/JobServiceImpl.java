@@ -20,8 +20,8 @@ import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.Job;
-import uk.co.matchboard.app.model.job.JobPart;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
@@ -172,7 +172,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public OptionalResult<JobPart> nextJob(String role) {
+    public OptionalResult<JobWithOnePart> nextJob(String role) {
         return getScheduleParamsFor(null).flatMapOptional(params -> {
             List<Integer> phasesToMarkDone = new ArrayList<>();
             PartPhaseKey foundPhaseKey = null;

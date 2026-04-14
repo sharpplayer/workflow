@@ -3,7 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 
-export interface Product {
+export interface ProductView
+{
   id: number,
   name: string,
   oldName: string,
@@ -31,8 +32,26 @@ export interface Phase {
   order: number
 }
 
+export interface Product {
+  id: number;
+  name: string;
+  oldName: string;
+  width: number;
+  length: number;
+  thickness: number;
+  pitch: string;
+  edge: string;
+  finish: string;
+  profile: string;
+  material: string;
+  owner: string;
+  rackType: string;
+  machinery: string[];
+  enabled: boolean;
+}
+
 export interface ProductsResponse {
-  products: Product[];
+  products: ProductView[];
   validationErrors: string;
 }
 
@@ -83,14 +102,14 @@ export class ProductService {
     );
   }
 
-  async createProduct(product: Partial<Product>): Promise<void> {
+  async createProduct(product: Partial<ProductView>): Promise<void> {
     await firstValueFrom(
       this.http.post(`${API_BASE_URL}/api/products`, product, { withCredentials: true })
     );
     await this.loadProducts();
   }
 
-  async updateProduct(product: Partial<Product>): Promise<void> {
+  async updateProduct(product: Partial<ProductView>): Promise<void> {
     await firstValueFrom(
       this.http.patch(`${API_BASE_URL}/api/products`, product, { withCredentials: true })
     );
