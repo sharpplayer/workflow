@@ -19,8 +19,8 @@ export interface LoggedOnOperator {
     imports: [CommonModule, FormsModule],
     template: `
     @if (isSignoff()) {
-      <div class="param-signoff">
-        @if (operators().length > 0) {
+        <div class="param-signoff" [class.single-operator]="operators().length === 1">
+            @if (operators().length > 0) {
           <div class="signoff-operator-list">
             @for (operator of operators(); track operator.username) {
               <button
