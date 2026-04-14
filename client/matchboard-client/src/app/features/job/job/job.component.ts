@@ -1,9 +1,13 @@
 import {
+  AfterViewInit,
   ApplicationRef,
   ChangeDetectorRef,
   Component,
   ComponentRef,
+  ElementRef,
   EnvironmentInjector,
+  QueryList,
+  ViewChildren,
   createComponent,
   inject,
   input,
@@ -16,13 +20,14 @@ import { DatePipe } from '@angular/common';
 import { LoginComponent, LoginResult } from '../../login/login/login.component';
 import { LoginResetComponent } from '../../login/reset/reset.component';
 import { AuthService, ResetResult } from '../../../core/services/auth.service';
-import { JobPartParam, JobPartPhase, JobService, JobWithOnePart } from '../../../core/services/job.service';
+import { JobPartParam, JobPartPhase, JobService, JobStatusLabel, JobWithOnePart } from '../../../core/services/job.service';
 import { Product } from '../../../core/services/product.service';
+import { JobPhaseParamComponent, LoggedOnOperator } from '../job-phase-param/job-phase-param.component';
 
 @Component({
   selector: 'job',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, JobPhaseParamComponent],
   template: `
     <div class="job-page">
       @if (job(); as currentJob) {
@@ -67,17 +72,17 @@ import { Product } from '../../../core/services/product.service';
               <div class="summary-row">
                 <div class="field">
                   <div class="caption">Customer Code</div>
-                  <div class="value">{{ currentJob.customer ?? '-' }}</div>
-                </div>
-
-                <div class="field">
-                  <div class="caption">Carrier</div>
-                  <div class="value">{{ currentJob.carrier ?? '-' }}</div>
+                  <div class="value">{{ currentJob.customer?.code ?? '-' }}</div>
                 </div>
 
                 <div class="field">
                   <div class="caption">Zone</div>
-                  <div class="value">{{ zone || '-' }}</div>
+                  <div class="value">{{ currentJob.customer?.zone ?? '-' }}</div>
+                </div>
+
+                <div class="field">
+                  <div class="caption">Carrier</div>
+                  <div class="value">{{ currentJob.carrier?.code ?? '-' }}</div>
                 </div>
               </div>
             </div>
@@ -162,7 +167,11 @@ import { Product } from '../../../core/services/product.service';
         <div class="job-content">
           <div class="phase-table-scroll">
             @for (phase of getPhases(currentJob); track phase.phaseId) {
-              <div class="phase-block">
+              <div
+                #phaseBlock
+                class="phase-block"
+                [class.phase-active]="isPhaseStarted(phase)"
+                [class.phase-inactive]="!isPhaseStarted(phase)">
                 <table class="phase-table">
                   <colgroup>
                     @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
@@ -212,7 +221,13 @@ import { Product } from '../../../core/services/product.service';
                     <tr class="phase-param-value-row">
                       @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
                         <td class="param-column value">
-                          {{ param.value }}
+                          <job-phase-param
+                            [param]="param"
+                            [disabled]="!isPhaseStarted(phase)"
+                            [operators]="loggedOnOperators"
+                            (valueChanged)="onParamValueChanged($event)"
+                            (signoffRequested)="onSignoffRequested($event)">
+                          </job-phase-param>
                         </td>
                       }
 
@@ -221,7 +236,13 @@ import { Product } from '../../../core/services/product.service';
                           <td
                             class="signoff-column signoff-active"
                             [attr.colspan]="getSignColSpan(currentJob, phase, i)">
-                            {{ param.value }}
+                            <job-phase-param
+                              [param]="param"
+                              [disabled]="!isPhaseStarted(phase)"
+                              [operators]="loggedOnOperators"
+                              (valueChanged)="onParamValueChanged($event)"
+                              (signoffRequested)="onSignoffRequested($event)">
+                            </job-phase-param>
                           </td>
                         }
                       } @else {
@@ -235,6 +256,7 @@ import { Product } from '../../../core/services/product.service';
                 </table>
               </div>
             }
+
             <div class="job-actions">
               @if (!jobCompleted) {
                 <button
@@ -255,13 +277,16 @@ import { Product } from '../../../core/services/product.service';
   `,
   styleUrl: './job.component.css'
 })
-export class JobComponent implements OnChanges {
+export class JobComponent implements OnChanges, AfterViewInit {
   private readonly environmentInjector = inject(EnvironmentInjector);
   private readonly appRef = inject(ApplicationRef);
   private readonly authService = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
   readonly jobService = inject(JobService);
+
+  @ViewChildren('phaseBlock')
+  phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
 
   readonly job = input<JobWithOnePart | null>(null);
   readonly schedule = output<void>();
@@ -272,6 +297,10 @@ export class JobComponent implements OnChanges {
   jobRefLine2 = '-';
 
   zone = '';
+
+  loggedOnOperators: LoggedOnOperator[] = [
+    { username: 'op', role: 'OP' }
+  ];
 
   private readonly placeholderParam: JobPartParam = {
     partParamId: -1,
@@ -285,9 +314,17 @@ export class JobComponent implements OnChanges {
     config: ''
   };
 
+  ngAfterViewInit(): void {
+    this.scrollToActivePhase();
+  }
+
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['job'] && this.job()) {
       await this.loadJobRef();
+
+      setTimeout(() => {
+        this.scrollToActivePhase();
+      }, 0);
     }
   }
 
@@ -320,6 +357,38 @@ export class JobComponent implements OnChanges {
     }
 
     this.cdr.detectChanges();
+  }
+
+  private scrollToActivePhase(): void {
+    const currentJob = this.job();
+    if (!currentJob || !this.phaseBlocks?.length) {
+      return;
+    }
+
+    const activeIndex = this.getPhases(currentJob).findIndex(phase => this.isPhaseStarted(phase));
+
+    if (activeIndex < 0) {
+      return;
+    }
+
+    const block = this.phaseBlocks.toArray()[activeIndex]?.nativeElement;
+    if (!block) {
+      return;
+    }
+
+    const container = block.closest('.phase-table-scroll');
+    if (!(container instanceof HTMLElement)) {
+      block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    const stickyOffset = 80;
+    const top = block.offsetTop - stickyOffset;
+
+    container.scrollTo({
+      top: Math.max(top, 0),
+      behavior: 'smooth'
+    });
   }
 
   getPartDisplay(job: JobWithOnePart): string {
@@ -462,7 +531,8 @@ export class JobComponent implements OnChanges {
   }
 
   getPhaseTitle(phase: JobPartPhase): string {
-    return `Phase ${phase.phaseNumber} - ${phase.description}`;
+    const s = JobStatusLabel[phase.status];
+    return `Phase ${phase.phaseNumber} - ${phase.description} ${s}`;
   }
 
   getNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
@@ -511,5 +581,23 @@ export class JobComponent implements OnChanges {
 
   isPlaceholderParam(param: JobPartParam): boolean {
     return param.partParamId === -1;
+  }
+
+  onParamValueChanged(event: { param: JobPartParam; value: string }): void {
+    event.param.value = event.value;
+    this.cdr.detectChanges();
+  }
+
+  onSignoffRequested(event: { param: JobPartParam; username: string }): void {
+    const currentJob = this.job();
+    if (!currentJob) {
+      return;
+    }
+
+    this.openPinLogin(event.username, event.param.partParamId);
+  }
+
+  isPhaseStarted(phase: JobPartPhase): boolean {
+    return phase.status === 10;
   }
 }

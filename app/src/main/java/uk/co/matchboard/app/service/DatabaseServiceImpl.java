@@ -321,6 +321,24 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
+    public OptionalResult<Customer> findCustomer(int customerId) {
+        return Result.toOptionalResult(TryUtils.tryCatch(() ->
+                outerDsl.selectFrom(CUSTOMER).where(CUSTOMER.ID.eq(customerId))
+                        .fetchOptional(DatabaseServiceImpl::getCustomer)));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public OptionalResult<Carrier> findCarrier(int carrierId) {
+        return Result.toOptionalResult(TryUtils.tryCatch(() ->
+                outerDsl.selectFrom(CARRIER).where(CARRIER.ID.eq(carrierId))
+                        .fetchOptional(DatabaseServiceImpl::getCarrier)));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
     public Result<String> getPhaseName(int phaseId) {
         return TryUtils.tryCatch(() -> {
             String desc = outerDsl.select(PHASE.DESCRIPTION)
@@ -842,17 +860,18 @@ public class DatabaseServiceImpl implements DatabaseService {
                                             .mapToObj(i -> new PartWithIndex(j.parts().get(i), i))
                                             .findFirst().orElse(new PartWithIndex(null, -1));
 
-                                    return findProduct(part.part.productId()).map(p -> new JobWithOnePart(
-                                            j.id(),
-                                            j.number(),
-                                            j.due(),
-                                            j.customer(),
-                                            j.carrier(),
-                                            j.callOff(),
-                                            part.part,
-                                            j.status(),
-                                            j.paymentReceived(), part.index + 1, j.parts().size(), p
-                                    ));
+                                    return OptionalResult.combine(findProduct(part.part.productId()),
+                                            findCustomer(j.customer()), findCarrier(j.carrier()),
+                                            (product, customer, carrier) -> new JobWithOnePart(
+                                                    j.id(),
+                                                    j.number(),
+                                                    j.due(),
+                                                    j.callOff(),
+                                                    part.part,
+                                                    j.status(),
+                                                    j.paymentReceived(), part.index + 1, j.parts().size(),
+                                                    product, customer, carrier
+                                            )).toOptional();
                                 },
                                 OptionalResult::failure,
                                 OptionalResult::<JobWithOnePart>empty

@@ -31,6 +31,25 @@ public class OptionalResult<T> {
         return Result.failure(new AggregateException(errors));
     }
 
+    public static <A, B, C, R> Result<R> combine(
+            OptionalResult<A> ra,
+            OptionalResult<B> rb,
+            OptionalResult<C> rc,
+            TriFunction<A, B, C, R> mapper
+    ) {
+        if (ra.isFaulted()) {
+            return Result.failure(ra.exception);
+        }
+        if (rb.isFaulted()) {
+            return Result.failure(rb.exception);
+        }
+        if (rc.isFaulted()) {
+            return Result.failure(rc.exception);
+        }
+
+        return Result.of(mapper.apply(ra.value, rb.value, rc.value));
+    }
+
     private OptionalResult(T value, Exception exception) {
         this.value = value;
         this.exception = exception;

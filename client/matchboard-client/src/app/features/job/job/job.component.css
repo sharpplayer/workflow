@@ -204,7 +204,6 @@ button:disabled {
   border-collapse: collapse;
 }
 
-/* Fixed-width signoff region via colgroup */
 .phase-table col.param-col {
   width: auto;
 }
@@ -213,13 +212,12 @@ button:disabled {
   width: 110px;
 }
 
-/* Sticky title row */
 .phase-title-row th {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: #f2f2f2;
-  color: #000;
+  background: #18336e;
+  color: #fff;
   text-align: left;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d9dfe7;
@@ -227,7 +225,6 @@ button:disabled {
   font-weight: 700;
 }
 
-/* Sticky second header row */
 .phase-param-header-row th {
   position: sticky;
   top: 2.5rem;
@@ -242,8 +239,6 @@ button:disabled {
   text-transform: uppercase;
 }
 
-/* Value row */
-.phase-param-value-row td,
 .phase-table tbody td {
   background: #fff;
   color: #000;
@@ -261,13 +256,11 @@ button:disabled {
   color: #c62828;
 }
 
-/* Regular parameter cells */
 .param-column {
   text-align: center;
   word-break: break-word;
 }
 
-/* Signoff cells */
 .signoff-column {
   text-align: center;
   white-space: nowrap;
@@ -281,27 +274,24 @@ button:disabled {
 }
 
 .phase-table tbody td.signoff-column:not(:last-child) {
-  border-right: 1px solid rgba(255,255,255,0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .phase-table tbody td.signoff-column {
   background: #daf7dc;
   color: #000;
 }
-/* Draw a stronger divider where the signoff area starts */
+
 .phase-param-header-row th.signoff-column:first-of-type,
 .phase-table tbody td.signoff-column:first-of-type {
   border-left: 2px solid #7a7a7a;
 }
 
-/* Empty signoff placeholders */
-/* Empty signoff headers (force reset) */
 .phase-param-header-row th.signoff-empty {
   background: #000;
   color: #fff;
 }
 
-/* Empty signoff cells (force reset) */
 .phase-table tbody td.signoff-empty {
   background: #fff;
   color: #000;
@@ -311,4 +301,42 @@ button:disabled {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+}
+
+/* Inactive phase styling */
+.phase-block.phase-inactive .phase-title-row th {
+  background: #e6e6e6;
+  color: #888;
+}
+
+.phase-block.phase-inactive .phase-param-header-row th {
+  background: #efefef;
+  color: #888;
+}
+
+.phase-block.phase-inactive .phase-param-header-row th.signoff-column,
+.phase-block.phase-inactive .phase-param-header-row th.signoff-empty {
+  background: #efefef;
+  color: #888;
+}
+
+.phase-block.phase-inactive .phase-table tbody td {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.phase-block.phase-inactive .phase-table tbody td.signoff-column,
+.phase-block.phase-inactive .phase-table tbody td.signoff-empty {
+  background: #f0f0f0;
+  color: #888;
+}
+
+.phase-block.phase-inactive .phase-has-instructions {
+  color: #888;
+}
+
+.phase-block.phase-inactive .param-column job-phase-param,
+.phase-block.phase-inactive .signoff-column job-phase-param {
+  opacity: 0.6;
+  pointer-events: none;
 }

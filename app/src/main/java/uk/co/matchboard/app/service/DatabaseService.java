@@ -82,4 +82,9 @@ public interface DatabaseService {
     Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
 
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone, Integer jobPhaseId);
+
+     OptionalResult<Customer> findCustomer(int customerId);
+
+    OptionalResult<Carrier> findCarrier(int carrierId);
+
 }

@@ -48,7 +48,7 @@ export interface JobPartPhase {
   partId: number;
   phaseNumber: number;
   specialInstructions: string | null;
-  status: number;
+  status: JobStatus;
   description: string;
 }
 
@@ -90,12 +90,29 @@ export interface Job {
   status: number;
 }
 
+export interface Customer {
+  id: number;
+  code: string;
+  name: string;
+  zone: string;
+  contact: string;
+  contactNumber: string;
+  enabled: boolean;
+}
+
+export interface Carrier {
+  id: number;
+  code: string;
+  name: string;
+  enabled: boolean;
+}
+
 export interface JobWithOnePart {
   id: number;
   number: number; 
   due: Date;
-  customer: number | null;
-  carrier: number | null;
+  customer: Customer | null;
+  carrier: Carrier | null;
   callOff: boolean;
   paymentReceived: boolean;
   part: JobPart;

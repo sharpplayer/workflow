@@ -92,7 +92,7 @@ FROM phase p
                       ('First Off QC Inspection', 'Material', 'PRODUCT(material)', 3, 1),
                       ('First Off QC Inspection', 'Orientation', 'PRODUCT(format)', 3, 2),
                       ('First Off QC Inspection', 'Length', 'int', 3, 3),
-                      ('First Off QC Inspection', 'Length', 'int', 3, 4),
+                      ('First Off QC Inspection', 'Width', 'int', 3, 4),
                       ('First Off QC Inspection', 'Thickness', 'float', 3, 5),
                       ('First Off QC Inspection', 'Profile', 'PRODUCT(profile)', 3, 6),
                       ('First Off QC Inspection', 'Pitch', 'PRODUCT(pitch)', 3, 7),

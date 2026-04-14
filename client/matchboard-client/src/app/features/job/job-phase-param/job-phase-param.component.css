@@ -1,0 +1,62 @@
+:host {
+    display: block;
+    width: 100%;
+}
+
+.param-label {
+    display: inline-block;
+    width: 100%;
+    text-align: inherit;
+    word-break: break-word;
+}
+
+.param-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #c5ccd6;
+    border-radius: 4px;
+    font: inherit;
+    text-align: left;
+    background: #fff;
+    color: #000;
+}
+
+.param-signoff {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.signoff-operator-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: center;
+    width: 100%;
+}
+
+.signoff-operator-button {
+    min-width: 2.4rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #0f4f12;
+    border-radius: 4px;
+    background: #1b5e20;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.signoff-operator-button:hover:not(:disabled) {
+    background: #154a19;
+}
+
+.signoff-operator-button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.param-empty {
+    color: #5e6b7a;
+    font-style: italic;
+}
