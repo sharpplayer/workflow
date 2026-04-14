@@ -16,7 +16,7 @@ import { DatePipe } from '@angular/common';
 import { LoginComponent, LoginResult } from '../../login/login/login.component';
 import { LoginResetComponent } from '../../login/reset/reset.component';
 import { AuthService, ResetResult } from '../../../core/services/auth.service';
-import { JobPartPhase, JobService, JobWithOnePart } from '../../../core/services/job.service';
+import { JobPartParam, JobPartPhase, JobService, JobWithOnePart } from '../../../core/services/job.service';
 import { Product } from '../../../core/services/product.service';
 
 @Component({
@@ -155,17 +155,60 @@ import { Product } from '../../../core/services/product.service';
             </table>
           </div>
         </div>
-        <div class="job-actions">
-            @if (!jobCompleted) {
-              <button
-                type="button"
-                (click)="openPinLogin('op', currentJob.part.jobPartId)">
-                Complete Job
-              </button>
-            } @else {
-              <p>Job completed.</p>
+        <div class="job-content">
+          <div class="phase-table-scroll">
+            @for (phase of getPhases(currentJob); track phase.phaseId) {
+              <div class="phase-block">
+                <table class="phase-table">
+                  <thead>
+                    <tr class="phase-title-row">
+                      <th [attr.colspan]="getParamsForPhase(currentJob, phase).length || 1">
+                        {{ getPhaseTitle(phase) }}
+                        @if (phase.specialInstructions?.trim()) {
+                          <span class="phase-has-instructions"> • Special instructions</span>
+                        }
+                      </th>
+                    </tr>
+
+                    <tr class="phase-param-header-row">
+                      @if (getParamsForPhase(currentJob, phase).length > 0) {
+                        @for (param of getParamsForPhase(currentJob, phase); track param.partParamId) {
+                          <th>{{ param.name }}</th>
+                        }
+                      } @else {
+                        <th>No parameters</th>
+                      }
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr class="phase-param-value-row">
+                      @if (getParamsForPhase(currentJob, phase).length > 0) {
+                        @for (param of getParamsForPhase(currentJob, phase); track param.partParamId) {
+                          <td>{{ param.value || '-' }}</td>
+                        }
+                      } @else {
+                        <td>-</td>
+                      }
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             }
+
+            <div class="job-actions">
+              @if (!jobCompleted) {
+                <button
+                  type="button"
+                  (click)="openPinLogin('op', currentJob.part.jobPartId)">
+                  Complete Job
+                </button>
+              } @else {
+                <p>Job completed.</p>
+              }
+            </div>
           </div>
+        </div>
       } @else {
         <p>No job loaded.</p>
       }
@@ -355,5 +398,19 @@ export class JobComponent implements OnChanges {
 
   logout(): void {
     this.router.navigate(['/login']);
+  }
+
+  getPhases(job: JobWithOnePart): JobPartPhase[] {
+    return job.part.phases ?? [];
+  }
+
+  getParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
+    return (job.part.params ?? []).filter(
+      param => param.partPhaseId === phase.phaseId
+    );
+  }
+
+  getPhaseTitle(phase: JobPartPhase): string {
+    return `Phase ${phase.phaseNumber} - ${phase.description}`;
   }
 }

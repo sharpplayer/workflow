@@ -69,7 +69,7 @@ CREATE TABLE job_part_params
     name              VARCHAR(50) NOT NULL,
     config            VARCHAR(50) NOT NULL,
     input             INTEGER     NOT NULL,
-    value             VARCHAR(20),
+    value             VARCHAR(50),
     "order"           INTEGER     NOT NULL,
     valued_at         TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

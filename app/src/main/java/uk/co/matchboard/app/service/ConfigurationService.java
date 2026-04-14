@@ -5,12 +5,11 @@ import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
+import uk.co.matchboard.app.model.product.Product;
 
 public interface ConfigurationService {
 
     Result<ConfigResponse> getConfig(String config);
 
-    Result<KeyValuePair> createCustomer(CreateCustomer customer);
-
-    Result<KeyValuePair> createCarrier(CreateCarrier carrier);
+    String resolveConfig(Product product, String config, int input);
 }

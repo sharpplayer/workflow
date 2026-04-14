@@ -31,9 +31,6 @@ public class ProductServiceImpl implements ProductService {
             "pitch", "edge", "finish",
             "profile", "material", "owner", "12",
             List.of("machine1", "machine2", "machine3"), true);
-    public static final int INPUT_JOB_CREATE = 1;
-    public static final int INPUT_JOB_START = 2;
-    public static final int INPUT_PHASE_RUN = 3;
 
     private record PhaseParamKey(int id, int order) {
 
@@ -47,9 +44,12 @@ public class ProductServiceImpl implements ProductService {
 
     private final SageInterfaceService sageInterfaceService;
 
+    private final ConfigurationService configurationService;
+
     public ProductServiceImpl(DatabaseService databaseService,
-            SageInterfaceService sageInterfaceService) {
+            SageInterfaceService sageInterfaceService, ConfigurationService configurationService) {
         this.databaseService = databaseService;
+        this.configurationService = configurationService;
         this.sageInterfaceService = sageInterfaceService;
     }
 
@@ -180,38 +180,9 @@ public class ProductServiceImpl implements ProductService {
                 .sorted(Comparator.comparingInt(PhaseParam::paramOrder))
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
                         pp.paramConfig(),
-                        pp.input(), resolveConfig(product, pp.paramConfig(), pp.input())))
+                        pp.input(),
+                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input())))
                 .collect(Collectors.toList());
-    }
-
-    private String resolveConfig(Product product, String config, int input) {
-        if (config.startsWith("PRODUCT(")) {
-            String prop = config.substring(8, config.length() - 1);
-            if (prop.equals("format")) {
-                if (product.width() > product.length()) {
-                    return "PORTRAIT";
-                } else {
-                    return "LANDSCAPE";
-                }
-            }
-            return TryUtils.tryCatch(() -> {
-                Method accessor = Product.class.getMethod(prop);
-                return accessor.invoke(product);
-            }).fold(Object::toString, _ -> getDefaultInput(input));
-        }
-
-        return getDefaultInput(input);
-    }
-
-    private static String getDefaultInput(int input) {
-        if (input == INPUT_PHASE_RUN) {
-            return "(Input At Phase)";
-        } else if (input == INPUT_JOB_START) {
-            return "(Input At Job Start)";
-        } else if (input == INPUT_JOB_CREATE) {
-            return "(Input At Job Create)";
-        }
-        return "(Unexpected Input " + input + ")";
     }
 
     private Result<Integer> parseDimension(String value, String field, SageProduct product) {

@@ -9,32 +9,51 @@ import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
+import uk.co.matchboard.app.service.AuxiliaryService;
+import uk.co.matchboard.app.service.AuxiliaryServiceImpl;
 import uk.co.matchboard.app.service.ConfigurationService;
+import uk.co.matchboard.app.service.JobService;
+import uk.co.matchboard.app.service.JobServiceImpl;
 
 @RestController
 public class ConfigurationController {
 
     private final ConfigurationService configurationService;
 
-    public ConfigurationController(ConfigurationService configurationService) {
+    private final AuxiliaryService auxiliaryService;
+
+    private final JobService jobService;
+
+    public ConfigurationController(ConfigurationService configurationService,
+            AuxiliaryService auxiliaryService, JobService jobService) {
         this.configurationService = configurationService;
+        this.auxiliaryService = auxiliaryService;
+        this.jobService = jobService;
     }
 
     @GetMapping("config/{name}")
     public ResponseEntity<?> getValue(@PathVariable String name) {
-        return configurationService.getConfig(name).fold(d -> ResponseEntity.ok().body(d),
+
+        String configName = name.toUpperCase();
+        var result = switch (configName) {
+            case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
+            case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
+            case JobServiceImpl.CONFIG_SCHEDULE_DATES -> jobService.getScheduleDates();
+            default -> configurationService.getConfig(configName);
+        };
+        return result.fold(d -> ResponseEntity.ok().body(d),
                 ExceptionHandler::toResponse);
     }
 
     @PostMapping("config/customer")
     public ResponseEntity<?> createCustomer(@RequestBody CreateCustomer customer) {
-        return configurationService.createCustomer(customer).fold(d -> ResponseEntity.ok().body(d),
+        return auxiliaryService.createCustomer(customer).fold(d -> ResponseEntity.ok().body(d),
                 ExceptionHandler::toResponse);
     }
 
     @PostMapping("config/carrier")
     public ResponseEntity<?> createCarrier(@RequestBody CreateCarrier carrier) {
-        return configurationService.createCarrier(carrier).fold(d -> ResponseEntity.ok().body(d),
+        return auxiliaryService.createCarrier(carrier).fold(d -> ResponseEntity.ok().body(d),
                 ExceptionHandler::toResponse);
     }
 }

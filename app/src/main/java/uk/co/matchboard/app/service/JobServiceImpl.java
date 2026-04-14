@@ -1,7 +1,5 @@
 package uk.co.matchboard.app.service;
 
-import static uk.co.matchboard.app.service.ProductServiceImpl.INPUT_PHASE_RUN;
-
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -27,6 +25,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateSchedule;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -45,8 +44,11 @@ public class JobServiceImpl implements JobService {
 
     private final DatabaseService databaseService;
 
-    public JobServiceImpl(DatabaseService databaseService) {
+    private final ConfigurationService configurationService;
+
+    public JobServiceImpl(DatabaseService databaseService, ConfigurationService configurationService) {
         this.databaseService = databaseService;
+        this.configurationService = configurationService;
     }
 
     @Override
@@ -157,7 +159,7 @@ public class JobServiceImpl implements JobService {
     }
 
     private boolean isPhaseRunInput(int input) {
-        return input == INPUT_PHASE_RUN;
+        return input == ConfigurationServiceImpl.INPUT_PHASE_RUN;
     }
 
     private boolean isForRole(String config, String role) {
@@ -167,8 +169,20 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule) {
         return databaseService.updateSchedule(
-                        OffsetDateTime.parse(schedule.date() + "T00:00:00+00:00"), schedule.jobPartIds())
+                        OffsetDateTime.parse(schedule.date() + "T00:00:00+00:00"), schedule.jobPartIds(),
+                        this::evaluator)
                 .flatMap(_ -> getSchedule(schedule.date()));
+    }
+
+    private String evaluator(PhaseParamEvaluatorInput phaseParamEvaluatorInput) {
+        if (phaseParamEvaluatorInput.input() == ConfigurationServiceImpl.INPUT_JOB_CREATE) {
+            return phaseParamEvaluatorInput.product().fold(p ->
+                            configurationService.resolveConfig(p,
+                                    phaseParamEvaluatorInput.paramConfig(),
+                                    phaseParamEvaluatorInput.input()),
+                    Throwable::getMessage, () -> null);
+        }
+        return null;
     }
 
     @Override

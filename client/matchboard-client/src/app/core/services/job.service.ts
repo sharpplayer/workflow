@@ -49,6 +49,7 @@ export interface JobPartPhase {
   phaseNumber: number;
   specialInstructions: string | null;
   status: number;
+  description: string;
 }
 
 export interface JobPartParam {

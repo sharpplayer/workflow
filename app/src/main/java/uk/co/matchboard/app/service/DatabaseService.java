@@ -21,6 +21,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
@@ -74,7 +75,7 @@ public interface DatabaseService {
 
     Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date);
 
-    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds);
+    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds, Function<PhaseParamEvaluatorInput, String> evaluator);
 
     OptionalResult<Job> findJob(int jobId);
 

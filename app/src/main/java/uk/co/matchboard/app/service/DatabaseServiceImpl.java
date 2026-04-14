@@ -58,6 +58,7 @@ import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
@@ -519,7 +520,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 };
                             }
                             jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
-                                    phaseNo, phase.specialInstructions(), status));
+                                    phaseNo, phase.specialInstructions(), status, "()"));
                             partParams.addAll(
                                     addParams(innerDsl, phase.phaseId(), partPhaseId, phaseNo,
                                             part.params(),
@@ -588,8 +589,8 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     private static CreateJobPartParam getCreateJobPartParam(Record phaseParamRecord,
-            int phaseNumber) {
-        return new CreateJobPartParam(phaseParamRecord.get(PHASE_PARAM.ID), phaseNumber, null,
+            int phaseNumber, String value) {
+        return new CreateJobPartParam(phaseParamRecord.get(PHASE_PARAM.ID), phaseNumber, value,
                 phaseParamRecord.get(JOB_PART_PHASES.ID));
     }
 
@@ -885,7 +886,8 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds) {
+    public Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds,
+            Function<PhaseParamEvaluatorInput, String> evaluator) {
         if (jobPartIds == null || jobPartIds.isEmpty()) {
             return Result.of(false);
         }
@@ -916,21 +918,38 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .execute();
 
                 if (rows > 0) {
+                    Integer productId = innerDsl.select(JOB_PART.PRODUCT_ID).from(JOB_PART)
+                            .where(JOB_PART.ID.eq(jobPartId)).fetchOne(JOB_PART.PRODUCT_ID);
+
+                    if (productId == null) {
+                        throw new DataAccessException(
+                                "Failed to find product, no product id on job part "
+                                        + jobPartId) {
+                        };
+                    }
+
+                    var product = findProduct(productId);
+
                     var phases = innerDsl.selectFrom(JOB_PART_PHASES)
                             .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId)).fetch();
                     for (var phase : phases) {
                         var phaseRunData = innerDsl.select(
-                                        PHASE_PARAM.ID,
-                                        JOB_PART_PHASES.ID)
+                                        PHASE_PARAM.fields())
+                                .select(JOB_PART_PHASES.ID)
                                 .from(PHASE_PARAM)
                                 .join(JOB_PART_PHASES)
                                 .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE_PARAM.PHASE_ID))
                                 .and(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
                                 .and(JOB_PART_PHASES.PHASE_ID.eq(phase.getPhaseId()))
                                 .where(PHASE_PARAM.PHASE_ID.eq(phase.getPhaseId()))
-                                .and(PHASE_PARAM.INPUT.eq(ProductServiceImpl.INPUT_PHASE_RUN))
+                                .and(PHASE_PARAM.INPUT.in(ConfigurationServiceImpl.INPUT_PHASE_RUN,
+                                        ConfigurationServiceImpl.INPUT_JOB_CREATE))
                                 .orderBy(PHASE_PARAM.ORDER.asc())
-                                .fetch(r -> getCreateJobPartParam(r, phase.getPhaseNumber()));
+                                .fetch(r -> getCreateJobPartParam(r, phase.getPhaseNumber(),
+                                        evaluator.apply(new PhaseParamEvaluatorInput(
+                                                product,
+                                                r.get(PHASE_PARAM.CONFIG),
+                                                r.get(PHASE_PARAM.INPUT)))));
                         addParams(innerDsl, phase.getPhaseId(), 0, phase.getPhaseNumber(),
                                 phaseRunData, null);
                     }
@@ -996,21 +1015,27 @@ public class DatabaseServiceImpl implements DatabaseService {
             };
         }
 
-        var phaseRecords = innerDsl.selectFrom(JOB_PART_PHASES)
+        var phaseRecords = innerDsl
+                .select(JOB_PART_PHASES.fields())
+                .select(PHASE.DESCRIPTION)
+                .from(JOB_PART_PHASES)
+                .join(PHASE)
+                .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE.ID))
                 .where(JOB_PART_PHASES.JOB_PART_ID.eq(partRecord.getId()))
                 .orderBy(JOB_PART_PHASES.PHASE_NUMBER.asc())
                 .fetch();
 
         for (var phaseRecord : phaseRecords) {
-            Integer partPhaseId = phaseRecord.getId();
-            Integer phaseNumber = phaseRecord.getPhaseNumber();
+            Integer partPhaseId = phaseRecord.get(JOB_PART_PHASES.ID);
+            Integer phaseNumber = phaseRecord.get(JOB_PART_PHASES.PHASE_NUMBER);
 
             jobPartPhases.add(new JobPartPhase(
                     partPhaseId,
                     partRecord.getId(),
                     phaseNumber,
-                    phaseRecord.getSpecialInstruction(),
-                    phaseRecord.getStatus()
+                    phaseRecord.get(JOB_PART_PHASES.SPECIAL_INSTRUCTION),
+                    phaseRecord.get(JOB_PART_PHASES.STATUS),
+                    phaseRecord.get(PHASE.DESCRIPTION)
             ));
 
             var records = innerDsl

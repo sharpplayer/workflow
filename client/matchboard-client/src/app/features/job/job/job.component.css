@@ -112,8 +112,8 @@ button {
   background-color: #4a90e2;
   color: #fff;
   cursor: pointer;
-  margin-right: 4px;
-  float: right;
+  margin: 0;
+  float: none;
 }
 
 button:hover {
@@ -141,7 +141,7 @@ button:disabled {
   align-items: center;
 }
 
-table {
+.special-instructions-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
@@ -150,26 +150,26 @@ table {
 }
 
 /* Header styling */
-thead {
+.special-instructions-table thead {
   background-color: #4a90e2;
   color: white;
 }
 
-thead th {
+.special-instructions-table thead th {
   padding: 12px 15px;
   text-align: left;
   font-size: 1rem;
 }
 
 /* Body rows */
-tbody td {
+.special-instructions-table tbody td {
   padding: 10px 15px;
   border-bottom: 1px solid #ddd;
 }
 
 /* Keep cell sizing consistent */
-th,
-td {
+.special-instructions-table th,
+.special-instructions-table td {
   box-sizing: border-box;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -177,15 +177,84 @@ td {
 }
 
 /* Alternating row colors */
-tbody tr:nth-child(even) {
+.special-instructions-table tbody tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
-tbody tr:nth-child(odd) {
+.special-instructions-table tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
 
-/* Hover effect */
-tbody tr:hover {
-  background-color: #e6f2ff;
+.job-content {
+  position: fixed;
+  top: 30rem;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 1.25rem 1.25rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.phase-table-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+}
+
+.phase-block {
+  margin-bottom: 1rem;
+}
+
+.phase-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.phase-title-row th {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #f2f2f2;
+  color: #000;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d9dfe7;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.phase-param-header-row th {
+  background: #000;
+  color: #fff;
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d9dfe7;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.phase-param-value-row td {
+  background: #fff;
+  color: #000;
+  text-align: center;
+  padding: 0.6rem 0.5rem;
+  border: 1px solid #d9dfe7;
+  font-size: 0.95rem;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.phase-has-instructions {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.phase-title-row th {
+  top: 0;
 }

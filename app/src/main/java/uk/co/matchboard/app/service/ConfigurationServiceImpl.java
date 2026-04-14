@@ -1,29 +1,30 @@
 package uk.co.matchboard.app.service;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.UnknownConfigException;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
+import uk.co.matchboard.app.model.product.Product;
 
 @Service
 public class ConfigurationServiceImpl implements ConfigurationService {
 
+    public static final int INPUT_JOB_CREATE = 1;
+    public static final int INPUT_JOB_START = 2;
+    public static final int INPUT_PHASE_RUN = 3;
+
     private final DatabaseService databaseService;
 
-    private final AuxiliaryService auxiliaryService;
 
-    private final JobService jobService;
-
-    public ConfigurationServiceImpl(DatabaseService databaseService,
-            AuxiliaryService auxiliaryService, JobService jobService) {
+    public ConfigurationServiceImpl(DatabaseService databaseService) {
         this.databaseService = databaseService;
-        this.auxiliaryService = auxiliaryService;
-        this.jobService = jobService;
     }
 
     public ConfigResponse getListConfig(String config, String value, String type) {
@@ -33,30 +34,11 @@ public class ConfigurationServiceImpl implements ConfigurationService {
 
     @Override
     public Result<ConfigResponse> getConfig(String config) {
-        String configName = config.toUpperCase();
-        if (configName.equals(AuxiliaryServiceImpl.CONFIG_CUSTOMER)) {
-            return auxiliaryService.getCustomers();
-        } else if (configName.equals(AuxiliaryServiceImpl.CONFIG_CARRIER)) {
-            return auxiliaryService.getCarriers();
-        } else if (configName.equals(JobServiceImpl.CONFIG_SCHEDULE_DATES)) {
-            return jobService.getScheduleDates();
-        }
-
-        return databaseService.findConfig(configName).fold(
+        return databaseService.findConfig(config).fold(
                 this::convertItem,
                 Result::failure,
-                () -> Result.failure(new UnknownConfigException(config.toUpperCase()))
-        );
-    }
+                () -> Result.failure(new UnknownConfigException(config.toUpperCase())));
 
-    @Override
-    public Result<KeyValuePair> createCustomer(CreateCustomer customer) {
-        return auxiliaryService.createCustomer(customer);
-    }
-
-    @Override
-    public Result<KeyValuePair> createCarrier(CreateCarrier carrier) {
-        return auxiliaryService.createCarrier(carrier);
     }
 
     private Result<ConfigResponse> convertItem(Config item) {
@@ -66,4 +48,36 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         return Result.failure(new UnknownConfigException(
                 item.name().toUpperCase() + " type not supported:" + item.type()));
     }
+
+    @Override
+    public String resolveConfig(Product product, String config, int input) {
+        if (config.startsWith("PRODUCT(")) {
+            String prop = config.substring(8, config.length() - 1);
+            if (prop.equals("format")) {
+                if (product.width() > product.length()) {
+                    return "PORTRAIT";
+                } else {
+                    return "LANDSCAPE";
+                }
+            }
+            return TryUtils.tryCatch(() -> {
+                Method accessor = Product.class.getMethod(prop);
+                return accessor.invoke(product);
+            }).fold(Object::toString, _ -> getDefaultInput(input));
+        }
+
+        return getDefaultInput(input);
+    }
+
+    private static String getDefaultInput(int input) {
+        if (input == INPUT_PHASE_RUN) {
+            return "(Input At Phase)";
+        } else if (input == INPUT_JOB_START) {
+            return "(Input At Job Start)";
+        } else if (input == INPUT_JOB_CREATE) {
+            return "(Input At Job Create)";
+        }
+        return "(Unexpected Input " + input + ")";
+    }
+
 }
