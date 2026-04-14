@@ -97,6 +97,7 @@
 
 .details-top-row .value {
   font-size: 1.5rem;
+  text-align: center;
 }
 
 .details-grid {
@@ -209,9 +210,8 @@ button:disabled {
 
 .phase-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
   table-layout: fixed;
+  border-collapse: collapse;
 }
 
 .phase-title-row th {
@@ -257,4 +257,21 @@ button:disabled {
 
 .phase-title-row th {
   top: 0;
+}
+
+.signoff-column {
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+  text-align: left;
+}
+
+.signoff-column {
+  width: 110px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.signoff-empty {
+  background: transparent;
 }

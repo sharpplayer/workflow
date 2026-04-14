@@ -162,7 +162,7 @@ import { Product } from '../../../core/services/product.service';
                 <table class="phase-table">
                   <thead>
                     <tr class="phase-title-row">
-                      <th [attr.colspan]="getParamsForPhase(currentJob, phase).length || 1">
+                      <th [attr.colspan]="getTotalColumns(currentJob, phase)">
                         {{ getPhaseTitle(phase) }}
                         @if (phase.specialInstructions?.trim()) {
                           <span class="phase-has-instructions"> • Special instructions</span>
@@ -171,24 +171,46 @@ import { Product } from '../../../core/services/product.service';
                     </tr>
 
                     <tr class="phase-param-header-row">
-                      @if (getParamsForPhase(currentJob, phase).length > 0) {
-                        @for (param of getParamsForPhase(currentJob, phase); track param.partParamId) {
-                          <th>{{ param.name }}</th>
-                        }
-                      } @else {
+                      @for (param of getNonSignParamsForPhase(currentJob, phase); track param.partParamId) {
+                        <th>{{ param.name }}</th>
+                      }
+
+                      @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId) {
+                        <th class="signoff-column">{{ param.name }}</th>
+                      }
+
+                      @for (slot of getEmptySignSlots(currentJob, phase); track slot) {
+                        <th class="signoff-column signoff-empty"></th>
+                      }
+
+                      @if (
+                        getNonSignParamsForPhase(currentJob, phase).length === 0 &&
+                        getMaxSignParams(currentJob) === 0
+                      ) {
                         <th>No parameters</th>
                       }
                     </tr>
                   </thead>
 
                   <tbody>
-                    <tr class="phase-param-value-row">
-                      @if (getParamsForPhase(currentJob, phase).length > 0) {
-                        @for (param of getParamsForPhase(currentJob, phase); track param.partParamId) {
-                          <td>{{ param.value || '-' }}</td>
-                        }
-                      } @else {
-                        <td>-</td>
+                    <tr>
+                      @for (param of getNonSignParamsForPhase(currentJob, phase); track param.partParamId) {
+                        <td class="value">{{ param.value }}</td>
+                      }
+
+                      @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId) {
+                        <td class="signoff-column">{{ param.value }}</td>
+                      }
+
+                      @for (slot of getEmptySignSlots(currentJob, phase); track slot) {
+                        <td class="signoff-column signoff-empty"></td>
+                      }
+
+                      @if (
+                        getNonSignParamsForPhase(currentJob, phase).length === 0 &&
+                        getMaxSignParams(currentJob) === 0
+                      ) {
+                        <td>No parameters</td>
                       }
                     </tr>
                   </tbody>
@@ -412,5 +434,34 @@ export class JobComponent implements OnChanges {
 
   getPhaseTitle(phase: JobPartPhase): string {
     return `Phase ${phase.phaseNumber} - ${phase.description}`;
+  }
+
+  getNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase) {
+    return this.getParamsForPhase(job, phase)
+      .filter(p => !p.config?.startsWith('SIGN('));
+  }
+
+  getSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase) {
+    return this.getParamsForPhase(job, phase)
+      .filter(p => p.config.startsWith('SIGN('));
+  }
+
+  getMaxSignParams(job: JobWithOnePart): number {
+    return Math.max(
+      ...job.part.phases.map(p => this.getSignParamsForPhase(job, p).length),
+      0
+    );
+  }
+
+  getEmptySignSlots(job: JobWithOnePart, phase: JobPartPhase): number[] {
+    const max = this.getMaxSignParams(job);
+    const used = this.getSignParamsForPhase(job, phase).length;
+    return Array.from({ length: Math.max(0, max - used) }, (_, i) => i);
+  }
+
+  getTotalColumns(job: JobWithOnePart, phase: JobPartPhase): number {
+    const nonSignCount = this.getNonSignParamsForPhase(job, phase).length;
+    const signCount = this.getMaxSignParams(job);
+    return Math.max(1, nonSignCount + signCount);
   }
 }

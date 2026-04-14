@@ -61,6 +61,7 @@ export interface JobPartParam {
   name: string;
   value: string | null;
   valuedAt: Date | null;
+  config: string;
 };
 
 export interface JobPart {

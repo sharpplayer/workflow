@@ -581,7 +581,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 param.phaseNumber(), paramData.getInput(),
                                 phaseId,
                                 partPhaseId, paramData.getName(),
-                                param.value(), valueTime));
+                                param.value(), valueTime, paramData.getConfig()));
             }
         }
 
@@ -1044,6 +1044,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB_PART_PHASES.PHASE_ID,
                             JOB_PART_PARAMS.NAME,
                             JOB_PART_PARAMS.VALUE,
+                            JOB_PART_PARAMS.CONFIG,
                             JOB_PART_PARAMS.VALUED_AT,
                             JOB_PART_PHASES.PHASE_ID)
                     .from(JOB_PART_PARAMS)
@@ -1061,7 +1062,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         partPhaseId,
                         record.get(JOB_PART_PARAMS.NAME),
                         record.get(JOB_PART_PARAMS.VALUE),
-                        record.get(JOB_PART_PARAMS.VALUED_AT)
+                        record.get(JOB_PART_PARAMS.VALUED_AT),
+                        record.get(JOB_PART_PARAMS.CONFIG)
                 ));
             }
         }
