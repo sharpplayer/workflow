@@ -82,6 +82,7 @@ import { Product } from '../../../core/services/product.service';
               </div>
             </div>
           </div>
+
           <div class="product-details">
             <div class="details-top-row">
               <div class="field">
@@ -142,27 +143,40 @@ import { Product } from '../../../core/services/product.service';
               </thead>
               <tbody>
                 @if (getSpecialInstructionPhases(currentJob).length > 0) {
-                      @for (phase of getSpecialInstructionPhases(currentJob); track phase.phaseId) {
-                        <tr>
-                          <td>{{ phase.phaseNumber }}</td>
-                          <td>{{ phase.specialInstructions }}</td>
-                        </tr>
-                      }
+                  @for (phase of getSpecialInstructionPhases(currentJob); track phase.phaseId) {
+                    <tr>
+                      <td>{{ phase.phaseNumber }}</td>
+                      <td>{{ phase.specialInstructions }}</td>
+                    </tr>
+                  }
                 } @else {
-                  <tr><td colspan="2" class="no-special-instructions">No special instructions.</td></tr>
+                  <tr>
+                    <td colspan="2" class="no-special-instructions">No special instructions.</td>
+                  </tr>
                 }
               </tbody>
             </table>
           </div>
         </div>
+
         <div class="job-content">
           <div class="phase-table-scroll">
             @for (phase of getPhases(currentJob); track phase.phaseId) {
               <div class="phase-block">
                 <table class="phase-table">
+                  <colgroup>
+                    @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
+                      <col class="param-col" />
+                    }
+
+                    @for (slot of getSignSlots(currentJob); track slot) {
+                      <col class="signoff-col" />
+                    }
+                  </colgroup>
+
                   <thead>
                     <tr class="phase-title-row">
-                      <th [attr.colspan]="getTotalColumns(currentJob, phase)">
+                      <th [attr.colspan]="getTotalDisplayColumns(currentJob, phase)">
                         {{ getPhaseTitle(phase) }}
                         @if (phase.specialInstructions?.trim()) {
                           <span class="phase-has-instructions"> • Special instructions</span>
@@ -171,53 +185,56 @@ import { Product } from '../../../core/services/product.service';
                     </tr>
 
                     <tr class="phase-param-header-row">
-                      @for (param of getNonSignParamsForPhase(currentJob, phase); track param.partParamId) {
-                        <th>{{ param.name }}</th>
+                      @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
+                        <th class="param-column">
+                          {{ isPlaceholderParam(param) ? '' : param.name }}
+                        </th>
                       }
 
-                      @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId) {
-                        <th class="signoff-column">{{ param.name }}</th>
-                      }
-
-                      @for (slot of getEmptySignSlots(currentJob, phase); track slot) {
-                        <th class="signoff-column signoff-empty"></th>
-                      }
-
-                      @if (
-                        getNonSignParamsForPhase(currentJob, phase).length === 0 &&
-                        getMaxSignParams(currentJob) === 0
-                      ) {
-                        <th>No parameters</th>
+                      @if (getSignParamsForPhase(currentJob, phase).length > 0) {
+                        @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId; let i = $index) {
+                          <th
+                            class="signoff-column signoff-active"
+                            [attr.colspan]="getSignColSpan(currentJob, phase, i)">
+                            {{ param.name }}
+                          </th>
+                        }
+                      } @else {
+                        <th
+                          class="signoff-column signoff-empty"
+                          [attr.colspan]="getMaxSignParams(currentJob)">
+                        </th>
                       }
                     </tr>
                   </thead>
 
                   <tbody>
-                    <tr>
-                      @for (param of getNonSignParamsForPhase(currentJob, phase); track param.partParamId) {
-                        <td class="value">{{ param.value }}</td>
+                    <tr class="phase-param-value-row">
+                      @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
+                        <td class="param-column value">
+                          {{ param.value }}
+                        </td>
                       }
 
-                      @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId) {
-                        <td class="signoff-column">{{ param.value }}</td>
-                      }
-
-                      @for (slot of getEmptySignSlots(currentJob, phase); track slot) {
-                        <td class="signoff-column signoff-empty"></td>
-                      }
-
-                      @if (
-                        getNonSignParamsForPhase(currentJob, phase).length === 0 &&
-                        getMaxSignParams(currentJob) === 0
-                      ) {
-                        <td>No parameters</td>
+                      @if (getSignParamsForPhase(currentJob, phase).length > 0) {
+                        @for (param of getSignParamsForPhase(currentJob, phase); track param.partParamId; let i = $index) {
+                          <td
+                            class="signoff-column signoff-active"
+                            [attr.colspan]="getSignColSpan(currentJob, phase, i)">
+                            {{ param.value }}
+                          </td>
+                        }
+                      } @else {
+                        <td
+                          class="signoff-column signoff-empty"
+                          [attr.colspan]="getMaxSignParams(currentJob)">
+                        </td>
                       }
                     </tr>
                   </tbody>
                 </table>
               </div>
             }
-
             <div class="job-actions">
               @if (!jobCompleted) {
                 <button
@@ -255,6 +272,18 @@ export class JobComponent implements OnChanges {
   jobRefLine2 = '-';
 
   zone = '';
+
+  private readonly placeholderParam: JobPartParam = {
+    partParamId: -1,
+    partPhaseId: -1,
+    phaseId: -1,
+    phaseNumber: -1,
+    input: -1,
+    name: '',
+    value: null,
+    valuedAt: null,
+    config: ''
+  };
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['job'] && this.job()) {
@@ -298,12 +327,12 @@ export class JobComponent implements OnChanges {
   }
 
   getProductCode(product: Product): string {
-    let name = `${product.name}${product.oldName ? ' (' + product.oldName + ')' : ''}`;
+    const name = `${product.name}${product.oldName ? ' (' + product.oldName + ')' : ''}`;
     return name.replace(/-/g, '\u2011');
   }
 
   getSpecialInstructionPhases(job: JobWithOnePart): JobPartPhase[] {
-    return job.part.phases.filter(
+    return (job.part.phases ?? []).filter(
       phase => !!phase.specialInstructions?.trim()
     );
   }
@@ -380,14 +409,14 @@ export class JobComponent implements OnChanges {
       mount(ref);
     };
 
-    const showReset = (username: string): void => {
+    const showReset = (userNameValue: string): void => {
       destroyCurrent();
 
       const ref = createComponent(LoginResetComponent, {
         environmentInjector: this.environmentInjector
       });
 
-      ref.setInput('username', username);
+      ref.setInput('username', userNameValue);
 
       ref.instance.passwordReset.subscribe((resetResult: ResetResult) => {
         this.authService.resetPassword(resetResult);
@@ -397,14 +426,14 @@ export class JobComponent implements OnChanges {
       mount(ref);
     };
 
-    const showPinReset = (username: string): void => {
+    const showPinReset = (userNameValue: string): void => {
       destroyCurrent();
 
       const ref = createComponent(LoginResetComponent, {
         environmentInjector: this.environmentInjector
       });
 
-      ref.setInput('username', username);
+      ref.setInput('username', userNameValue);
       ref.setInput('mode', 'pin');
 
       ref.instance.passwordReset.subscribe((resetResult: ResetResult) => {
@@ -436,32 +465,51 @@ export class JobComponent implements OnChanges {
     return `Phase ${phase.phaseNumber} - ${phase.description}`;
   }
 
-  getNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase) {
+  getNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     return this.getParamsForPhase(job, phase)
-      .filter(p => !p.config?.startsWith('SIGN('));
+      .filter(param => !param.config?.startsWith('SIGN('));
   }
 
-  getSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase) {
+  getSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     return this.getParamsForPhase(job, phase)
-      .filter(p => p.config.startsWith('SIGN('));
+      .filter(param => !!param.config?.startsWith('SIGN('));
+  }
+
+  getDisplayNonSignParams(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
+    const params = this.getNonSignParamsForPhase(job, phase);
+    return params.length > 0 ? params : [this.placeholderParam];
   }
 
   getMaxSignParams(job: JobWithOnePart): number {
     return Math.max(
-      ...job.part.phases.map(p => this.getSignParamsForPhase(job, p).length),
-      0
+      ...job.part.phases.map(phase => this.getSignParamsForPhase(job, phase).length),
+      1
     );
   }
 
-  getEmptySignSlots(job: JobWithOnePart, phase: JobPartPhase): number[] {
-    const max = this.getMaxSignParams(job);
-    const used = this.getSignParamsForPhase(job, phase).length;
-    return Array.from({ length: Math.max(0, max - used) }, (_, i) => i);
+  getSignSlots(job: JobWithOnePart): number[] {
+    return Array.from({ length: this.getMaxSignParams(job) }, (_, i) => i);
   }
 
-  getTotalColumns(job: JobWithOnePart, phase: JobPartPhase): number {
-    const nonSignCount = this.getNonSignParamsForPhase(job, phase).length;
-    const signCount = this.getMaxSignParams(job);
-    return Math.max(1, nonSignCount + signCount);
+  getSignColSpan(job: JobWithOnePart, phase: JobPartPhase, index: number): number {
+    const signParams = this.getSignParamsForPhase(job, phase);
+    const max = this.getMaxSignParams(job);
+
+    if (signParams.length === 0) {
+      return max;
+    }
+
+    const base = Math.floor(max / signParams.length);
+    const remainder = max % signParams.length;
+
+    return base + (index < remainder ? 1 : 0);
+  }
+
+  getTotalDisplayColumns(job: JobWithOnePart, phase: JobPartPhase): number {
+    return this.getDisplayNonSignParams(job, phase).length + this.getMaxSignParams(job);
+  }
+
+  isPlaceholderParam(param: JobPartParam): boolean {
+    return param.partParamId === -1;
   }
 }

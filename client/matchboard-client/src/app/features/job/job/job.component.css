@@ -84,7 +84,7 @@
 
 .product-details {
   padding: 1rem 0 0;
-  margin-top: 0rem;
+  margin-top: 0;
   background: transparent;
 }
 
@@ -126,22 +126,6 @@ button:disabled {
   cursor: default;
 }
 
-.special-instructions-table td:first-child,
-.special-instructions-table th:first-child {
-  width: 140px;
-}
-
-.no-special-instructions {
-  font-size: 14px;
-  color: #5e6b7a;
-}
-
-.job-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
 .special-instructions-table {
   width: 100%;
   border-collapse: collapse;
@@ -150,10 +134,14 @@ button:disabled {
   table-layout: fixed;
 }
 
-/* Header styling */
+.special-instructions-table td:first-child,
+.special-instructions-table th:first-child {
+  width: 140px;
+}
+
 .special-instructions-table thead {
   background-color: #4a90e2;
-  color: white;
+  color: #fff;
 }
 
 .special-instructions-table thead th {
@@ -162,13 +150,11 @@ button:disabled {
   font-size: 1rem;
 }
 
-/* Body rows */
 .special-instructions-table tbody td {
   padding: 10px 15px;
   border-bottom: 1px solid #ddd;
 }
 
-/* Keep cell sizing consistent */
 .special-instructions-table th,
 .special-instructions-table td {
   box-sizing: border-box;
@@ -177,13 +163,17 @@ button:disabled {
   vertical-align: top;
 }
 
-/* Alternating row colors */
 .special-instructions-table tbody tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
 .special-instructions-table tbody tr:nth-child(odd) {
   background-color: #ffffff;
+}
+
+.no-special-instructions {
+  font-size: 14px;
+  color: #5e6b7a;
 }
 
 .job-content {
@@ -214,6 +204,16 @@ button:disabled {
   border-collapse: collapse;
 }
 
+/* Fixed-width signoff region via colgroup */
+.phase-table col.param-col {
+  width: auto;
+}
+
+.phase-table col.signoff-col {
+  width: 110px;
+}
+
+/* Sticky title row */
 .phase-title-row th {
   position: sticky;
   top: 0;
@@ -227,7 +227,11 @@ button:disabled {
   font-weight: 700;
 }
 
+/* Sticky second header row */
 .phase-param-header-row th {
+  position: sticky;
+  top: 2.5rem;
+  z-index: 29;
   background: #000;
   color: #fff;
   text-align: center;
@@ -238,7 +242,9 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.phase-param-value-row td {
+/* Value row */
+.phase-param-value-row td,
+.phase-table tbody td {
   background: #fff;
   color: #000;
   text-align: center;
@@ -255,23 +261,54 @@ button:disabled {
   color: #c62828;
 }
 
-.phase-title-row th {
-  top: 0;
+/* Regular parameter cells */
+.param-column {
+  text-align: center;
+  word-break: break-word;
 }
 
+/* Signoff cells */
 .signoff-column {
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
-  text-align: left;
-}
-
-.signoff-column {
-  width: 110px;
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.signoff-empty {
-  background: transparent;
+.phase-param-header-row th.signoff-column {
+  background: #1b5e20;
+  color: #fff;
+}
+
+.phase-table tbody td.signoff-column:not(:last-child) {
+  border-right: 1px solid rgba(255,255,255,0.3);
+}
+
+.phase-table tbody td.signoff-column {
+  background: #daf7dc;
+  color: #000;
+}
+/* Draw a stronger divider where the signoff area starts */
+.phase-param-header-row th.signoff-column:first-of-type,
+.phase-table tbody td.signoff-column:first-of-type {
+  border-left: 2px solid #7a7a7a;
+}
+
+/* Empty signoff placeholders */
+/* Empty signoff headers (force reset) */
+.phase-param-header-row th.signoff-empty {
+  background: #000;
+  color: #fff;
+}
+
+/* Empty signoff cells (force reset) */
+.phase-table tbody td.signoff-empty {
+  background: #fff;
+  color: #000;
+}
+
+.job-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
