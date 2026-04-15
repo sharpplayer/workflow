@@ -19,21 +19,31 @@ export interface LoggedOnOperator {
     imports: [CommonModule, FormsModule],
     template: `
     @if (isSignoff()) {
-        <div class="param-signoff" [class.single-operator]="operators().length === 1">
-            @if (operators().length > 0) {
+      <div class="param-signoff" [class.single-operator]="displayOperators().length === 1">
+        @if (displayOperators().length > 0) {
           <div class="signoff-operator-list">
-            @for (operator of operators(); track operator.username) {
+            @for (operator of displayOperators(); track operator.key) {
               <button
                 type="button"
                 class="signoff-operator-button"
                 [disabled]="disabled()"
-                (click)="requestSignoff(operator.username)">
-                {{ operator.username }}
+                (click)="requestSignoff(operator.username, operator.role)">
+                {{ operator.label }}
               </button>
             }
           </div>
+        } @else if (signRole(); as role) {
+          <div class="signoff-operator-list">
+            <button
+              type="button"
+              class="signoff-operator-button"
+              [disabled]="disabled()"
+              (click)="requestSignoff(undefined, role)">
+              Any<br />{{ role }}
+            </button>
+          </div>
         } @else {
-          <div class="param-empty">No operators logged on</div>
+          <div class="param-empty">No signoff role configured</div>
         }
       </div>
     } @else if (isEditableText()) {
@@ -45,7 +55,7 @@ export interface LoggedOnOperator {
         [value]="displayValue()"
         (input)="onInput($event)"
         (blur)="onBlur()"
-        />
+      />
     } @else {
       <span class="param-label">
         {{ displayValue() || '-' }}
@@ -60,10 +70,34 @@ export class JobPhaseParamComponent {
     readonly disabled = input<boolean>(false);
 
     readonly valueChanged = output<{ param: JobPartParam; value: string }>();
-    readonly signoffRequested = output<{ param: JobPartParam; username: string }>();
+    readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
 
     readonly isSignoff = computed(() => {
         return !!this.param().config?.startsWith('SIGN(');
+    });
+
+    readonly signRole = computed(() => {
+        const config = this.param().config ?? '';
+        const match = config.match(/^SIGN\((.+)\)$/);
+        return match ? match[1].trim() : null;
+    });
+
+    readonly matchingOperators = computed(() => {
+        const role = this.signRole();
+        if (!role) {
+            return [];
+        }
+
+        return this.operators().filter(operator => operator.role === role);
+    });
+
+    readonly displayOperators = computed(() => {
+        return this.matchingOperators().map(operator => ({
+            key: operator.username,
+            username: operator.username,
+            label: operator.username,
+            role: operator.role
+        }));
     });
 
     readonly isEditableText = computed(() => {
@@ -71,13 +105,14 @@ export class JobPhaseParamComponent {
     });
 
     protected readonly displayValue = computed(() => {
-        return this.param().value ?? ''
+        return this.param().value ?? '';
     });
 
-    requestSignoff(username: string): void {
+    requestSignoff(username?: string, role?: string): void {
         this.signoffRequested.emit({
             param: this.param(),
-            username
+            username,
+            role
         });
     }
 
@@ -85,7 +120,7 @@ export class JobPhaseParamComponent {
         const config = (this.param().config ?? '').toLowerCase();
 
         if (config === 'int' || config === 'float') {
-            return 'text'; // IMPORTANT: use text, not number (better control)
+            return 'text';
         }
 
         return 'text';
@@ -117,7 +152,7 @@ export class JobPhaseParamComponent {
         if (config === 'float') {
             cleaned = value
                 .replace(/[^\d.]/g, '')
-                .replace(/(\..*)\./g, '$1'); // only one dot
+                .replace(/(\..*)\./g, '$1');
         }
 
         this.valueChanged.emit({
@@ -162,5 +197,4 @@ export class JobPhaseParamComponent {
             value: cleaned
         });
     }
-
 }

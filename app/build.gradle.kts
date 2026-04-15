@@ -3,6 +3,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.4"
     id("nu.studer.jooq") version "8.2.3"
     id("checkstyle")
+    jacoco
     application
 }
 
@@ -15,6 +16,10 @@ checkstyle {
 
 tasks.withType<Checkstyle> {
     exclude("**/generated/**")
+}
+
+jacoco {
+    toolVersion = "0.8.13"
 }
 
 repositories {
@@ -90,6 +95,20 @@ testing {
             // Use JUnit Jupiter test framework
             useJUnitJupiter("6.0.1")
         }
+    }
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
     }
 }
 

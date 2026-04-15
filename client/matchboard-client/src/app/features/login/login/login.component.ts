@@ -50,7 +50,7 @@ export interface LoginResult {
           <label>Username</label>
           <input
             type="text"
-            [ngModel]="usernameValue()"
+            [ngModel]="displayUsername()"
             (ngModelChange)="onUsernameChange($event)"
             name="username"
             placeholder="Username"
@@ -75,24 +75,31 @@ export interface LoginResult {
           <span class="hint">{{ isPinAvailable() ? '4-digit PIN' : 'Password' }}</span>
         </div>
 
-        <div class="field">
-          <label for="role">Role</label>
-          <select
-            id="role"
-            name="role"
-            [ngModel]="selectedRole()"
-            (ngModelChange)="onRoleChange($event)"
-            [disabled]="availableRoles().length === 0"
-          >
-            @if (availableRoles().length === 0) {
-              <option value="" disabled>(Unavailable)</option>
-            }
+        @if (roleProvided()) {
+          <div class="field">
+            <label>Role</label>
+            <div class="role-value">{{ constrainedRole() }}</div>
+          </div>
+        } @else {
+          <div class="field">
+            <label for="role">Role</label>
+            <select
+              id="role"
+              name="role"
+              [ngModel]="selectedRole()"
+              (ngModelChange)="onRoleChange($event)"
+              [disabled]="availableRoles().length === 0"
+            >
+              @if (availableRoles().length === 0) {
+                <option value="" disabled>(Unavailable)</option>
+              }
 
-            @for (role of availableRoles(); ; track $index) {
-              <option [value]="role">{{ role }}</option>
-            }
-          </select>
-        </div>
+              @for (role of availableRoles(); track $index) {
+                <option [value]="role">{{ role }}</option>
+              }
+            </select>
+          </div>
+        }
 
         <div class="error" [class.visible]="!!displayError()">
           {{ displayError() || '\u00A0' }}
@@ -118,12 +125,8 @@ export interface LoginResult {
 })
 export class LoginComponent {
   readonly username = input('');
+  readonly role = input('');
   readonly mode = input<LoginMode>('password');
-
-  /**
-   * Parent can pass back session/authentication errors here.
-   * Example: "Invalid username or password."
-   */
   readonly authError = input('');
 
   readonly loginSubmit = output<LoginResult>();
@@ -131,7 +134,7 @@ export class LoginComponent {
 
   private readonly http = inject(HttpClient);
 
-  readonly usernameValue = signal('');
+  readonly typedUsername = signal('');
   readonly credential = signal('');
   readonly selectedRole = signal('');
   readonly loginOptions = signal<LoginOptions>({
@@ -140,11 +143,34 @@ export class LoginComponent {
   });
   readonly loadingOptions = signal(false);
   readonly optionsErrorMsg = signal('');
-  readonly usernameProvided = signal(false);
+
+  readonly presetUsername = computed(() => (this.username() ?? '').trim());
+  readonly usernameProvided = computed(() => !!this.presetUsername());
+  readonly displayUsername = computed(() =>
+    this.usernameProvided() ? this.presetUsername() : this.typedUsername()
+  );
+  readonly effectiveUsername = computed(() =>
+    this.usernameProvided() ? this.presetUsername() : this.typedUsername().trim()
+  );
 
   readonly isPin = computed(() => this.mode() === 'pin');
+  readonly constrainedRole = computed(() => (this.role() ?? '').trim());
+  readonly roleProvided = computed(() => !!this.constrainedRole());
 
   readonly availableRoles = computed(() => this.loginOptions().roles ?? []);
+
+  readonly roleAvailableForUser = computed(() => {
+    if (!this.roleProvided()) {
+      return true;
+    }
+
+    const username = this.effectiveUsername();
+    if (!username) {
+      return true;
+    }
+
+    return this.availableRoles().includes(this.constrainedRole());
+  });
 
   readonly isPinAvailable = computed(() =>
     this.isPin() && this.loginOptions().options.includes('pin')
@@ -154,25 +180,39 @@ export class LoginComponent {
     this.isPinAvailable() ? 'PIN' : 'Password'
   );
 
-  readonly displayError = computed(() =>
-    this.authError() || this.optionsErrorMsg()
-  );
+  readonly displayError = computed(() => {
+    if (this.authError()) {
+      return this.authError();
+    }
+
+    if (this.optionsErrorMsg()) {
+      return this.optionsErrorMsg();
+    }
+
+    if (!this.roleAvailableForUser()) {
+      return `User ${this.effectiveUsername()} is not allowed to sign as ${this.constrainedRole()}.`;
+    }
+
+    return '';
+  });
 
   readonly canSubmit = computed(() => {
-    if (!this.usernameValue().trim()) return false;
+    if (!this.effectiveUsername()) return false;
     if (!this.credential().trim()) return false;
     if (this.isPinAvailable() && this.credential().length !== 4) return false;
     if (!this.selectedRole()) return false;
+    if (this.roleProvided() && !this.roleAvailableForUser()) return false;
     return true;
   });
 
   constructor() {
     effect(() => {
-      this.usernameValue.set(this.username());
-      this.usernameProvided.set(!!this.username());
+      if (this.roleProvided()) {
+        this.selectedRole.set(this.constrainedRole());
+      }
     });
 
-    toObservable(this.usernameValue)
+    toObservable(this.effectiveUsername)
       .pipe(
         map(username => username.trim()),
         distinctUntilChanged(),
@@ -185,7 +225,7 @@ export class LoginComponent {
 
           this.loadingOptions.set(true);
           this.optionsErrorMsg.set('');
-
+          console.log("Getting logging opts");
           return this.http
             .get<LoginOptions>(
               `${API_BASE_URL}/api/login-options?username=${encodeURIComponent(username)}`,
@@ -210,7 +250,9 @@ export class LoginComponent {
         const roles = options.roles ?? [];
         const currentRole = this.selectedRole();
 
-        if (roles.length === 0) {
+        if (this.roleProvided()) {
+          this.selectedRole.set(this.constrainedRole());
+        } else if (roles.length === 0) {
           this.selectedRole.set('');
         } else if (!currentRole || !roles.includes(currentRole)) {
           this.selectedRole.set(roles[0]);
@@ -223,12 +265,20 @@ export class LoginComponent {
   }
 
   onUsernameChange(value: string): void {
+    if (this.usernameProvided()) {
+      return;
+    }
+
     this.optionsErrorMsg.set('');
-    this.usernameValue.set(value);
+    this.typedUsername.set(value);
   }
 
   onUsernameBlur(): void {
-    this.usernameValue.set(this.usernameValue().trim());
+    if (this.usernameProvided()) {
+      return;
+    }
+
+    this.typedUsername.set(this.typedUsername().trim());
   }
 
   onCredentialChange(value: string): void {
@@ -243,6 +293,10 @@ export class LoginComponent {
   }
 
   onRoleChange(value: string): void {
+    if (this.roleProvided()) {
+      return;
+    }
+
     this.optionsErrorMsg.set('');
     this.selectedRole.set(value);
   }
@@ -253,7 +307,7 @@ export class LoginComponent {
     this.optionsErrorMsg.set('');
 
     this.loginSubmit.emit({
-      username: this.usernameValue().trim(),
+      username: this.effectiveUsername(),
       credential: this.credential(),
       role: this.selectedRole(),
       pin: this.isPinAvailable(),

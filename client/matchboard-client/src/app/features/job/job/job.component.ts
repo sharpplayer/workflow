@@ -13,7 +13,9 @@ import {
   input,
   output,
   OnChanges,
-  SimpleChanges
+  SimpleChanges,
+  signal,
+  computed
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
@@ -256,18 +258,6 @@ import { JobPhaseParamComponent, LoggedOnOperator } from '../job-phase-param/job
                 </table>
               </div>
             }
-
-            <div class="job-actions">
-              @if (!jobCompleted) {
-                <button
-                  type="button"
-                  (click)="openPinLogin('op', currentJob.part.jobPartId)">
-                  Complete Job
-                </button>
-              } @else {
-                <p>Job completed.</p>
-              }
-            </div>
           </div>
         </div>
       } @else {
@@ -284,14 +274,13 @@ export class JobComponent implements OnChanges, AfterViewInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
   readonly jobService = inject(JobService);
+  readonly paramValues = signal<Record<number, string>>({});
 
   @ViewChildren('phaseBlock')
   phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
 
   readonly job = input<JobWithOnePart | null>(null);
   readonly schedule = output<void>();
-
-  jobCompleted = false;
 
   jobRefLine1 = '-';
   jobRefLine2 = '-';
@@ -314,12 +303,38 @@ export class JobComponent implements OnChanges, AfterViewInit {
     config: ''
   };
 
+  readonly allStartedPhaseParamsFilled = computed(() => {
+    const currentJob = this.job();
+    if (!currentJob) {
+      return false;
+    }
+
+    const values = this.paramValues();
+    const startedPhaseIds = (currentJob.part.phases ?? [])
+      .filter(phase => this.isPhaseStarted(phase))
+      .map(phase => phase.phaseId);
+
+    const params = (currentJob.part.params ?? []).filter(
+      param =>
+        startedPhaseIds.includes(param.partPhaseId) &&
+        !param.config?.startsWith('SIGN(')
+    );
+
+    return params.every(param => {
+      const value = values[param.partParamId];
+      return value != null && String(value).trim() !== '';
+    });
+  });
+
+
+
   ngAfterViewInit(): void {
     this.scrollToActivePhase();
   }
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['job'] && this.job()) {
+      this.initialiseParamValues();
       await this.loadJobRef();
 
       setTimeout(() => {
@@ -406,22 +421,26 @@ export class JobComponent implements OnChanges, AfterViewInit {
     );
   }
 
-  openPinLogin(username: string, jobId: number): void {
+  openPinLogin(params: {
+    partParamId: number;
+    username?: string;
+    role?: string;
+  }): void {
     const container = document.createElement('div');
     container.style.cssText = `
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      z-index: 9999 !important;
-      background: rgba(0,0,0,0.55) !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    `;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 9999 !important;
+    background: rgba(0,0,0,0.55) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  `;
     document.body.appendChild(container);
 
     let currentRef: ComponentRef<LoginComponent | LoginResetComponent> | null = null;
@@ -453,21 +472,30 @@ export class JobComponent implements OnChanges, AfterViewInit {
         environmentInjector: this.environmentInjector
       });
 
+      const username = params.username ?? '';
+      const role = params.role ?? '';
+      const mode: 'pin' | 'password' = username ? 'pin' : 'password';
+
+      console.log(mode);
+
       ref.setInput('username', username);
-      ref.setInput('mode', 'pin');
+      ref.setInput('role', role);
+      ref.setInput('mode', mode);
 
       ref.instance.loginSubmit.subscribe(async (loginResult: LoginResult) => {
-        const success = await this.authService.completeJob(String(jobId), loginResult);
+        const success = await this.authService.completeJob(
+          String(params.partParamId),
+          loginResult
+        );
 
         if (success) {
-          this.jobCompleted = true;
           this.cdr.detectChanges();
         }
 
         if (loginResult.passwordReset) {
-          showReset(username);
+          showReset(loginResult.username);
         } else if (loginResult.pinReset) {
-          showPinReset(username);
+          showPinReset(loginResult.username);
         } else {
           cleanup();
         }
@@ -584,20 +612,64 @@ export class JobComponent implements OnChanges, AfterViewInit {
   }
 
   onParamValueChanged(event: { param: JobPartParam; value: string }): void {
+    this.paramValues.update(values => ({
+      ...values,
+      [event.param.partParamId]: event.value
+    }));
     event.param.value = event.value;
-    this.cdr.detectChanges();
   }
 
-  onSignoffRequested(event: { param: JobPartParam; username: string }): void {
+  async onSignoffRequested(event: { param: JobPartParam; username?: string; role?: string }): Promise<void> {
     const currentJob = this.job();
     if (!currentJob) {
       return;
     }
 
-    this.openPinLogin(event.username, event.param.partParamId);
+    const phase = this.getPhases(currentJob).find(p => p.phaseId === event.param.partPhaseId);
+    if (!phase) {
+      return;
+    }
+
+    if (!this.arePhaseParamsFilled(currentJob, phase)) {
+      alert('Please fill in all phase parameters before signoff.');
+      return;
+    }
+
+    this.openPinLogin({ partParamId: event.param.partParamId, username: event.username, role: event.role });
   }
 
   isPhaseStarted(phase: JobPartPhase): boolean {
     return phase.status === 10;
   }
+
+  private initialiseParamValues(): void {
+    const currentJob = this.job();
+
+    if (!currentJob) {
+      this.paramValues.set({});
+      return;
+    }
+
+    const values: Record<number, string> = {};
+
+    for (const param of currentJob.part.params ?? []) {
+      values[param.partParamId] = param.value ?? '';
+    }
+
+    this.paramValues.set(values);
+  }
+
+  arePhaseParamsFilled(job: JobWithOnePart, phase: JobPartPhase): boolean {
+    const values = this.paramValues();
+
+    const params = this.getParamsForPhase(job, phase).filter(
+      param => !param.config?.startsWith('SIGN(')
+    );
+
+    return params.every(param => {
+      const value = values[param.partParamId];
+      return value != null && String(value).trim() !== '';
+    });
+  }
+
 }

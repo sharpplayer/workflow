@@ -188,7 +188,7 @@ public class JobServiceImpl implements JobService {
     @Override
     public OptionalResult<JobWithOnePart> nextJob(String role) {
         return getScheduleParamsFor(null).flatMapOptional(params -> {
-            List<Integer> phasesToMarkDone = new ArrayList<>();
+                List<Integer> phasesToMarkDone = new ArrayList<>();
             PartPhaseKey foundPhaseKey = null;
 
             for (Entry<PartPhaseKey, List<ScheduledJobPartParam>> entry : params.entrySet()) {
