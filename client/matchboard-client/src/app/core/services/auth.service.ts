@@ -1,10 +1,10 @@
-import { inject, Injectable } from '@angular/core';
+import { computed, inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 import { DeviceService, DeviceStatus } from './device.service';
 import { Router } from '@angular/router';
-import { LoginResult } from '../../features/login/login/login.component';
+import { LoggedOnOperator } from '../../features/job/job-phase-param/job-phase-param.component';
 
 export interface ResetResult {
   username: string;
@@ -17,6 +17,18 @@ export class AuthService {
   private http = inject(HttpClient);
   private deviceService = inject(DeviceService);
   private router = inject(Router);
+
+  readonly loggedOnOperators = computed<LoggedOnOperator[]>(() => {
+    const status = this.deviceService.status();
+    const users = status?.users ?? [];
+
+    return users
+      .map(user => ({
+        username: user.user?.trim() ?? '',
+        role: user.role?.trim() ?? ''
+      }))
+      .filter(user => !!user.username);
+  });
 
   async registerSession(
     username: string,
@@ -39,6 +51,23 @@ export class AuthService {
     }
   }
 
+  async resetPassword(reset: ResetResult): Promise<DeviceStatus> {
+    const status = await firstValueFrom(
+      this.http.patch<DeviceStatus>(
+        `${API_BASE_URL}/api/session`,
+        {
+          username: reset.username,
+          password: reset.credential,
+          pin: reset.pin
+        },
+        { withCredentials: true }
+      )
+    );
+
+    this.deviceService.setStatus(status);
+    return status;
+  }
+
   private getErrorMessage(err: unknown, fallback: string): string {
     if (err instanceof HttpErrorResponse) {
       return err.error?.message || err.message || fallback;
@@ -51,24 +80,6 @@ export class AuthService {
     return fallback;
   }
 
-
-  async completeJob(phaseId: string, loginResult: LoginResult): Promise<boolean> {
-    try {
-      await firstValueFrom(
-        this.http.post<void>(
-          `${API_BASE_URL}/api/phase`,
-          { phaseId, user: loginResult.username, password: loginResult.credential, pin: loginResult.pin },
-          { withCredentials: true }
-        )
-      );
-      return true; // success
-    } catch (err) {
-      // Here, err is an HttpErrorResponse
-      console.warn('Job completion failed', err);
-      return false; // treat any error (404, 500, etc.) as false
-    }
-  }
-
   redirectAfterLogin(status: DeviceStatus, username: string = '') {
     if (status.passwordReset) {
       return this.router.navigate(['/reset-password'], {
@@ -76,30 +87,58 @@ export class AuthService {
       });
     }
 
-    const role = status.primaryRole;
+
+    if (status.users.length == 0) {
+      return this.router.navigate(['/login']);
+    }
+
+    const role = status.users[0].role;
+
+
 
     if (role === 'ADMIN') {
       return this.router.navigate(['/admin'], {
-        state: { username, role: status.primaryRole }
+        state: { username, role: role }
       });
     }
 
     return this.router.navigate(['/job'], {
-      state: { username, role: status.primaryRole }
+      state: { username, role: role }
     });
   }
 
-  async resetPassword(reset: ResetResult): Promise<DeviceStatus> {
+  async logout(username: string) {
+    try {
+      const newStatus = await firstValueFrom(
+        this.http.delete<DeviceStatus>(
+          `${API_BASE_URL}/api/session/${username}`,
+          { withCredentials: true }
+        )
+      );
 
-    const status = await firstValueFrom(
-      this.http.patch<DeviceStatus>(
-        `${API_BASE_URL}/api/session`,
-        { 'username': reset.username, 'password': reset.credential, 'pin': reset.pin },
-        { withCredentials: true }
-      )
-    );
-    this.deviceService.setStatus(status);
-    return status;
+      this.deviceService.setStatus(newStatus);
+      this.router.navigate(['/login']);
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
 
   }
+
+  async logoutAll() {
+    try {
+      const newStatus = await firstValueFrom(
+        this.http.delete<DeviceStatus>(
+          `${API_BASE_URL}/api/session`,
+          { withCredentials: true }
+        )
+      );
+
+      this.deviceService.setStatus(newStatus);
+      this.router.navigate(['/login']);
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
+
+  }
+
 }

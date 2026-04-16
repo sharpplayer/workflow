@@ -436,12 +436,6 @@ export class AdminJobsComponent implements OnInit {
 
     async onSaveJob() {
         if (!this.canSaveJob()) return;
-
-        console.log('Saving job...', {
-            crossJobParams: this.crossJobParams(),
-            jobs: this.jobs()
-        });
-
         await this.saveJob();
     }
 

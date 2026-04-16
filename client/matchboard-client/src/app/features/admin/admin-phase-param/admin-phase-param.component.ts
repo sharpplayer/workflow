@@ -276,8 +276,6 @@ export class AdminPhaseParamComponent {
       const defaults: ConfigItem[] = [];
       if (p.input === 1 && options.length > 0 && !p.optional) {
         def = options[0].key;
-        const v = selectedMap.get(p.phaseParamId) ?? p.value ?? def;
-        console.log(p.paramConfig + ":" + options[0].key + "(" + v + ")");
       }
       if (p.input === 2) {
         def = p.evaluation ?? '(Input At Job Start)';

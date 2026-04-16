@@ -8,8 +8,6 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.ConfigResponse;
-import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.product.Product;
 
@@ -21,7 +19,6 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     public static final int INPUT_PHASE_RUN = 3;
 
     private final DatabaseService databaseService;
-
 
     public ConfigurationServiceImpl(DatabaseService databaseService) {
         this.databaseService = databaseService;

@@ -1,8 +1,10 @@
 package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
-import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
+import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
 
@@ -18,5 +20,7 @@ public interface DeviceService {
 
     OptionalResult<Device> updatePassword(String deviceId, LoginUser loginUser);
 
-    OptionalResult<Boolean> completePhase(String deviceId, PhaseComplete completion);
+    OptionalResult<JobWithOnePart> signOff(String deviceId, PhaseSignOff completion);
+
+    OptionalResult<Device> deleteSessions(String deviceId);
 }

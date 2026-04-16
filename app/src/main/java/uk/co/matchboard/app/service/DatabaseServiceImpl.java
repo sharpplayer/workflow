@@ -17,9 +17,12 @@ import static uk.co.matchboard.generated.Tables.USERS;
 import jakarta.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -64,6 +67,7 @@ import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.generated.tables.records.CarrierRecord;
 import uk.co.matchboard.generated.tables.records.CustomerRecord;
+import uk.co.matchboard.generated.tables.records.JobPartParamsRecord;
 import uk.co.matchboard.generated.tables.records.JobPartRecord;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
@@ -334,6 +338,163 @@ public class DatabaseServiceImpl implements DatabaseService {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
                 outerDsl.selectFrom(CARRIER).where(CARRIER.ID.eq(carrierId))
                         .fetchOptional(DatabaseServiceImpl::getCarrier)));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<Boolean> signOff(Map<Integer, String> signOffParams) {
+        return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+            DSLContext dsl = configuration.dsl();
+
+            if (signOffParams == null || signOffParams.isEmpty()) {
+                return false;
+            }
+
+            OffsetDateTime now = OffsetDateTime.now();
+            List<Integer> paramIds = signOffParams.keySet().stream().toList();
+
+            // Fetch the params we were asked to sign off, together with their phase/job info
+            var rows = dsl
+                    .select(
+                            JOB_PART_PARAMS.ID,
+                            JOB_PART_PARAMS.JOB_PART_PHASE_ID,
+                            JOB_PART_PHASES.JOB_PART_ID,
+                            JOB_PART.JOB_ID
+                    )
+                    .from(JOB_PART_PARAMS)
+                    .join(JOB_PART_PHASES)
+                    .on(JOB_PART_PHASES.ID.eq(JOB_PART_PARAMS.JOB_PART_PHASE_ID))
+                    .join(JOB_PART)
+                    .on(JOB_PART.ID.eq(JOB_PART_PHASES.JOB_PART_ID))
+                    .where(JOB_PART_PARAMS.ID.in(paramIds))
+                    .forUpdate()
+                    .fetch();
+
+            if (rows.size() != paramIds.size()) {
+                throw new IllegalArgumentException("One or more job_part_params ids do not exist");
+            }
+
+            Set<Integer> phaseIds = new HashSet<>(
+                    rows.getValues(JOB_PART_PARAMS.JOB_PART_PHASE_ID));
+            if (phaseIds.size() != 1) {
+                throw new IllegalArgumentException(
+                        "All signOffParams keys must belong to the same job_part_phase_id");
+            }
+
+            Integer jobPartPhaseId = phaseIds.iterator().next();
+            Integer jobPartId = rows.getFirst().get(JOB_PART_PHASES.JOB_PART_ID);
+            Integer jobId = rows.getFirst().get(JOB_PART.JOB_ID);
+
+            // Update each param
+            for (Map.Entry<Integer, String> entry : signOffParams.entrySet()) {
+                Integer paramId = entry.getKey();
+                String rawValue = entry.getValue();
+                String value = normalize(rawValue);
+
+                dsl.update(JOB_PART_PARAMS)
+                        .set(JOB_PART_PARAMS.VALUE, value)
+                        .set(JOB_PART_PARAMS.VALUED_AT, value == null ? null : now)
+                        .where(JOB_PART_PARAMS.ID.eq(paramId))
+                        .execute();
+            }
+
+            int completedStatus = JobStatus.COMPLETED.getCode();
+
+            // Is this phase fully signed off now?
+            boolean phaseComplete = !dsl.fetchExists(
+                    dsl.selectOne()
+                            .from(JOB_PART_PARAMS)
+                            .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(jobPartPhaseId))
+                            .and(
+                                    JOB_PART_PARAMS.VALUE.isNull()
+                                            .or(DSL.trim(JOB_PART_PARAMS.VALUE).eq(""))
+                            )
+            );
+
+            if (phaseComplete) {
+                dsl.update(JOB_PART_PHASES)
+                        .set(JOB_PART_PHASES.STATUS, completedStatus)
+                        .set(JOB_PART_PHASES.COMPLETED_AT, now)
+                        .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
+                        .execute();
+            }
+
+            // Is the whole job part complete?
+            boolean jobPartComplete = !dsl.fetchExists(
+                    dsl.selectOne()
+                            .from(JOB_PART_PHASES)
+                            .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
+                            .and(JOB_PART_PHASES.STATUS.ne(completedStatus))
+            );
+
+            if (jobPartComplete) {
+                dsl.update(JOB_PART)
+                        .set(JOB_PART.STATUS, completedStatus)
+                        .set(JOB_PART.COMPLETED_AT, now)
+                        .where(JOB_PART.ID.eq(jobPartId))
+                        .execute();
+            }
+
+            // Is the whole job complete?
+            boolean jobComplete = !dsl.fetchExists(
+                    dsl.selectOne()
+                            .from(JOB_PART)
+                            .where(JOB_PART.JOB_ID.eq(jobId))
+                            .and(JOB_PART.STATUS.ne(completedStatus))
+            );
+
+            if (jobComplete) {
+                dsl.update(JOB)
+                        .set(JOB.STATUS, completedStatus)
+                        .set(JOB.COMPLETED_AT, now)
+                        .where(JOB.ID.eq(jobId))
+                        .execute();
+            }
+
+            return true;
+        }));
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<JobPartParam>> getJobPartParams(Integer paramId) {
+        return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+            DSLContext dsl = configuration.dsl();
+
+            Integer phaseId = dsl
+                    .select(JOB_PART_PARAMS.JOB_PART_PHASE_ID)
+                    .from(JOB_PART_PARAMS)
+                    .where(JOB_PART_PARAMS.ID.eq(paramId))
+                    .fetchOne(JOB_PART_PARAMS.JOB_PART_PHASE_ID);
+
+            if (phaseId == null) {
+                throw new IllegalArgumentException("No job_part_params found for id " + paramId);
+            }
+
+            return dsl
+                    .selectFrom(JOB_PART_PARAMS)
+                    .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(phaseId))
+                    .orderBy(JOB_PART_PARAMS.ORDER.asc(), JOB_PART_PARAMS.ID.asc())
+                    .fetch(DatabaseServiceImpl::getJobPartParam);
+        }));
+    }
+
+    private static JobPartParam getJobPartParam(JobPartParamsRecord jobPartParamsRecord) {
+        return new JobPartParam(jobPartParamsRecord.getId(), 0, jobPartParamsRecord.getInput(),
+                jobPartParamsRecord.getJobPartPhaseId(), jobPartParamsRecord.getJobPartPhaseId(),
+                jobPartParamsRecord.getName(), jobPartParamsRecord.getValue(),
+                jobPartParamsRecord.getValuedAt(), jobPartParamsRecord.getConfig());
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -867,7 +1028,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                                     j.number(),
                                                     j.due(),
                                                     j.callOff(),
-                                                    part.part,
+                                                    part.part(),
                                                     j.status(),
                                                     j.paymentReceived(), part.index + 1, j.parts().size(),
                                                     product, customer, carrier
@@ -912,6 +1073,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         }
 
         return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+            OffsetDateTime now = OffsetDateTime.now();
             DSLContext innerDsl = configuration.dsl();
 
             Integer maxRunOrder = innerDsl
@@ -970,7 +1132,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                                 r.get(PHASE_PARAM.CONFIG),
                                                 r.get(PHASE_PARAM.INPUT)))));
                         addParams(innerDsl, phase.getPhaseId(), 0, phase.getPhaseNumber(),
-                                phaseRunData, null);
+                                phaseRunData, now);
                     }
                 }
                 updatedCount += rows;
@@ -1064,12 +1226,12 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB_PART_PARAMS.NAME,
                             JOB_PART_PARAMS.VALUE,
                             JOB_PART_PARAMS.CONFIG,
-                            JOB_PART_PARAMS.VALUED_AT,
-                            JOB_PART_PHASES.PHASE_ID)
+                            JOB_PART_PARAMS.VALUED_AT)
                     .from(JOB_PART_PARAMS)
                     .join(JOB_PART_PHASES)
                     .on(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.ID))
                     .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(partPhaseId))
+                    .orderBy(JOB_PART_PHASES.PHASE_ID.asc(), JOB_PART_PARAMS.ORDER.asc())
                     .fetch();
 
             for (var record : records) {

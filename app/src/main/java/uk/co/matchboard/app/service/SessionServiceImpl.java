@@ -32,7 +32,7 @@ public class SessionServiceImpl implements SessionService {
             return new SessionUsers(Collections.emptyList(), ROLE_NONE);
 
         }
-        return new SessionUsers(sessions.stream().map(Session::userId).toList(),
+        return new SessionUsers(sessions.stream().map(Session::getView).toList(),
                 sessions.stream().toList().getFirst().role());
 
     }
@@ -60,19 +60,6 @@ public class SessionServiceImpl implements SessionService {
             sessions.put(session.userId(), session);
             return Result.of(session);
         }
-
-        var firstSession = sessions.values().stream().findFirst();
-        if (firstSession.isPresent()) {
-            var existing = firstSession.get();
-
-            if (existing.role().equals(session.role())) {
-                sessions.put(session.userId(), session);
-                return Result.of(session);
-            }
-
-            return Result.failure(new InvalidRoleException(session.role(), existing.role()));
-        }
-
         sessions.put(session.userId(), session);
         return Result.of(session);
     }
@@ -81,5 +68,12 @@ public class SessionServiceImpl implements SessionService {
     public OptionalResult<Session> endSession(String deviceId, String user) {
         var deviceSessions = getSessionsOn(deviceId);
         return OptionalResult.of(deviceSessions.remove(user));
+    }
+
+    @Override
+    public OptionalResult<Session> endSessions(String deviceId) {
+        var deviceSessions = getSessionsOn(deviceId).values().stream().toList();
+        deviceSessions.forEach(session -> endSession(deviceId, session.userId()));
+        return OptionalResult.empty();
     }
 }

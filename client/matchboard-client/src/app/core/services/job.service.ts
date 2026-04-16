@@ -1,8 +1,9 @@
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { firstValueFrom } from "rxjs";
 import { API_BASE_URL } from "../../app.config";
 import { Product } from "./product.service";
+import { LoginResult } from "../../features/login/login/login.component";
 
 export interface ScheduledJobPhases {
   scheduled: ScheduledJobPhase[];
@@ -72,7 +73,7 @@ export interface JobPart {
   quantity: number;
   fromCallOff: boolean;
   materialAvailable: boolean;
-  scheduleFor: Date; 
+  scheduleFor: Date;
   phases: JobPartPhase[];
   params: JobPartParam[];
   status: number;
@@ -80,8 +81,8 @@ export interface JobPart {
 
 export interface Job {
   id: number;
-  number: number; 
-  due: Date; 
+  number: number;
+  due: Date;
   customer: number | null;
   carrier: number | null;
   callOff: boolean;
@@ -109,7 +110,7 @@ export interface Carrier {
 
 export interface JobWithOnePart {
   id: number;
-  number: number; 
+  number: number;
   due: Date;
   customer: Customer | null;
   carrier: Carrier | null;
@@ -246,5 +247,32 @@ export class JobService {
 
   getJobRef(jobNumber: number) {
     return (jobNumber % 1000).toString().padStart(3, '0');
+  }
+
+  async signOff(loginResult: LoginResult, paramData: Record<number, string>): Promise<JobWithOnePart> {
+    try {
+      let job = await firstValueFrom(
+        this.http.patch<JobWithOnePart>(
+          `${API_BASE_URL}/api/phase`,
+          { user: loginResult.username, password: loginResult.credential, pin: loginResult.pin, role: loginResult.role, paramData },
+          { withCredentials: true }
+        )
+      );
+      return job; // success
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Signoff failed.'));
+    }
+  }
+
+  private getErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      return err.error?.message || err.message || fallback;
+    }
+
+    if (err instanceof Error) {
+      return err.message;
+    }
+
+    return fallback;
   }
 }

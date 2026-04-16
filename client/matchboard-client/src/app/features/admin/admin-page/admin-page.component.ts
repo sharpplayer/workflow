@@ -3,6 +3,7 @@ import { RouterLink, RouterOutlet } from '@angular/router';
 import { Router } from '@angular/router';
 import { DeviceService } from '../../../core/services/device.service';
 import { API_BASE_URL } from '../../../app.config';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-admin-page',
@@ -36,7 +37,7 @@ import { API_BASE_URL } from '../../../app.config';
 })
 export class AdminPageComponent {
   private deviceService = inject(DeviceService);
-  private router = inject(Router);
+  private authService = inject(AuthService);
 
   status = this.deviceService.status;
 
@@ -44,17 +45,7 @@ export class AdminPageComponent {
     const currentStatus = this.status();
     if (!currentStatus) return;
 
-    const username = currentStatus.users[0]; // adjust if multiple users
-    try {
-      const newStatus = await fetch(`${API_BASE_URL}/api/session/${username}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      }).then(res => res.json());
+    this.authService.logout(currentStatus.users[0].user); // adjust if multiple users
 
-      this.deviceService.setStatus(newStatus);
-      this.router.navigate(['/login']);
-    } catch (err) {
-      console.error('Logout failed', err);
-    }
   }
 }

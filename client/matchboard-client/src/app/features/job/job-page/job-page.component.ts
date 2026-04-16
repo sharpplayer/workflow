@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { JobComponent } from '../job/job.component';
 import { PhaseListComponent } from '../phase-list/phase-list.component';
 import { JobService, JobWithOnePart } from '../../../core/services/job.service';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-job-page',
@@ -14,6 +15,7 @@ import { JobService, JobWithOnePart } from '../../../core/services/job.service';
         @if (!currentJob()) {
           <phase-list [role]="role()"></phase-list>
           <div>
+            <button type="button" (click)="logout()">Log Out</button>
             <button (click)="nextJob()">Next</button>
           </div>
         } @else {
@@ -32,8 +34,10 @@ import { JobService, JobWithOnePart } from '../../../core/services/job.service';
 export class JobPageComponent {
   private readonly router = inject(Router);
   private readonly jobService = inject(JobService);
+  private readonly authService = inject(AuthService);
 
   readonly role = signal<string>(history.state?.role ?? '');
+  readonly username = signal<string>(history.state?.username ?? '');
   readonly currentJob = signal<JobWithOnePart | null>(null);
 
   constructor() {
@@ -42,13 +46,12 @@ export class JobPageComponent {
     }
   }
 
-  logout(): void {
-    this.router.navigate(['/login']);
+  async logout() {
+    await this.authService.logoutAll();
   }
 
   async nextJob(): Promise<void> {
     const job = await this.jobService.nextJob(this.role());
-    console.log(job);
     this.currentJob.set(job);
   }
 

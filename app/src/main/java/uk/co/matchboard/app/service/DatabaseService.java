@@ -2,6 +2,7 @@ package uk.co.matchboard.app.service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import uk.co.matchboard.app.functional.OptionalResult;
@@ -15,6 +16,7 @@ import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartPhase;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
@@ -75,16 +77,21 @@ public interface DatabaseService {
 
     Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date);
 
-    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds, Function<PhaseParamEvaluatorInput, String> evaluator);
+    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds,
+            Function<PhaseParamEvaluatorInput, String> evaluator);
 
     OptionalResult<Job> findJob(int jobId);
 
     Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
 
-    OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone, Integer jobPhaseId);
+    OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
+            Integer jobPhaseId);
 
-     OptionalResult<Customer> findCustomer(int customerId);
+    OptionalResult<Customer> findCustomer(int customerId);
 
     OptionalResult<Carrier> findCarrier(int carrierId);
 
+    Result<Boolean> signOff(Map<Integer, String> signOffParams);
+
+    Result<List<JobPartParam>> getJobPartParams(Integer paramId);
 }

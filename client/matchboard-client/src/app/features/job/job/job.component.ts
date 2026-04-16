@@ -24,7 +24,8 @@ import { LoginResetComponent } from '../../login/reset/reset.component';
 import { AuthService, ResetResult } from '../../../core/services/auth.service';
 import { JobPartParam, JobPartPhase, JobService, JobStatusLabel, JobWithOnePart } from '../../../core/services/job.service';
 import { Product } from '../../../core/services/product.service';
-import { JobPhaseParamComponent, LoggedOnOperator } from '../job-phase-param/job-phase-param.component';
+import { JobPhaseParamComponent } from '../job-phase-param/job-phase-param.component';
+import { DeviceService } from '../../../core/services/device.service';
 
 @Component({
   selector: 'job',
@@ -223,14 +224,15 @@ import { JobPhaseParamComponent, LoggedOnOperator } from '../job-phase-param/job
                     <tr class="phase-param-value-row">
                       @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
                         <td class="param-column value">
-                          <job-phase-param
-                            [param]="param"
-                            [disabled]="!isPhaseStarted(phase)"
-                            [operators]="loggedOnOperators"
-                            (valueChanged)="onParamValueChanged($event)"
-                            (signoffRequested)="onSignoffRequested($event)">
-                          </job-phase-param>
-                        </td>
+                        <job-phase-param
+                          [param]="param"
+                          [currentValue]="getParamDisplayValue(param)"
+                          [disabled]="!isPhaseStarted(phase)"
+                          [excludedUsernames]="getExcludedSignoffUsers(currentJob, phase, param)"
+                          (valueChanged)="onParamValueChanged($event)"
+                          (signoffRequested)="onSignoffRequested($event)">
+                        </job-phase-param>                      
+                      </td>
                       }
 
                       @if (getSignParamsForPhase(currentJob, phase).length > 0) {
@@ -240,8 +242,9 @@ import { JobPhaseParamComponent, LoggedOnOperator } from '../job-phase-param/job
                             [attr.colspan]="getSignColSpan(currentJob, phase, i)">
                             <job-phase-param
                               [param]="param"
+                              [currentValue]="getParamDisplayValue(param)"
                               [disabled]="!isPhaseStarted(phase)"
-                              [operators]="loggedOnOperators"
+                              [excludedUsernames]="getExcludedSignoffUsers(currentJob, phase, param)"
                               (valueChanged)="onParamValueChanged($event)"
                               (signoffRequested)="onSignoffRequested($event)">
                             </job-phase-param>
@@ -275,6 +278,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   private readonly router = inject(Router);
   readonly jobService = inject(JobService);
   readonly paramValues = signal<Record<number, string>>({});
+  readonly deviceService = inject(DeviceService);
 
   @ViewChildren('phaseBlock')
   phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
@@ -286,10 +290,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
   jobRefLine2 = '-';
 
   zone = '';
-
-  loggedOnOperators: LoggedOnOperator[] = [
-    { username: 'op', role: 'OP' }
-  ];
 
   private readonly placeholderParam: JobPartParam = {
     partParamId: -1,
@@ -325,8 +325,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return value != null && String(value).trim() !== '';
     });
   });
-
-
 
   ngAfterViewInit(): void {
     this.scrollToActivePhase();
@@ -421,10 +419,16 @@ export class JobComponent implements OnChanges, AfterViewInit {
     );
   }
 
+  getParamDisplayValue(param: JobPartParam): string {
+    return this.paramValues()[param.partParamId] ?? param.value ?? '';
+  }
+
   openPinLogin(params: {
     partParamId: number;
+    partPhaseId: number;
     username?: string;
     role?: string;
+    paramValueMap: Record<number, string>;
   }): void {
     const container = document.createElement('div');
     container.style.cssText = `
@@ -474,30 +478,70 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
       const username = params.username ?? '';
       const role = params.role ?? '';
-      const mode: 'pin' | 'password' = username ? 'pin' : 'password';
-
-      console.log(mode);
+      const mode: 'pin' | 'password' =  this.deviceService.isUserLoggedIn(username) ? 'pin' : 'password';
 
       ref.setInput('username', username);
       ref.setInput('role', role);
       ref.setInput('mode', mode);
+      ref.setInput('showCancel', true);
 
       ref.instance.loginSubmit.subscribe(async (loginResult: LoginResult) => {
-        const success = await this.authService.completeJob(
-          String(params.partParamId),
-          loginResult
-        );
-
-        if (success) {
-          this.cdr.detectChanges();
+        const currentJob = this.job();
+        if (!currentJob) {
+          cleanup();
+          return;
         }
 
-        if (loginResult.passwordReset) {
-          showReset(loginResult.username);
-        } else if (loginResult.pinReset) {
-          showPinReset(loginResult.username);
-        } else {
+        const phase = this.getPhases(currentJob).find(p => p.phaseId === params.partPhaseId);
+        if (!phase) {
           cleanup();
+          return;
+        }
+
+        const usernameValue = loginResult.username ?? params.username ?? '';
+        const trimmedUsername = usernameValue.trim();
+
+        if (!trimmedUsername) {
+          alert('Unable to determine operator username for signoff.');
+          return;
+        }
+
+        if (this.isUsernameAlreadyUsedInPhase(currentJob, phase, trimmedUsername, params.partParamId)) {
+          alert(`${trimmedUsername} has already signed another signoff in this phase.`);
+          return;
+        }
+
+        const fullParamMap: Record<number, string> = {
+          ...params.paramValueMap,
+          [params.partParamId]: trimmedUsername
+        };
+
+        try {
+          const success = await this.jobService.signOff(
+            loginResult,
+            fullParamMap
+          );
+
+          if (success) {
+            this.paramValues.update(values => ({
+              ...values,
+              [params.partParamId]: trimmedUsername
+            }));
+
+            this.cdr.detectChanges();
+          }
+
+          if (loginResult.passwordReset) {
+            showReset(loginResult.username);
+          } else if (loginResult.pinReset) {
+            showPinReset(loginResult.username);
+          } else {
+            cleanup();
+          }
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'An unexpected error occurred';
+          ref.setInput('authError', message);
         }
       });
 
@@ -544,8 +588,50 @@ export class JobComponent implements OnChanges, AfterViewInit {
     showLogin();
   }
 
-  logout(): void {
-    this.router.navigate(['/login']);
+  async onSignoffRequested(event: { param: JobPartParam; username?: string; role?: string }): Promise<void> {
+    const currentJob = this.job();
+    if (!currentJob) {
+      return;
+    }
+
+    const phase = this.getPhases(currentJob).find(p => p.phaseId === event.param.partPhaseId);
+    if (!phase) {
+      return;
+    }
+
+    if (!this.arePhaseParamsFilled(currentJob, phase)) {
+      alert('Please fill in all phase parameters before signoff.');
+      return;
+    }
+
+    const paramValueMap = this.buildParamValueMap(currentJob);
+
+    this.openPinLogin({
+      partParamId: event.param.partParamId,
+      partPhaseId: event.param.partPhaseId,
+      username: event.username,
+      role: event.role,
+      paramValueMap
+    });
+  }
+
+  private buildParamValueMap(job: JobWithOnePart): Record<number, string> {
+    const currentValues = this.paramValues();
+    const result: Record<number, string> = {};
+
+    for (const phase of job.part.phases ?? []) {
+      for (const param of this.getEditableParamsForPhase(job, phase)) {
+        result[param.partParamId] = String(
+          currentValues[param.partParamId] ?? param.value ?? ''
+        );
+      }
+    }
+
+    return result;
+  }
+
+  async logout() {
+    await this.authService.logoutAll();
   }
 
   getPhases(job: JobWithOnePart): JobPartPhase[] {
@@ -616,26 +702,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
       ...values,
       [event.param.partParamId]: event.value
     }));
-    event.param.value = event.value;
-  }
-
-  async onSignoffRequested(event: { param: JobPartParam; username?: string; role?: string }): Promise<void> {
-    const currentJob = this.job();
-    if (!currentJob) {
-      return;
-    }
-
-    const phase = this.getPhases(currentJob).find(p => p.phaseId === event.param.partPhaseId);
-    if (!phase) {
-      return;
-    }
-
-    if (!this.arePhaseParamsFilled(currentJob, phase)) {
-      alert('Please fill in all phase parameters before signoff.');
-      return;
-    }
-
-    this.openPinLogin({ partParamId: event.param.partParamId, username: event.username, role: event.role });
   }
 
   isPhaseStarted(phase: JobPartPhase): boolean {
@@ -662,14 +728,55 @@ export class JobComponent implements OnChanges, AfterViewInit {
   arePhaseParamsFilled(job: JobWithOnePart, phase: JobPartPhase): boolean {
     const values = this.paramValues();
 
-    const params = this.getParamsForPhase(job, phase).filter(
-      param => !param.config?.startsWith('SIGN(')
-    );
-
-    return params.every(param => {
+    return this.getEditableParamsForPhase(job, phase).every(param => {
       const value = values[param.partParamId];
       return value != null && String(value).trim() !== '';
     });
   }
 
+  private isEditableParam(param: JobPartParam, phase: JobPartPhase): boolean {
+    return (
+      this.isPhaseStarted(phase) &&
+      !param.config?.startsWith('SIGN(') &&
+      param.input === 3
+    );
+  }
+
+  private getEditableParamsForPhase(
+    job: JobWithOnePart,
+    phase: JobPartPhase
+  ): JobPartParam[] {
+    return this.getParamsForPhase(job, phase).filter(param =>
+      this.isEditableParam(param, phase)
+    );
+  }
+
+  private getParamCurrentValue(param: JobPartParam): string {
+    const value = this.paramValues()[param.partParamId] ?? param.value ?? '';
+    return String(value).trim();
+  }
+
+  getExcludedSignoffUsers(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    currentParam: JobPartParam
+  ): string[] {
+    return this.getSignParamsForPhase(job, phase)
+      .filter(param => param.partParamId !== currentParam.partParamId)
+      .map(param => this.getParamCurrentValue(param))
+      .filter(value => value !== '');
+  }
+
+  private isUsernameAlreadyUsedInPhase(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    username: string,
+    currentParamId: number
+  ): boolean {
+    const normalized = username.trim().toLowerCase();
+
+    return this.getSignParamsForPhase(job, phase)
+      .filter(param => param.partParamId !== currentParamId)
+      .some(param => this.getParamCurrentValue(param).toLowerCase() === normalized);
+  }
 }

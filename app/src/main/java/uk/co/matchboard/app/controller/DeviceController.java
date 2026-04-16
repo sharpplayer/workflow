@@ -13,9 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
-import uk.co.matchboard.app.exception.JobNotFoundException;
 import uk.co.matchboard.app.model.device.Device;
-import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
 import uk.co.matchboard.app.service.DeviceService;
@@ -69,6 +68,16 @@ public class DeviceController {
                         () -> ResponseEntity.ok().body(registerDevice(deviceId)));
     }
 
+    @DeleteMapping("/session")
+    public ResponseEntity<?> deleteAllSessions(
+            @CookieValue(value = DEVICE_COOKIE, required = false) String deviceId) {
+
+        return deviceService.deleteSessions(deviceId)
+                .fold(d -> ResponseEntity.ok().body(d),
+                        ExceptionHandler::toResponse,
+                        () -> ResponseEntity.ok().body(registerDevice(deviceId)));
+    }
+
     @DeleteMapping("/session/{username}")
     public ResponseEntity<?> deleteSession(
             @CookieValue(value = DEVICE_COOKIE, required = false) String deviceId, @PathVariable
@@ -77,7 +86,7 @@ public class DeviceController {
         return deviceService.deleteSession(deviceId, username)
                 .fold(d -> ResponseEntity.ok().body(d),
                         ExceptionHandler::toResponse,
-                            () -> ResponseEntity.ok().body(registerDevice(deviceId)));
+                        () -> ResponseEntity.ok().body(registerDevice(deviceId)));
     }
 
     @GetMapping("/login-options")
@@ -90,10 +99,9 @@ public class DeviceController {
     @PatchMapping("/phase")
     public ResponseEntity<?> completeJob(
             @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
-            @RequestBody PhaseComplete completion) {
-        return deviceService.completePhase(deviceId, completion)
-                .fold(b -> ResponseEntity.ok().build(),
-                        ExceptionHandler::toResponse,
-                        () -> ExceptionHandler.toResponse(new JobNotFoundException(completion.phaseId())));
+            @RequestBody PhaseSignOff completion) {
+        return deviceService.signOff(deviceId, completion)
+                .fold(ResponseEntity::ok,
+                        ExceptionHandler::toResponse, () -> ResponseEntity.noContent().build());
     }
 }

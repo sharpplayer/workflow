@@ -55,7 +55,7 @@ export interface LoginResult {
             name="username"
             placeholder="Username"
             (blur)="onUsernameBlur()"
-            [disabled]="usernameProvided()"
+            [disabled]="false"
           />
         </div>
 
@@ -107,10 +107,10 @@ export interface LoginResult {
 
         <div class="button-group">
           <button type="submit" [disabled]="!canSubmit()">
-            {{ isPinAvailable() ? 'Sign' : (isPin() ? 'Login and Sign' : 'Login') }}
+            {{ isPinAvailable() ? 'Sign' : (showCancel() ? 'Login and Sign' : 'Login') }}
           </button>
 
-          @if (isPin()) {
+          @if (showCancel()) {
             <button type="button" (click)="cancel()">Cancel</button>
           }
         </div>
@@ -128,6 +128,7 @@ export class LoginComponent {
   readonly role = input('');
   readonly mode = input<LoginMode>('password');
   readonly authError = input('');
+  readonly showCancel = input.required<boolean>();
 
   readonly loginSubmit = output<LoginResult>();
   readonly cancelled = output<void>();
@@ -147,10 +148,11 @@ export class LoginComponent {
   readonly presetUsername = computed(() => (this.username() ?? '').trim());
   readonly usernameProvided = computed(() => !!this.presetUsername());
   readonly displayUsername = computed(() =>
-    this.usernameProvided() ? this.presetUsername() : this.typedUsername()
+    this.typedUsername() || this.presetUsername()
   );
+
   readonly effectiveUsername = computed(() =>
-    this.usernameProvided() ? this.presetUsername() : this.typedUsername().trim()
+    (this.typedUsername() || this.presetUsername()).trim()
   );
 
   readonly isPin = computed(() => this.mode() === 'pin');
@@ -225,7 +227,6 @@ export class LoginComponent {
 
           this.loadingOptions.set(true);
           this.optionsErrorMsg.set('');
-          console.log("Getting logging opts");
           return this.http
             .get<LoginOptions>(
               `${API_BASE_URL}/api/login-options?username=${encodeURIComponent(username)}`,
@@ -265,19 +266,11 @@ export class LoginComponent {
   }
 
   onUsernameChange(value: string): void {
-    if (this.usernameProvided()) {
-      return;
-    }
-
     this.optionsErrorMsg.set('');
     this.typedUsername.set(value);
   }
 
   onUsernameBlur(): void {
-    if (this.usernameProvided()) {
-      return;
-    }
-
     this.typedUsername.set(this.typedUsername().trim());
   }
 

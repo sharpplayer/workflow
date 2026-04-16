@@ -109,7 +109,7 @@ public class ProductServiceImpl implements ProductService {
     public Result<Phases> getPhases(int productId) {
         return databaseService.findProduct(productId).fold(
                 product -> databaseService.getPhases(productId)
-                        .map(list -> buildPhases(product, list)).map(Phases::new),
+                        .map(list -> buildPhases(product, list, true)).map(Phases::new),
                 Result::failure,
                 () -> Result.failure(new BadValueException(Integer.toString(productId), "ProductId",
                         Integer.toString(productId), "Not found")
@@ -118,7 +118,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Result<Phases> getPhases() {
-        return databaseService.getPhases().map(list -> buildPhases(EXAMPLE_PRODUCT, list))
+        return databaseService.getPhases().map(list -> buildPhases(EXAMPLE_PRODUCT, list, false))
                 .map(Phases::new);
     }
 
@@ -134,7 +134,7 @@ public class ProductServiceImpl implements ProductService {
         return databaseService.findProduct(productId)
                 .fold(p -> databaseService.getPhaseName(phaseId)
                                 .flatMap(name -> databaseService.getPhaseParams(phaseId, name))
-                                .map(phaseParams -> buildPhases(p, phaseParams))
+                                .map(phaseParams -> buildPhases(p, phaseParams, true))
                                 .flatMap(phases -> {
                                     if (phases.size() != 1) {
                                         return Result.failure(
@@ -154,10 +154,14 @@ public class ProductServiceImpl implements ProductService {
                 p.params().stream()
                         .map(pm -> new PhaseParam(EXAMPLE_PRODUCT.id(), EXAMPLE_PRODUCT.name(),
                                 pm.phaseParamId(), pm.paramName(),
-                                pm.paramConfig(), pm.input(), 0, 0)).toList()).getFirst());
+                                pm.paramConfig(), pm.input(), 0, 0)).toList(), true).getFirst());
     }
 
-    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams) {
+    private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams,
+            boolean sortByOrder) {
+        var comparator = sortByOrder ? Comparator.comparing(Phase::order)
+                : Comparator.comparing(Phase::description);
+
         return phaseParams.stream()
                 .collect(Collectors.groupingBy(
                         p -> new PhaseParamKey(p.id(), p.order())))
@@ -170,7 +174,7 @@ public class ProductServiceImpl implements ProductService {
 
                     return new Phase(first.id(), first.description(), phaseDataList, first.order());
                 })
-                .sorted(Comparator.comparing(Phase::description))
+                .sorted(comparator)
                 .collect(Collectors.toList());
     }
 

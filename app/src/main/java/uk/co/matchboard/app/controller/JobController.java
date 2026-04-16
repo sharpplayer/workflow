@@ -30,7 +30,8 @@ public class JobController {
     @GetMapping("/jobs/next")
     public ResponseEntity<?> nextJob(@RequestParam String role) {
         return jobService.nextJob(role)
-                .fold(ResponseEntity::ok, ExceptionHandler::toResponse, () -> ResponseEntity.noContent().build());
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
+                        () -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/jobs/{jobId}")
@@ -63,5 +64,4 @@ public class JobController {
         return jobService.updateSchedule(schedule)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
-
 }

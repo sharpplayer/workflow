@@ -226,7 +226,6 @@ button:disabled {
 }
 
 .phase-param-header-row th {
-  position: sticky;
   top: 2.5rem;
   z-index: 29;
   background: #000;

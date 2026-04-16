@@ -2,9 +2,6 @@ package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
-import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
-import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.product.Product;
 
 public interface ConfigurationService {

@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.InvalidJobException;
+import uk.co.matchboard.app.exception.InvalidSignOffException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
@@ -18,6 +19,7 @@ import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
@@ -26,6 +28,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateSchedule;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
+import uk.co.matchboard.app.model.product.PhaseSignOff;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -46,9 +49,13 @@ public class JobServiceImpl implements JobService {
 
     private final ConfigurationService configurationService;
 
-    public JobServiceImpl(DatabaseService databaseService, ConfigurationService configurationService) {
+    private final UserService userService;
+
+    public JobServiceImpl(DatabaseService databaseService,
+            ConfigurationService configurationService, UserService userService) {
         this.databaseService = databaseService;
         this.configurationService = configurationService;
+        this.userService = userService;
     }
 
     @Override
@@ -188,20 +195,24 @@ public class JobServiceImpl implements JobService {
     @Override
     public OptionalResult<JobWithOnePart> nextJob(String role) {
         return getScheduleParamsFor(null).flatMapOptional(params -> {
-                List<Integer> phasesToMarkDone = new ArrayList<>();
+            List<Integer> phasesToMarkDone = new ArrayList<>();
             PartPhaseKey foundPhaseKey = null;
 
             for (Entry<PartPhaseKey, List<ScheduledJobPartParam>> entry : params.entrySet()) {
-                RoleMatch groupMatch = classifyGroup(entry.getValue(), role);
+                if (!entry.getValue().isEmpty() && isNotCompleted(
+                        JobStatus.fromCode(entry.getValue().getFirst().status()))) {
 
-                if (groupMatch == RoleMatch.NONE) {
-                    phasesToMarkDone.add(entry.getValue().getFirst().jobPhaseId());
-                    continue;
-                }
+                    RoleMatch groupMatch = classifyGroup(entry.getValue(), role);
 
-                if (groupMatch == RoleMatch.YES) {
-                    foundPhaseKey = entry.getKey();
-                    break;
+                    if (groupMatch == RoleMatch.NONE) {
+                        phasesToMarkDone.add(entry.getValue().getFirst().jobPhaseId());
+                        continue;
+                    }
+
+                    if (groupMatch == RoleMatch.YES) {
+                        foundPhaseKey = entry.getKey();
+                        break;
+                    }
                 }
             }
 
@@ -210,6 +221,29 @@ public class JobServiceImpl implements JobService {
                     phaseKey == null ? null : phaseKey.jobPartPhaseId());
         });
 
+    }
+
+    private boolean isNotCompleted(JobStatus jobStatus) {
+        return jobStatus != JobStatus.COMPLETED;
+    }
+
+    @Override
+    public OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion) {
+        Result<Boolean> loginSuccess;
+        if (completion.pin()) {
+            loginSuccess = userService.validatePin(completion.user(), completion.password());
+        } else {
+            loginSuccess = userService.login(completion.user(), completion.password(),
+                            completion.role())
+                    .map(_ -> true);
+        }
+
+        return loginSuccess.flatMap(_ ->
+                        databaseService.getJobPartParams(
+                                completion.paramData().keySet().stream().toList()
+                                        .getFirst()).flatMap(ps -> validateCanSign(ps, completion.role()))
+                ).flatMap(_ -> databaseService.signOff(completion.paramData()))
+                .flatMapOptional(_ -> nextJob(completion.role()));
     }
 
     private RoleMatch roleMatch(String config, String role) {
@@ -248,5 +282,60 @@ public class JobServiceImpl implements JobService {
         }
 
         return sawNotThisRole ? RoleMatch.NOT_THIS_ROLE : RoleMatch.NONE;
+    }
+
+    public Result<Boolean> validateCanSign(List<JobPartParam> params, String role) {
+        if (params == null || params.isEmpty()) {
+            throw new IllegalStateException("No params found");
+        }
+
+        int firstEmptyRoleIndex = -1;
+
+        for (int i = 0; i < params.size(); i++) {
+            JobPartParam param = params.get(i);
+            String config = param.config();
+
+            if (!isSignConfig(config)) {
+                continue;
+            }
+
+            if (role.equals(extractSignRole(config)) && isBlank(param.value())) {
+                firstEmptyRoleIndex = i;
+                break;
+            }
+        }
+
+        if (firstEmptyRoleIndex < 0) {
+            return Result.failure(
+                    new IllegalStateException("No unsigned SIGN(" + role + ") slot available"));
+        }
+
+        for (int i = 0; i < firstEmptyRoleIndex; i++) {
+            JobPartParam param = params.get(i);
+
+            if (!isSignConfig(param.config())) {
+                continue;
+            }
+
+            if (isBlank(param.value())) {
+                return Result.failure(new InvalidSignOffException(
+                        "Cannot sign as " + role + " before all earlier sign-offs are complete"
+                ));
+            }
+        }
+
+        return Result.of(true);
+    }
+
+    private boolean isSignConfig(String config) {
+        return config != null && config.startsWith("SIGN(") && config.endsWith(")");
+    }
+
+    private String extractSignRole(String config) {
+        return config.substring("SIGN(".length(), config.length() - 1).trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

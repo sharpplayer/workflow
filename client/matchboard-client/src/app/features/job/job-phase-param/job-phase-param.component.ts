@@ -1,51 +1,62 @@
 import {
-    Component,
-    computed,
-    input,
-    output
+  Component,
+  computed,
+  inject,
+  input,
+  output
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { JobPartParam } from '../../../core/services/job.service';
+import { DeviceService } from '../../../core/services/device.service';
 
 export interface LoggedOnOperator {
-    username: string;
-    role: string;
+  username: string;
+  role: string;
 }
 
 @Component({
-    selector: 'job-phase-param',
-    standalone: true,
-    imports: [CommonModule, FormsModule],
-    template: `
+  selector: 'job-phase-param',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
     @if (isSignoff()) {
-      <div class="param-signoff" [class.single-operator]="displayOperators().length === 1">
-        @if (displayOperators().length > 0) {
-          <div class="signoff-operator-list">
-            @for (operator of displayOperators(); track operator.key) {
+      @if (isAlreadySigned()) {
+        <div class="param-signoff signed">
+          <div class="signed-label signoff-operator-button signed">
+            SIGNED<br />
+            {{ signedBy() }}
+          </div>
+        </div>
+      } @else {
+        <div class="param-signoff" [class.single-operator]="displayOperators().length === 1">
+          @if (displayOperators().length > 0) {
+            <div class="signoff-operator-list">
+              @for (operator of displayOperators(); track operator.key) {
+                <button
+                  type="button"
+                  class="signoff-operator-button"
+                  [disabled]="disabled()"
+                  (click)="requestSignoff(operator.username, operator.role)">
+                  {{ operator.label }}
+                </button>
+              }
+            </div>
+          } @else if (signRole(); as role) {
+            <div class="signoff-operator-list">
               <button
                 type="button"
                 class="signoff-operator-button"
                 [disabled]="disabled()"
-                (click)="requestSignoff(operator.username, operator.role)">
-                {{ operator.label }}
+                (click)="requestSignoff(undefined, role)">
+                Any<br />{{ role }}
               </button>
-            }
-          </div>
-        } @else if (signRole(); as role) {
-          <div class="signoff-operator-list">
-            <button
-              type="button"
-              class="signoff-operator-button"
-              [disabled]="disabled()"
-              (click)="requestSignoff(undefined, role)">
-              Any<br />{{ role }}
-            </button>
-          </div>
-        } @else {
-          <div class="param-empty">No signoff role configured</div>
-        }
-      </div>
+            </div>
+          } @else {
+            <div class="param-empty">No signoff role configured</div>
+          }
+        </div>
+      }
     } @else if (isEditableText()) {
       <input
         class="param-input"
@@ -62,139 +73,159 @@ export interface LoggedOnOperator {
       </span>
     }
   `,
-    styleUrl: './job-phase-param.component.css'
+  styleUrl: './job-phase-param.component.css'
 })
 export class JobPhaseParamComponent {
-    readonly param = input.required<JobPartParam>();
-    readonly operators = input<LoggedOnOperator[]>([]);
-    readonly disabled = input<boolean>(false);
+  private readonly deviceService = inject(DeviceService);
 
-    readonly valueChanged = output<{ param: JobPartParam; value: string }>();
-    readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
+  readonly param = input.required<JobPartParam>();
+  readonly currentValue = input<string>('');
+  readonly disabled = input<boolean>(false);
+  readonly excludedUsernames = input<string[]>([]);
 
-    readonly isSignoff = computed(() => {
-        return !!this.param().config?.startsWith('SIGN(');
-    });
+  readonly valueChanged = output<{ param: JobPartParam; value: string }>();
+  readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
 
-    readonly signRole = computed(() => {
-        const config = this.param().config ?? '';
-        const match = config.match(/^SIGN\((.+)\)$/);
-        return match ? match[1].trim() : null;
-    });
+  readonly isSignoff = computed(() => {
+    return !!this.param().config?.startsWith('SIGN(');
+  });
 
-    readonly matchingOperators = computed(() => {
-        const role = this.signRole();
-        if (!role) {
-            return [];
-        }
+  readonly signRole = computed(() => {
+    const config = this.param().config ?? '';
+    const match = config.match(/^SIGN\((.+)\)$/);
+    return match ? match[1].trim() : null;
+  });
 
-        return this.operators().filter(operator => operator.role === role);
-    });
+  readonly displayValue = computed(() => {
+    return this.currentValue() ?? '';
+  });
 
-    readonly displayOperators = computed(() => {
-        return this.matchingOperators().map(operator => ({
-            key: operator.username,
-            username: operator.username,
-            label: operator.username,
-            role: operator.role
-        }));
-    });
+  readonly isAlreadySigned = computed(() => {
+    return this.isSignoff() && this.displayValue().trim() !== '';
+  });
 
-    readonly isEditableText = computed(() => {
-        return !this.disabled() && !this.isSignoff() && this.param().input === 3;
-    });
+  readonly signedBy = computed(() => {
+    return this.displayValue().trim();
+  });
 
-    protected readonly displayValue = computed(() => {
-        return this.param().value ?? '';
-    });
-
-    requestSignoff(username?: string, role?: string): void {
-        this.signoffRequested.emit({
-            param: this.param(),
-            username,
-            role
-        });
+  readonly matchingOperators = computed(() => {
+    const role = this.signRole()?.trim().toLowerCase();
+    if (!role) {
+      return [];
     }
 
-    inputType(): string {
-        const config = (this.param().config ?? '').toLowerCase();
+    const excluded = new Set(
+      this.excludedUsernames().map(username => username.trim().toLowerCase())
+    );
 
-        if (config === 'int' || config === 'float') {
-            return 'text';
-        }
+    console.log(this.deviceService.status());
+    
+    return this.deviceService.status()?.users.filter(operator =>
+      operator.role.trim().toLowerCase() === role &&
+      !excluded.has(operator.user.trim().toLowerCase())
+    ) ?? [];
+  });
 
-        return 'text';
+  readonly displayOperators = computed(() => {
+    return this.matchingOperators().map(operator => ({
+      key: operator.user,
+      username: operator.user,
+      label: operator.user,
+      role: operator.role
+    }));
+  });
+
+  readonly isEditableText = computed(() => {
+    return !this.disabled() && !this.isSignoff() && this.param().input === 3;
+  });
+
+  requestSignoff(username?: string, role?: string): void {
+    this.signoffRequested.emit({
+      param: this.param(),
+      username,
+      role
+    });
+  }
+
+  inputType(): string {
+    const config = (this.param().config ?? '').toLowerCase();
+
+    if (config === 'int' || config === 'float') {
+      return 'text';
     }
 
-    inputMode(): string {
-        const config = (this.param().config ?? '').toLowerCase();
+    return 'text';
+  }
 
-        if (config === 'int') {
-            return 'numeric';
-        }
+  inputMode(): string {
+    const config = (this.param().config ?? '').toLowerCase();
 
-        if (config === 'float') {
-            return 'decimal';
-        }
-
-        return 'text';
+    if (config === 'int') {
+      return 'numeric';
     }
 
-    onValueChange(value: string): void {
-        const config = (this.param().config ?? '').toLowerCase();
-
-        let cleaned = value;
-
-        if (config === 'int') {
-            cleaned = value.replace(/[^\d]/g, '');
-        }
-
-        if (config === 'float') {
-            cleaned = value
-                .replace(/[^\d.]/g, '')
-                .replace(/(\..*)\./g, '$1');
-        }
-
-        this.valueChanged.emit({
-            param: this.param(),
-            value: cleaned
-        });
+    if (config === 'float') {
+      return 'decimal';
     }
 
-    onBlur(): void {
-        const config = (this.param().config ?? '').toLowerCase();
+    return 'text';
+  }
 
-        if (config === 'float') {
-            const value = parseFloat(this.displayValue());
-            if (!isNaN(value)) {
-                this.onValueChange(value.toString());
-            }
-        }
+  onValueChange(value: string): void {
+    const config = (this.param().config ?? '').toLowerCase();
+
+    let cleaned = value;
+
+    if (config === 'int') {
+      cleaned = value.replace(/[^\d]/g, '');
     }
 
-    onInput(event: Event): void {
-        const input = event.target as HTMLInputElement;
-        const config = (this.param().config ?? '').toLowerCase();
-
-        let cleaned = input.value;
-
-        if (config === 'int') {
-            cleaned = cleaned.replace(/[^\d]/g, '');
-        }
-
-        if (config === 'float') {
-            cleaned = cleaned
-                .replace(/[^\d.]/g, '')
-                .replace(/(\..*)\./g, '$1');
-        }
-
-        if (input.value !== cleaned) {
-            input.value = cleaned;
-        }
-
-        this.valueChanged.emit({
-            param: this.param(),
-            value: cleaned
-        });
+    if (config === 'float') {
+      cleaned = value
+        .replace(/[^\d.]/g, '')
+        .replace(/(\..*)\./g, '$1');
     }
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: cleaned
+    });
+  }
+
+  onBlur(): void {
+    const config = (this.param().config ?? '').toLowerCase();
+
+    if (config === 'float') {
+      const value = parseFloat(this.displayValue());
+      if (!isNaN(value)) {
+        this.onValueChange(value.toString());
+      }
+    }
+  }
+
+  onInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const config = (this.param().config ?? '').toLowerCase();
+
+    let cleaned = input.value;
+
+    if (config === 'int') {
+      cleaned = cleaned.replace(/[^\d]/g, '');
+    }
+
+    if (config === 'float') {
+      cleaned = cleaned
+        .replace(/[^\d.]/g, '')
+        .replace(/(\..*)\./g, '$1');
+    }
+
+    if (input.value !== cleaned) {
+      input.value = cleaned;
+    }
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: cleaned
+    });
+  }
 }

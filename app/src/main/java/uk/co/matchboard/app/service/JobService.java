@@ -9,6 +9,7 @@ import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateSchedule;
+import uk.co.matchboard.app.model.product.PhaseSignOff;
 
 public interface JobService {
 
@@ -25,4 +26,6 @@ public interface JobService {
     Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule);
 
     OptionalResult<JobWithOnePart> nextJob(String role);
+
+    OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion);
 }

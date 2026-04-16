@@ -12,7 +12,7 @@ export const jobGuard: CanActivateFn = () => {
     return router.createUrlTree(['/login']);
   }
 
-  if (status.primaryRole === 'none') {
+  if (status.users.length === 0) {
     return router.createUrlTree(['/login']);
   }
 
@@ -25,7 +25,7 @@ export const adminGuard: CanActivateFn = () => {
 
   const status = device.status();
 
-  if (!status || status.primaryRole !== 'ADMIN') {
+  if (!status || status.users[0].role !== 'ADMIN') {
     router.navigate(['/login']);
     return false;
   }

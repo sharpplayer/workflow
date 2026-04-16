@@ -8,8 +8,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.InvalidRoleException;
 import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
-import uk.co.matchboard.app.model.product.PhaseComplete;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
+import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.session.SessionUsers;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
@@ -21,23 +23,27 @@ public class DeviceServiceImpl implements DeviceService {
 
     private final UserService userService;
 
-    public DeviceServiceImpl(SessionService sessionService, UserService userService) {
+    private final JobService jobService;
+
+    public DeviceServiceImpl(SessionService sessionService, UserService userService,
+            JobService jobService) {
         this.sessionService = sessionService;
         this.userService = userService;
+        this.jobService = jobService;
     }
 
     @Override
     public Device registerDevice(String id) {
         return getDevice(id, false).orElseGet(
                 () -> new Device(UUID.randomUUID().toString(), Collections.emptyList(),
-                        false, SessionServiceImpl.ROLE_NONE));
+                        false));
     }
 
     private Optional<Device> getDevice(String id, boolean passwordReset) {
         if (id != null && !id.isBlank()) {
             SessionUsers deviceUsers = sessionService.getUsersOn(id);
             return Optional.of(
-                    new Device(id, deviceUsers.users(), passwordReset, deviceUsers.primaryRole()));
+                    new Device(id, deviceUsers.users(), passwordReset));
         }
         return Optional.empty();
     }
@@ -45,22 +51,21 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     public OptionalResult<Device> registerSession(String id, LoginUser loginUser) {
         Device device = registerDevice(id);
-        if (device.primaryRole().equals(SessionServiceImpl.ROLE_NONE) || device.primaryRole()
-                .equals(loginUser.role()) || loginUser.role().equals(UserServiceImpl.LOGIN_ADMIN)) {
+        if (device.users().isEmpty()) {
             return toOptionalResult(
                     sessionService.startSession(device.deviceId(), loginUser.username(),
                                     loginUser.password(),
                                     loginUser.role())
                             .map(s -> getDevice(device.deviceId(), s.passwordReset())));
         }
-        return OptionalResult.failure(
-                new InvalidRoleException(loginUser.role(), device.primaryRole()));
+        return OptionalResult.of(device);
     }
 
     @Override
     public LoginOptions getOptions(String deviceId, String user) {
         boolean loggedIn = getDevice(deviceId, false)
-                .map(device -> device.users().contains(user)).orElse(false);
+                .map(device -> device.users().stream().anyMatch(i -> i.user().equals(user)))
+                .orElse(false);
         return userService.getOptions(user, loggedIn);
     }
 
@@ -69,6 +74,13 @@ public class DeviceServiceImpl implements DeviceService {
         return sessionService.endSession(deviceId, username)
                 .map(_ -> getDevice(deviceId, false).orElse(null));
     }
+
+    @Override
+    public OptionalResult<Device> deleteSessions(String deviceId) {
+        return sessionService.endSessions(deviceId)
+                .map(_ -> getDevice(deviceId, false).orElse(null));
+    }
+
 
     @Override
     public OptionalResult<Device> updatePassword(String deviceId, LoginUser loginUser) {
@@ -83,7 +95,8 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
-    public OptionalResult<Boolean> completePhase(String deviceId, PhaseComplete completion) {
-        return OptionalResult.of(true);
+    public OptionalResult<JobWithOnePart> signOff(String deviceId, PhaseSignOff completion) {
+        getDevice(deviceId, false);
+        return jobService.signOff(completion);
     }
 }

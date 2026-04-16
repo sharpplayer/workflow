@@ -12,4 +12,5 @@ public interface SessionService {
 
     OptionalResult<Session> endSession(String deviceId, String user);
 
+    OptionalResult<Session> endSessions(String deviceId);
 }
