@@ -1,35 +1,156 @@
-/* Container styling */
-table {
+.phases-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Header styling */
-thead {
-  background-color: #4a90e2; /* nice blue title bar */
+.phases-table thead {
+  background-color: #4a90e2;
   color: white;
 }
 
-thead th {
+.phases-table thead th {
   padding: 12px 15px;
   text-align: left;
   font-size: 1rem;
+  vertical-align: middle;
 }
 
-/* Body rows */
-tbody td {
+/* Caption row is completely independent of column sizing */
+.caption-row .caption-th {
+  padding: 0;
+}
+
+.caption-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding: 8px 12px;
+}
+
+.caption-text {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.toggle-button {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.toggle-icon {
+  display: inline-block;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+/* Stable detail header row */
+.detail-header-row {
+  height: 48px;
+}
+
+.detail-header-row.collapsed {
+  visibility: collapse;
+}
+
+.detail-header-row.collapsed th {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: 0;
+  border-bottom: 0;
+  line-height: 0;
+  font-size: 0;
+  height: 0;
+}
+
+/* Hide body/footer without removing from DOM */
+.collapsed-section {
+  display: none;
+}
+
+.phases-table tbody td {
   padding: 10px 15px;
+  vertical-align: top;
 }
 
-/* Alternating row colors */
-tbody tr:nth-child(even) {
+.phases-table tbody tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
-tbody tr:nth-child(odd) {
+.phases-table tbody tr:nth-child(odd) {
   background-color: #ffffff;
+}
+
+.phases-table tbody tr[cdkDrag] {
+  cursor: default;
+}
+
+.phases-table tbody tr.marked-for-delete {
+  opacity: 0.65;
+}
+
+.drag-column {
+  width: 42px;
+}
+
+.select-column {
+  width: 60px;
+}
+
+.drag-cell {
+  width: 42px;
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.select-cell {
+  width: 60px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 40px;
+  border-radius: 6px;
+  cursor: grab;
+  color: #5f6b7a;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.drag-handle:hover {
+  background-color: rgba(74, 144, 226, 0.12);
+  color: #2f6fad;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.select-cell input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #d32f2f;
 }
 
 .phase-param-table {
@@ -37,6 +158,7 @@ tbody tr:nth-child(odd) {
   box-shadow: none;
   margin-top: 0;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .phase-param-table thead th {
@@ -61,7 +183,6 @@ tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
 
-/* Override alternating row colors for inner table */
 .phase-param-table tbody tr:nth-child(even),
 .phase-param-table tbody tr:nth-child(odd) {
   background-color: #ffffff;
@@ -85,35 +206,23 @@ button:hover {
 
 button:disabled {
   background-color: #959698;
+  cursor: not-allowed;
 }
 
-/* admin-phases-list.component.css */
-
-/* Special Instruction textarea styling */
 textarea.special-instruction {
-    width: 100%;          /* fills the cell width */
-    min-width: 150px;     /* optional: set a sensible minimum */
-    max-width: 400px;     /* optional: cap the width if table is very wide */
-    resize: vertical;     /* allow only vertical resizing */
-    padding: 4px 6px;     /* add some padding for readability */
-    font-size: 14px;      /* readable font size */
-    line-height: 1.4;     /* slightly more spaced lines */
-    box-sizing: border-box; /* includes padding in width calculation */
-    border: 1px solid #ccc; /* subtle border */
-    border-radius: 4px;      /* slightly rounded corners */
-    font-family: inherit;    /* match table font */
-}
-
-/* Optional: make the cell vertically aligned at top */
-td {
-    vertical-align: top;
+  width: 100%;
+  min-width: 150px;
+  max-width: 400px;
+  resize: vertical;
+  padding: 6px 8px;
+  font: inherit;
+  line-height: 1.4;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 
 .add-phase-row {
-  text-align: right;
-}
-
-.phase-actions {
   text-align: right;
 }
 
@@ -128,4 +237,44 @@ td {
 
 .clickable:hover {
   opacity: 0.8;
+}
+
+.cdk-drag-preview {
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+
+.cdk-drag-animating {
+  transition: transform 200ms ease;
+}
+
+.cdk-drop-list-dragging tr:not(.cdk-drag-placeholder) {
+  transition: transform 200ms ease;
+}
+
+.col-drag {
+  width: 42px;
+}
+
+.col-select {
+  width: 60px;
+}
+
+.col-phase {
+  width: 70px;
+}
+
+.col-instruction {
+  width: 320px;
+}
+
+.col-empty {
+  width: 40px;
 }
