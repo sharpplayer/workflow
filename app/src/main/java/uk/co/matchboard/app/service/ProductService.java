@@ -4,7 +4,6 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.Phases;
-import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.product.Products;
 
 public interface ProductService {

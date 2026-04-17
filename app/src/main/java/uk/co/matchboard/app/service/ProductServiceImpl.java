@@ -1,10 +1,13 @@
 package uk.co.matchboard.app.service;
 
-import java.lang.reflect.Method;
+import static uk.co.matchboard.app.service.ConfigurationServiceImpl.BOOLEANS;
+
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.springframework.lang.NonNull;
@@ -29,16 +32,12 @@ public class ProductServiceImpl implements ProductService {
 
     public static final Product EXAMPLE_PRODUCT = new Product(0, "prod", "sage", 1234, 567, 8,
             "pitch", "edge", "finish",
-            "profile", "material", "owner", "12",
-            List.of("machine1", "machine2", "machine3"), true);
+            "profile", "material", "owner", 12,
+            List.of("machine1", "machine2", "machine3"), 80, true);
 
     private record PhaseParamKey(int id, int order) {
 
     }
-
-    private static final List<String> BOOLEANS = Arrays.asList("", "Y", "y", "Yes", "YES", "True",
-            "true",
-            "T");
 
     private final DatabaseService databaseService;
 
@@ -65,28 +64,31 @@ public class ProductServiceImpl implements ProductService {
 
                     Map<String, Product> dbMap = dbList.stream()
                             .collect(Collectors.toMap(Product::name, p -> p));
+                    return databaseService.getAllMachines()
+                            .flatMap(machines -> Result.sequence(sageList.stream()
+                                    .map(sage -> {
+                                        Set<String> machineSet = machines.stream()
+                                                .map(i -> i.name())
+                                                .collect(Collectors.toCollection(HashSet::new));
+                                        Product existing = dbMap.get(sage.number());
+                                        Result<Product> expected = createProduct(sage, machineSet);
 
-                    return Result.sequence(sageList.stream()
-                            .map(sage -> {
-                                Product existing = dbMap.get(sage.number());
-                                Result<Product> expected = createProduct(sage);
-
-                                if (existing != null) {
-                                    return expected.flatMap(e -> {
-                                        if (existing.equals(e)) {
-                                            return Result.of(existing);
+                                        if (existing != null) {
+                                            return expected.flatMap(e -> {
+                                                if (existing.equals(e)) {
+                                                    return Result.of(existing);
+                                                } else {
+                                                    changeFlag.set(true);
+                                                    return databaseService.updateProduct(e);
+                                                }
+                                            });
                                         } else {
                                             changeFlag.set(true);
-                                            return databaseService.updateProduct(e);
+                                            return expected.flatMap(
+                                                    databaseService::createProduct);
                                         }
-                                    });
-                                } else {
-                                    changeFlag.set(true);
-                                    return expected.flatMap(
-                                            databaseService::createProduct);
-                                }
-                            })
-                            .toList());
+                                    })
+                                    .toList()));
                 })
         );
 
@@ -197,7 +199,7 @@ public class ProductServiceImpl implements ProductService {
                                 ex.getMessage()));
     }
 
-    private Result<Product> createProduct(SageProduct product) {
+    private Result<Product> createProduct(SageProduct product, Set<String> machines) {
         var dims = product.dimensions().split("x");
         if (dims.length != 2) {
             return Result.failure(
@@ -207,7 +209,7 @@ public class ProductServiceImpl implements ProductService {
         var rack = parseDimension(product.rackType(), "Rack Type", product);
         if (rack.isFaulted()) {
             return Result.failure(
-                    new BadValueException(product.number(), "Rack type", product.rackType(),
+                    new BadValueException(product.number(), "Rack Type", product.rackType(),
                             "Integer required"));
         }
         if (product.machinery().isEmpty()) {
@@ -220,28 +222,66 @@ public class ProductServiceImpl implements ProductService {
                     new BadValueException(product.number(), "Finish", product.finish(),
                             "Finish required"));
         }
-        var widthR = parseDimension(dims[1], "Width", product);
+        var packSizeR = parseDimension(product.packSize(), "Pack Size", product);
+        if (packSizeR.isFaulted()) {
+            return Result.failure(
+                    new BadValueException(product.number(), "Pack Size", product.packSize(),
+                            "Integer required"));
+        }
+
+        List<String> productMachines = Arrays.stream(product.machinery().split(";"))
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .toList();
+        if (configurationService.hasPossibleTypos(productMachines, machines)) {
+            return Result.failure(
+                    new BadValueException(product.number(), "Machinery", product.machinery(),
+                            "Possible typo in machinery"));
+        }
+
         var lengthR = parseDimension(dims[0], "Length", product);
+        var widthR = parseDimension(dims[1], "Width", product);
+        if (!product.format().equals("LANDSCAPE") && !product.format().equals("PORTRAIT")) {
+            return Result.failure(
+                    new BadValueException(product.number(), "Format", product.format(),
+                            "LANDSCAPE or PORTRAIT"));
+        }
         var thicknessR = parseDimension(product.thickness(), "Thickness", product);
-        return Result.combine(widthR, lengthR, thicknessR, (width, length, thickness) ->
-                new Product(
-                        0,
-                        deriveNameFrom(product),
-                        product.number(),
-                        width,
-                        length,
-                        thickness,
-                        product.pitch(),
-                        product.edge(),
-                        product.finish(),
-                        product.profile(),
-                        product.material(),
-                        product.owner(),
-                        product.rackType(),
-                        Arrays.stream(product.machinery().split(";")).map(String::trim)
-                                .toList(),
-                        BOOLEANS.contains(product.enabled())
-                )
+        var rackTypeR = parseDimension(product.rackType(), "Rack Type", product);
+        if (rackTypeR.isFaulted()) {
+            return Result.failure(
+                    new BadValueException(product.number(), "Rack Type", product.packSize(),
+                            "Integer required"));
+        }
+
+        return Result.flatCombine(widthR, lengthR, thicknessR, rackTypeR, packSizeR,
+                (width, length, thickness, rackType, packSize) -> {
+                    if (product.format().equals("LANDSCAPE") == (width < length)) {
+                        return Result.failure(
+                                new BadValueException(product.number(), "Dimensions",
+                                        product.dimensions(),
+                                        "Dimensions do not match " + product.format()));
+                    }
+
+                    return Result.of(new Product(
+                            0,
+                            deriveNameFrom(product),
+                            product.number(),
+                            width,
+                            length,
+                            thickness,
+                            product.pitch(),
+                            product.edge(),
+                            product.finish(),
+                            product.profile(),
+                            product.material(),
+                            product.owner(),
+                            rackType,
+                            productMachines,
+                            packSize,
+                            BOOLEANS.contains(product.enabled())
+                    ));
+                }
         );
     }
 

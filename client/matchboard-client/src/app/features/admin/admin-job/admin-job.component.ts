@@ -194,7 +194,7 @@ export class AdminJobComponent {
     crossJobParams = input<CrossJobParameters>({
         jobId: 0,
         jobNumber: 0,
-        paymentReceived: false,
+        paymentConfirmed: '',
         dueDate: '',
         customer: '',
         carrier: '',
@@ -258,7 +258,7 @@ export class AdminJobComponent {
         const cross = this.crossJobParams();
         const selected = this.selectedPart();
 
-        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: cross.paymentReceived ? 'true' : 'false' };
+        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: cross.paymentConfirmed ? 'true' : 'false' };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: cross.dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: cross.customer };
         const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: cross.carrier };
@@ -327,7 +327,7 @@ export class AdminJobComponent {
 
         const current = this.crossJobParams();
 
-        const paymentParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId)?.value === 'true';
+        const paymentParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId)?.value ?? '';
         const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId)?.value ?? '';
         const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_CUSTOMER.phaseParamId)?.value ?? '';
         const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId)?.value ?? '';
@@ -339,7 +339,7 @@ export class AdminJobComponent {
         const newValue: CrossJobParameters = {
             jobId: current.jobId,
             jobNumber: current.jobNumber,
-            paymentReceived: paymentParam,
+            paymentConfirmed: paymentParam,
             dueDate: dueDateParam,
             customer: customerParam,
             carrier: carrierParam,
@@ -349,7 +349,7 @@ export class AdminJobComponent {
         };
 
         const hasChanged =
-            (newValue.paymentReceived !== current.paymentReceived) ||
+            (newValue.paymentConfirmed !== current.paymentConfirmed) ||
             (newValue.dueDate !== current.dueDate) ||
             (newValue.customer !== current.customer) ||
             (newValue.carrier !== current.carrier) ||

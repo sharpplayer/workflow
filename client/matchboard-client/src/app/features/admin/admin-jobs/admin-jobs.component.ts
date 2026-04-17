@@ -18,14 +18,12 @@ import {
     CreateJobPart,
     CreateJobPartParam,
     CreateJobPartPhase,
-    Job,
     JobPart,
     JobService,
     JobStatus,
     JobStatusLabel
 } from '../../../core/services/job.service';
 import { ActivatedRoute } from '@angular/router';
-import { PhaseParam } from '../../../core/services/product.service';
 import { PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
 import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
 
@@ -37,7 +35,7 @@ export interface ProductSelectedWithMap extends ProductSave {
 export interface CrossJobParameters {
     jobId: number,
     jobNumber: number,
-    paymentReceived: boolean,
+    paymentConfirmed: string,
     dueDate: string,
     customer: string,
     carrier: string,
@@ -163,7 +161,7 @@ export class AdminJobsComponent implements OnInit {
     crossJobParams = signal<CrossJobParameters>({
         jobId: 0,
         jobNumber: 0,
-        paymentReceived: false,
+        paymentConfirmed: '',
         dueDate: '',
         customer: '',
         carrier: '',
@@ -194,7 +192,7 @@ export class AdminJobsComponent implements OnInit {
             this.crossJobParams.set({
                 jobId: job.id,
                 jobNumber: job.number,
-                paymentReceived: job.paymentReceived,
+                paymentConfirmed: job.paymentConfirmed ? this.toDateInputValue(job.paymentConfirmed) : '',
                 dueDate: job.due ? this.toDateInputValue(job.due) : '',
                 customer: String(job.customer),
                 carrier: String(job.carrier),
@@ -377,7 +375,7 @@ export class AdminJobsComponent implements OnInit {
             this.crossJobParams.set({
                 jobId: 0,
                 jobNumber: 0,
-                paymentReceived: false,
+                paymentConfirmed: '',
                 dueDate: '',
                 customer: '',
                 carrier: '',
@@ -408,7 +406,7 @@ export class AdminJobsComponent implements OnInit {
         const params = job.params.map(p => {
             switch (p.phaseParamId) {
                 case PHASE_PARAM_ID_PAYMENT:
-                    return { ...p, value: String(cross.paymentReceived) };
+                    return { ...p, value: cross.paymentConfirmed };
                 case PHASE_PARAM_ID_CALLOFF: // call off
                     return { ...p, value: String(cross.callOff) };
                 case PHASE_PARAM_ID_DUE_DATE:
@@ -465,7 +463,7 @@ export class AdminJobsComponent implements OnInit {
             customer: Number(crossJobParams.customer),
             carrier: Number(crossJobParams.carrier),
             callOff: crossJobParams.callOff,
-            paymentReceived: crossJobParams.paymentReceived,
+            paymentConfirmed: new Date(crossJobParams.paymentConfirmed).toISOString(),
             parts: jobParts.map((jobPart): CreateJobPart => ({
                 productId: jobPart.product.id,
                 quantity: Number(jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_QUANTITY)!.value),
@@ -490,7 +488,7 @@ export class AdminJobsComponent implements OnInit {
     }
 
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
-        if (!this.crossJobParams().paymentReceived && !this.crossJobParams().callOff) {
+        if (!this.crossJobParams().paymentConfirmed && !this.crossJobParams().callOff) {
             return 'Unpaid';
         }
 

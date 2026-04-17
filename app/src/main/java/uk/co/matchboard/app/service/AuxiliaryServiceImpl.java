@@ -1,14 +1,21 @@
 package uk.co.matchboard.app.service;
 
+import static uk.co.matchboard.app.service.ConfigurationServiceImpl.BOOLEANS;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
+import uk.co.matchboard.app.model.sage.SageCustomer;
 
 @Service
 public class AuxiliaryServiceImpl implements AuxiliaryService {
@@ -19,14 +26,12 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
 
     private final DatabaseService databaseService;
 
-    public AuxiliaryServiceImpl(DatabaseService databaseService) {
-        this.databaseService = databaseService;
-    }
+    private final SageInterfaceService sageInterfaceService;
 
-    @Override
-    public Result<ConfigResponse> getCustomers() {
-        return databaseService.getCustomers().map(list -> new ConfigResponse(CONFIG_CUSTOMER, list.stream()
-                .map(AuxiliaryServiceImpl::getCustomerKeyPair), "string[]"));
+    public AuxiliaryServiceImpl(DatabaseService databaseService,
+            SageInterfaceService sageInterfaceService) {
+        this.databaseService = databaseService;
+        this.sageInterfaceService = sageInterfaceService;
     }
 
     @NonNull
@@ -43,18 +48,77 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
 
     @Override
     public Result<ConfigResponse> getCarriers() {
-        return databaseService.getCarriers().map(list -> new ConfigResponse(CONFIG_CARRIER, list.stream()
-                .map(c -> new KeyValuePair(Integer.toString(c.id()),
-                        c.name() + " (" + c.code() + ")")), "string[]"));
+        return databaseService.getCarriers()
+                .map(list -> new ConfigResponse(CONFIG_CARRIER, list.stream()
+                        .map(c -> new KeyValuePair(Integer.toString(c.id()),
+                                c.name() + " (" + c.code() + ")")), "string[]"));
     }
 
-    @Override
-    public Result<KeyValuePair> createCustomer(CreateCustomer customer) {
-        return databaseService.createCustomer(customer).map(AuxiliaryServiceImpl::getCustomerKeyPair);
+    private Result<Customer> createCustomer(SageCustomer customer) {
+        return Result.of(new Customer(
+                0,
+                customer.code(),
+                customer.name(),
+                customer.zone(),
+                customer.contact(),
+                customer.contactNumber(),
+                BOOLEANS.contains(customer.proforma()),
+                BOOLEANS.contains(customer.enabled())
+        ));
     }
 
     @Override
     public Result<KeyValuePair> createCarrier(CreateCarrier carrier) {
         return databaseService.createCarrier(carrier).map(AuxiliaryServiceImpl::getCarrierKeyPair);
+    }
+
+    @Override
+    public Result<ConfigResponse> getCustomers() {
+        Result<List<SageCustomer>> sageResult = sageInterfaceService.readCustomersFromFile(
+                "cusomers.csv");
+        Result<List<Customer>> dbResult = databaseService.getCustomers();
+
+        AtomicBoolean changeFlag = new AtomicBoolean(false);
+        Result<List<Customer>> updateResult = sageResult.flatMap(sageList ->
+                dbResult.flatMap(dbList -> {
+
+                    Map<String, Customer> dbMap = dbList.stream()
+                            .collect(Collectors.toMap(Customer::code, p -> p));
+
+                    return Result.sequence(sageList.stream()
+                            .map(sage -> {
+                                Customer existing = dbMap.get(sage.code());
+                                Result<Customer> expected = createCustomer(sage);
+
+                                if (existing != null) {
+                                    return expected.flatMap(e -> {
+                                        if (existing.equals(e)) {
+                                            return Result.of(existing);
+                                        } else {
+                                            changeFlag.set(true);
+                                            return databaseService.updateCustomer(e);
+                                        }
+                                    });
+                                } else {
+                                    changeFlag.set(true);
+                                    return expected.flatMap(
+                                            databaseService::createCustomer);
+                                }
+                            })
+                            .toList());
+                })
+        );
+
+        Result<List<Customer>> latest =
+                changeFlag.get() ? databaseService.getCustomers() : dbResult;
+
+        return latest.map(list -> list.stream()
+                        .map(customer -> new KeyValuePair(
+                                Integer.toString(customer.id()),
+                                customer.name() + " (" + (customer.proforma() ? "*" : "") + ")"))
+                        .sorted(Comparator.comparing(KeyValuePair::value))
+                        .toList())
+                .map(list -> new ConfigResponse("CUSTOMERS", list,
+                        updateResult.fold(_ -> "", Throwable::getMessage)));
     }
 }

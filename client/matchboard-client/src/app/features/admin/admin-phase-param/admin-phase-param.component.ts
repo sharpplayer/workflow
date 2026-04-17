@@ -10,7 +10,6 @@ import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/m
 import moment, { Moment } from 'moment';
 import { NgSelectModule } from '@ng-select/ng-select';
 import { FormsModule } from '@angular/forms';
-import { AdminCustomerComponent, CustomerFormModel } from '../admin-customer/admin-customer.component';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
 
 export interface PhaseParamValidationError {
@@ -63,7 +62,6 @@ export interface PhaseParamSelected {
     MatMomentDateModule,
     NgSelectModule,
     FormsModule,
-    AdminCustomerComponent,
     AdminCarrierComponent
   ],
   providers: [
@@ -191,14 +189,6 @@ export interface PhaseParamSelected {
   </tbody>
 </table>
 
-<admin-customer
-  [visible]="showCustomerModal()"
-  [saving]="savingCustomer()"
-  [model]="customerFormData()"
-  (save)="submitCustomerModal($event)"
-  (cancel)="closeCustomerModal()"
-/>
-
 <admin-carrier
   [visible]="showCarrierModal()"
   [saving]="savingCarrier()"
@@ -218,10 +208,6 @@ export class AdminPhaseParamComponent {
   paramsSelected = output<PhaseParamSelected[]>();
 
   filteredParams = signal<PhaseParamData[]>([]);
-
-  showCustomerModal = signal(false);
-  savingCustomer = signal(false);
-  customerFormData = signal<CustomerFormModel | null>(null);
 
   showCarrierModal = signal(false);
   savingCarrier = signal(false);
@@ -369,19 +355,6 @@ export class AdminPhaseParamComponent {
   addItem(param: PhaseParamData) {
     const configName = param.paramConfig?.toLowerCase();
 
-    if (configName === 'customer') {
-      this.selectedParamForAdd.set(param);
-      this.customerFormData.set({
-        code: '',
-        name: '',
-        zone: '',
-        contact: '',
-        contactNumber: ''
-      });
-      this.showCustomerModal.set(true);
-      return;
-    }
-
     if (configName === 'carrier') {
       this.selectedParamForAdd.set(param);
       this.carrierFormData.set({
@@ -395,53 +368,10 @@ export class AdminPhaseParamComponent {
     console.error(`Add item modal not implemented for paramConfig: ${param.paramConfig}`);
   }
 
-  closeCustomerModal() {
-    this.showCustomerModal.set(false);
-    this.selectedParamForAdd.set(null);
-    this.customerFormData.set(null);
-  }
-
   closeCarrierModal() {
     this.showCarrierModal.set(false);
     this.selectedParamForAdd.set(null);
     this.carrierFormData.set(null);
-  }
-
-  async submitCustomerModal(form: CustomerFormModel) {
-    const param = this.selectedParamForAdd();
-    if (!param) return;
-
-    try {
-      this.savingCustomer.set(true);
-
-      const newItem = await this.configService.addItem(param.paramConfig, {
-        code: form.code,
-        name: form.name,
-        zone: form.zone,
-        contact: form.contact,
-        contactNumber: form.contactNumber
-      });
-
-      this.filteredParams.update(params =>
-        params.map(p =>
-          p.phaseParamId === param.phaseParamId
-            ? {
-              ...p,
-              options: [...p.options, newItem],
-              value: newItem.key
-            }
-            : p
-        )
-      );
-
-      this.emitChanges();
-      this.closeCustomerModal();
-    } catch (err) {
-      console.error('Failed to add new customer item', err);
-      alert('Failed to add new item');
-    } finally {
-      this.savingCustomer.set(false);
-    }
   }
 
   async submitCarrierModal(form: CarrierFormModel) {

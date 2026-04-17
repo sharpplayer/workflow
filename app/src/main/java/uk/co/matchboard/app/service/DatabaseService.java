@@ -10,7 +10,6 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
@@ -21,6 +20,7 @@ import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
@@ -64,7 +64,7 @@ public interface DatabaseService {
 
     Result<List<Carrier>> getCarriers();
 
-    Result<Customer> createCustomer(CreateCustomer customer);
+    Result<Customer> createCustomer(Customer customer);
 
     Result<Carrier> createCarrier(CreateCarrier carrier);
 
@@ -94,4 +94,8 @@ public interface DatabaseService {
     Result<Boolean> signOff(Map<Integer, String> signOffParams);
 
     Result<List<JobPartParam>> getJobPartParams(Integer paramId);
+
+    Result<Customer> updateCustomer(Customer customer);
+
+    Result<List<Machine>> getAllMachines();
 }

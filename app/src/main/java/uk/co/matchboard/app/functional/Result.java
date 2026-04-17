@@ -64,11 +64,13 @@ public class Result<T> {
         return Result.of(mapper.apply(ra.value, rb.value));
     }
 
-    public static <A, B, C, R> Result<R> combine(
+    public static <A, B, C, D, E, R> Result<R> flatCombine(
             Result<A> ra,
             Result<B> rb,
             Result<C> rc,
-            TriFunction<A, B, C, R> mapper
+            Result<D> rd,
+            Result<E> re,
+            Function5<A, B, C, D, E, Result<R>> mapper
     ) {
         if (ra.isFaulted()) {
             return Result.failure(ra.exception);
@@ -79,8 +81,14 @@ public class Result<T> {
         if (rc.isFaulted()) {
             return Result.failure(rc.exception);
         }
+        if (rd.isFaulted()) {
+            return Result.failure(rd.exception);
+        }
+        if (re.isFaulted()) {
+            return Result.failure(re.exception);
+        }
 
-        return Result.of(mapper.apply(ra.value, rb.value, rc.value));
+        return mapper.apply(ra.value, rb.value, rc.value, rd.value, re.value);
     }
 
     @SuppressWarnings("unchecked")

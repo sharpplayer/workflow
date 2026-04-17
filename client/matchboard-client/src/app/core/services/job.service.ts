@@ -86,7 +86,7 @@ export interface Job {
   customer: number | null;
   carrier: number | null;
   callOff: boolean;
-  paymentReceived: boolean;
+  paymentConfirmed: Date;
   parts: JobPart[];
   status: number;
 }
@@ -115,7 +115,7 @@ export interface JobWithOnePart {
   customer: Customer | null;
   carrier: Carrier | null;
   callOff: boolean;
-  paymentReceived: boolean;
+  paymentConfirmed: Date;
   part: JobPart;
   status: number;
   partNumber: number;
@@ -149,7 +149,7 @@ export interface CreateJob {
   customer: number;
   carrier: number;
   callOff: boolean;
-  paymentReceived: boolean;
+  paymentConfirmed: string;
   parts: CreateJobPart[];
 }
 

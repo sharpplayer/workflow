@@ -90,7 +90,7 @@ public class JobServiceImpl implements JobService {
     }
 
     private static boolean isSchedulable(CreateJob job, CreateJobPart p, JobStatus jobStatus) {
-        return job.paymentReceived() && p.scheduleFor() != null && p.materialAvailable()
+        return job.paymentConfirmed() != null && p.scheduleFor() != null && p.materialAvailable()
                 && jobStatus != JobStatus.SAVED;
     }
 
@@ -295,7 +295,7 @@ public class JobServiceImpl implements JobService {
             JobPartParam param = params.get(i);
             String config = param.config();
 
-            if (!isSignConfig(config)) {
+            if (isNonSignConfig(config)) {
                 continue;
             }
 
@@ -313,7 +313,7 @@ public class JobServiceImpl implements JobService {
         for (int i = 0; i < firstEmptyRoleIndex; i++) {
             JobPartParam param = params.get(i);
 
-            if (!isSignConfig(param.config())) {
+            if (isNonSignConfig(param.config())) {
                 continue;
             }
 
@@ -327,8 +327,8 @@ public class JobServiceImpl implements JobService {
         return Result.of(true);
     }
 
-    private boolean isSignConfig(String config) {
-        return config != null && config.startsWith("SIGN(") && config.endsWith(")");
+    private boolean isNonSignConfig(String config) {
+        return config == null || !config.startsWith("SIGN(") || !config.endsWith(")");
     }
 
     private String extractSignRole(String config) {

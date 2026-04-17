@@ -1,7 +1,6 @@
 package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.product.PhaseSignOff;

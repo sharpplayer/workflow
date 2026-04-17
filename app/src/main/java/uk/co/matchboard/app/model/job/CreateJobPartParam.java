@@ -1,5 +1,5 @@
 package uk.co.matchboard.app.model.job;
 
-public record CreateJobPartParam(int paramId, int phaseNumber, String value, int jobPartPhaseId) {
+public record CreateJobPartParam(int paramId, int phaseNumber, String value, int jobPartPhaseId, boolean perPack) {
 
 }

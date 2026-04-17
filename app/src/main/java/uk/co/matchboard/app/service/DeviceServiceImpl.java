@@ -6,9 +6,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-import uk.co.matchboard.app.exception.InvalidRoleException;
 import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
@@ -80,7 +78,6 @@ public class DeviceServiceImpl implements DeviceService {
         return sessionService.endSessions(deviceId)
                 .map(_ -> getDevice(deviceId, false).orElse(null));
     }
-
 
     @Override
     public OptionalResult<Device> updatePassword(String deviceId, LoginUser loginUser) {

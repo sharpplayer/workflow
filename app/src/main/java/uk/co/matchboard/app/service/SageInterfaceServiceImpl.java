@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.KeyValuePair;
+import uk.co.matchboard.app.model.sage.SageCustomer;
 import uk.co.matchboard.app.model.sage.SageProduct;
 
 @Service
@@ -38,7 +39,7 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                         .with(schema)
                         .readValues(inputStream);
 
-                return configService.getConfig("SAGECSV")
+                return configService.getConfig("PRODUCTCSV")
                         .map(config -> ((List<KeyValuePair>) config.value()).stream()
                                 .map(s -> s.value().split("=", 2))        // split on first '=' only
                                 .filter(arr -> arr.length == 2)
@@ -48,7 +49,37 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                                 ))).flatMapTry(headerMapping ->
 
                                 Result.sequence(it.readAll().stream()
-                                        .map(row -> SageProduct.fromMap(row, headerMapping)).toList()));
+                                        .map(row -> SageProduct.fromMap(row, headerMapping))
+                                        .toList()));
+
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Result<List<SageCustomer>> readCustomersFromFile(String csvFile) {
+        return TryUtils.tryCatchResult(() -> {
+            try (InputStream inputStream = new FileInputStream(csvFile)) {
+                CsvSchema schema = CsvSchema.emptySchema().withHeader();
+
+                MappingIterator<Map<String, String>> it = mapper
+                        .readerFor(Map.class)
+                        .with(schema)
+                        .readValues(inputStream);
+
+                return configService.getConfig("CUSTOMERCSV")
+                        .map(config -> ((List<KeyValuePair>) config.value()).stream()
+                                .map(s -> s.value().split("=", 2))        // split on first '=' only
+                                .filter(arr -> arr.length == 2)
+                                .collect(Collectors.toMap(
+                                        arr -> arr[0].trim(),
+                                        arr -> arr[1].trim()
+                                ))).flatMapTry(headerMapping ->
+
+                                Result.sequence(it.readAll().stream()
+                                        .map(row -> SageCustomer.fromMap(row, headerMapping))
+                                        .toList()));
 
             }
         });

@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.service.AuxiliaryService;
 import uk.co.matchboard.app.service.AuxiliaryServiceImpl;
 import uk.co.matchboard.app.service.ConfigurationService;
@@ -42,12 +41,6 @@ public class ConfigurationController {
             default -> configurationService.getConfig(configName);
         };
         return result.fold(d -> ResponseEntity.ok().body(d),
-                ExceptionHandler::toResponse);
-    }
-
-    @PostMapping("config/customer")
-    public ResponseEntity<?> createCustomer(@RequestBody CreateCustomer customer) {
-        return auxiliaryService.createCustomer(customer).fold(d -> ResponseEntity.ok().body(d),
                 ExceptionHandler::toResponse);
     }
 

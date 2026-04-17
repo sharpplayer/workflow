@@ -1,17 +1,17 @@
 CREATE TABLE job
 (
-    id               SERIAL PRIMARY KEY,
-    number           BIGINT      NOT NULL UNIQUE,
-    parts            INTEGER     NOT NULL,
-    due              TIMESTAMPTZ NOT NULL,
-    customer_id      INTEGER,
-    carrier_id       INTEGER,
-    call_off         BOOLEAN     NOT NULL DEFAULT FALSE,
-    payment_received BOOLEAN     NOT NULL DEFAULT FALSE,
-    status           INTEGER     NOT NULL,
-    started_at       TIMESTAMPTZ,
-    completed_at     TIMESTAMPTZ,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id                SERIAL PRIMARY KEY,
+    number            BIGINT      NOT NULL UNIQUE,
+    parts             INTEGER     NOT NULL,
+    due               TIMESTAMPTZ NOT NULL,
+    customer_id       INTEGER,
+    carrier_id        INTEGER,
+    call_off          BOOLEAN     NOT NULL DEFAULT FALSE,
+    payment_confirmed TIMESTAMPTZ,
+    status            INTEGER     NOT NULL,
+    started_at        TIMESTAMPTZ,
+    completed_at      TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_job_status ON job (status);
@@ -50,7 +50,7 @@ CREATE TABLE job_part_phases
     job_part_id         INTEGER     NOT NULL,
     phase_id            INTEGER     NOT NULL,
     phase_number        INTEGER     NOT NULL,
-    special_instruction VARCHAR(256),
+    special_instruction TEXT,
     status              INTEGER     NOT NULL,
     started_at          TIMESTAMPTZ,
     completed_at        TIMESTAMPTZ,
@@ -66,10 +66,12 @@ CREATE TABLE job_part_params
 (
     id                SERIAL PRIMARY KEY,
     job_part_phase_id INTEGER     NOT NULL,
-    name              VARCHAR(50) NOT NULL,
-    config            VARCHAR(50) NOT NULL,
+    name              TEXT NOT NULL,
+    config            TEXT NOT NULL,
     input             INTEGER     NOT NULL,
-    value             VARCHAR(50),
+    value             TEXT,
+    status            INTEGER     NOT NULL,
+    pack              INTEGER     NOT NULL,
     "order"           INTEGER     NOT NULL,
     valued_at         TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

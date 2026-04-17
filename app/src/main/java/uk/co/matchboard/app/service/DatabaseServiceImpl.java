@@ -8,9 +8,11 @@ import static uk.co.matchboard.generated.Tables.JOB;
 import static uk.co.matchboard.generated.Tables.JOB_PART;
 import static uk.co.matchboard.generated.Tables.JOB_PART_PARAMS;
 import static uk.co.matchboard.generated.Tables.JOB_PART_PHASES;
+import static uk.co.matchboard.generated.Tables.MACHINES;
 import static uk.co.matchboard.generated.Tables.PHASE;
 import static uk.co.matchboard.generated.Tables.PHASE_PARAM;
 import static uk.co.matchboard.generated.Tables.PRODUCTS;
+import static uk.co.matchboard.generated.Tables.PRODUCT_MACHINES;
 import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
@@ -43,7 +45,6 @@ import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.CreateCustomer;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
@@ -58,6 +59,7 @@ import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
@@ -115,7 +117,14 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @NonNull
-    private static Product getProduct(ProductsRecord rec) {
+    private static Product getProduct(ProductsRecord rec, DSLContext dsl) {
+        List<String> machinery = dsl.select(MACHINES.NAME)
+                .from(PRODUCT_MACHINES)
+                .join(MACHINES).on(MACHINES.ID.eq(PRODUCT_MACHINES.MACHINE_ID))
+                .where(PRODUCT_MACHINES.PRODUCT_ID.eq(rec.getId()))
+                .orderBy(PRODUCT_MACHINES.STEP_NUMBER.asc())
+                .fetch(MACHINES.NAME);
+
         return new Product(rec.getId(),
                 rec.getName(),
                 rec.getOldName(),
@@ -128,8 +137,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.getProfile(),
                 rec.getMaterial(),
                 rec.getOwner(),
-                rec.getRackType(),
-                List.of(rec.getMachinery()),
+                1, //rec.getRackType(),
+                machinery,
+                rec.getPackSize(),
                 rec.getEnabled());
     }
 
@@ -199,36 +209,94 @@ public class DatabaseServiceImpl implements DatabaseService {
     public Result<List<Product>> getProducts() {
         return TryUtils.tryCatch(() ->
                 outerDsl.selectFrom(PRODUCTS)
-                        .fetch(DatabaseServiceImpl::getProduct));
-
+                        .fetch(record -> getProduct(record, outerDsl))
+        );
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Product> createProduct(Product product) {
-        return TryUtils.tryCatch(() -> outerDsl.insertInto(PRODUCTS)
-                        .set(PRODUCTS.NAME, product.name())
-                        .set(PRODUCTS.OLD_NAME, product.oldName())
-                        .set(PRODUCTS.WIDTH, product.width())
-                        .set(PRODUCTS.LENGTH, product.length())
-                        .set(PRODUCTS.THICKNESS, product.thickness())
-                        .set(PRODUCTS.PROFILE, product.profile())
-                        .set(PRODUCTS.MATERIAL, product.material())
-                        .set(PRODUCTS.OWNER, product.owner())
-                        .set(PRODUCTS.EDGE, product.edge())
-                        .set(PRODUCTS.PITCH, product.pitch())
-                        .set(PRODUCTS.RACK_TYPE, product.rackType())
-                        .set(PRODUCTS.FINISH, product.finish())
-                        .set(PRODUCTS.MACHINERY, product.machinery().toArray(new String[0]))
-                        .set(PRODUCTS.ENABLED, product.enabled())
-                        .returning(PRODUCTS.ID)
-                        .fetchOne(PRODUCTS.ID))
-                .map(id -> new Product(id, product.name(), product.oldName(),
-                        product.width(), product.length(), product.thickness(), product.pitch(),
-                        product.edge(), product.finish(), product.profile(), product.material(),
-                        product.owner(), product.rackType(), product.machinery(),
-                        product.enabled()));
+        return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+            DSLContext dsl = configuration.dsl();
+
+            Integer productId = dsl.insertInto(PRODUCTS)
+                    .set(PRODUCTS.NAME, product.name())
+                    .set(PRODUCTS.OLD_NAME, product.oldName())
+                    .set(PRODUCTS.WIDTH, product.width())
+                    .set(PRODUCTS.LENGTH, product.length())
+                    .set(PRODUCTS.THICKNESS, product.thickness())
+                    .set(PRODUCTS.PROFILE, product.profile())
+                    .set(PRODUCTS.MATERIAL, product.material())
+                    .set(PRODUCTS.OWNER, product.owner())
+                    .set(PRODUCTS.EDGE, product.edge())
+                    .set(PRODUCTS.PITCH, product.pitch())
+                    //.set(PRODUCTS.RACK_TYPE, product.rackType())
+                    .set(PRODUCTS.FINISH, product.finish())
+                    .set(PRODUCTS.PACK_SIZE, product.packSize())
+                    .set(PRODUCTS.ENABLED, product.enabled())
+                    .returning(PRODUCTS.ID)
+                    .fetchOne(PRODUCTS.ID);
+
+            if (productId == null) {
+                throw new DataAccessException("Failed to insert product, no ID returned") {
+                };
+            }
+
+            List<String> machinery = product.machinery();
+            if (machinery != null && !machinery.isEmpty()) {
+                for (int i = 0; i < machinery.size(); i++) {
+                    String machineName = machinery.get(i);
+
+                    Integer machineId = dsl.select(MACHINES.ID)
+                            .from(MACHINES)
+                            .where(MACHINES.NAME.eq(machineName))
+                            .fetchOne(MACHINES.ID);
+
+                    if (machineId == null) {
+                        throw new DataAccessException("Unknown machine: " + machineName) {
+                        };
+                    }
+
+                    dsl.insertInto(PRODUCT_MACHINES)
+                            .set(PRODUCT_MACHINES.PRODUCT_ID, productId)
+                            .set(PRODUCT_MACHINES.STEP_NUMBER, i + 1)
+                            .set(PRODUCT_MACHINES.MACHINE_ID, machineId)
+                            .execute();
+                }
+            }
+
+            return new Product(
+                    productId,
+                    product.name(),
+                    product.oldName(),
+                    product.width(),
+                    product.length(),
+                    product.thickness(),
+                    product.pitch(),
+                    product.edge(),
+                    product.finish(),
+                    product.profile(),
+                    product.material(),
+                    product.owner(),
+                    product.rackType(),
+                    product.machinery(),
+                    product.packSize(),
+                    product.enabled()
+            );
+        }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<Machine>> getAllMachines() {
+        return Result.of(outerDsl.select(MACHINES.ID, MACHINES.NAME)
+                .from(MACHINES)
+                .fetch(record -> new Machine(
+                        record.get(MACHINES.ID),
+                        record.get(MACHINES.NAME)
+                )));
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -262,24 +330,60 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Product> updateProduct(Product product) {
-        return TryUtils.tryCatch(() -> outerDsl.update(PRODUCTS)
-                        .set(PRODUCTS.NAME, product.name())
-                        .set(PRODUCTS.OLD_NAME, product.oldName())
-                        .set(PRODUCTS.WIDTH, product.width())
-                        .set(PRODUCTS.LENGTH, product.length())
-                        .set(PRODUCTS.THICKNESS, product.thickness())
-                        .set(PRODUCTS.PROFILE, product.profile())
-                        .set(PRODUCTS.MATERIAL, product.material())
-                        .set(PRODUCTS.OWNER, product.owner())
-                        .set(PRODUCTS.EDGE, product.edge())
-                        .set(PRODUCTS.PITCH, product.pitch())
-                        .set(PRODUCTS.RACK_TYPE, product.rackType())
-                        .set(PRODUCTS.FINISH, product.finish())
-                        .set(PRODUCTS.MACHINERY, product.machinery().toArray(new String[0]))
-                        .set(USERS.ENABLED, product.enabled())
-                        .where(PRODUCTS.NAME.eq(product.name()))
-                        .execute())
-                .map(_ -> product);
+        return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
+            DSLContext dsl = configuration.dsl();
+
+            int updated = dsl.update(PRODUCTS)
+                    .set(PRODUCTS.NAME, product.name())
+                    .set(PRODUCTS.OLD_NAME, product.oldName())
+                    .set(PRODUCTS.WIDTH, product.width())
+                    .set(PRODUCTS.LENGTH, product.length())
+                    .set(PRODUCTS.THICKNESS, product.thickness())
+                    .set(PRODUCTS.PROFILE, product.profile())
+                    .set(PRODUCTS.MATERIAL, product.material())
+                    .set(PRODUCTS.OWNER, product.owner())
+                    .set(PRODUCTS.EDGE, product.edge())
+                    .set(PRODUCTS.PITCH, product.pitch())
+                    //.set(PRODUCTS.RACK_TYPE, product.rackType())
+                    .set(PRODUCTS.FINISH, product.finish())
+                    .set(PRODUCTS.ENABLED, product.enabled())
+                    .where(PRODUCTS.ID.eq(product.id()))
+                    .execute();
+
+            if (updated != 1) {
+                throw new DataAccessException("Failed to update product: " + product.id()) {
+                };
+            }
+
+            dsl.deleteFrom(PRODUCT_MACHINES)
+                    .where(PRODUCT_MACHINES.PRODUCT_ID.eq(product.id()))
+                    .execute();
+
+            List<String> machinery = product.machinery();
+            if (machinery != null && !machinery.isEmpty()) {
+                for (int i = 0; i < machinery.size(); i++) {
+                    String machineName = machinery.get(i);
+
+                    Integer machineId = dsl.select(MACHINES.ID)
+                            .from(MACHINES)
+                            .where(MACHINES.NAME.eq(machineName))
+                            .fetchOne(MACHINES.ID);
+
+                    if (machineId == null) {
+                        throw new DataAccessException("Unknown machine: " + machineName) {
+                        };
+                    }
+
+                    dsl.insertInto(PRODUCT_MACHINES)
+                            .set(PRODUCT_MACHINES.PRODUCT_ID, product.id())
+                            .set(PRODUCT_MACHINES.STEP_NUMBER, i + 1)
+                            .set(PRODUCT_MACHINES.MACHINE_ID, machineId)
+                            .execute();
+                }
+            }
+
+            return product;
+        }));
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -319,7 +423,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     public OptionalResult<Product> findProduct(int productId) {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
                 outerDsl.selectFrom(PRODUCTS).where(PRODUCTS.ID.eq(productId))
-                        .fetchOptional(DatabaseServiceImpl::getProduct)));
+                        .fetchOptional(rec -> getProduct(rec, outerDsl))));
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -354,7 +458,6 @@ public class DatabaseServiceImpl implements DatabaseService {
             OffsetDateTime now = OffsetDateTime.now();
             List<Integer> paramIds = signOffParams.keySet().stream().toList();
 
-            // Fetch the params we were asked to sign off, together with their phase/job info
             var rows = dsl
                     .select(
                             JOB_PART_PARAMS.ID,
@@ -384,9 +487,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             Integer jobPartPhaseId = phaseIds.iterator().next();
             Integer jobPartId = rows.getFirst().get(JOB_PART_PHASES.JOB_PART_ID);
-            Integer jobId = rows.getFirst().get(JOB_PART.JOB_ID);
 
-            // Update each param
             for (Map.Entry<Integer, String> entry : signOffParams.entrySet()) {
                 Integer paramId = entry.getKey();
                 String rawValue = entry.getValue();
@@ -401,7 +502,6 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             int completedStatus = JobStatus.COMPLETED.getCode();
 
-            // Is this phase fully signed off now?
             boolean phaseComplete = !dsl.fetchExists(
                     dsl.selectOne()
                             .from(JOB_PART_PARAMS)
@@ -420,7 +520,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .execute();
             }
 
-            // Is the whole job part complete?
             boolean jobPartComplete = !dsl.fetchExists(
                     dsl.selectOne()
                             .from(JOB_PART_PHASES)
@@ -436,7 +535,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .execute();
             }
 
-            // Is the whole job complete?
+            Integer jobId = rows.getFirst().get(JOB_PART.JOB_ID);
             boolean jobComplete = !dsl.fetchExists(
                     dsl.selectOne()
                             .from(JOB_PART)
@@ -490,9 +589,23 @@ public class DatabaseServiceImpl implements DatabaseService {
         }));
     }
 
+    @Override
+    public Result<Customer> updateCustomer(Customer customer) {
+        return TryUtils.tryCatch(() -> outerDsl.update(CUSTOMER)
+                .set(CUSTOMER.CODE, customer.code())
+                .set(CUSTOMER.NAME, customer.name())
+                .set(CUSTOMER.ZONE, customer.zone())
+                .set(CUSTOMER.CONTACT, customer.contact())
+                .set(CUSTOMER.CONTACT_NUMBER, customer.contactNumber())
+                .set(CUSTOMER.PROFORMA, customer.proforma())
+                .where(CUSTOMER.ID.eq(customer.id()))
+                .execute()).map(_ -> customer);
+    }
+
     private static JobPartParam getJobPartParam(JobPartParamsRecord jobPartParamsRecord) {
         return new JobPartParam(jobPartParamsRecord.getId(), 0, jobPartParamsRecord.getInput(),
                 jobPartParamsRecord.getJobPartPhaseId(), jobPartParamsRecord.getJobPartPhaseId(),
+                jobPartParamsRecord.getPack(),
                 jobPartParamsRecord.getName(), jobPartParamsRecord.getValue(),
                 jobPartParamsRecord.getValuedAt(), jobPartParamsRecord.getConfig());
     }
@@ -544,7 +657,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     List<PhaseParamData> params = new ArrayList<>();
                     for (int i = 0; i < phase.params().size(); i++) {
                         PhaseParamData phaseParam = phase.params().get(i);
-                        int index = i + 1; // 1-based index
+                        int index = i + 1;
                         Integer paramId = innerDsl.insertInto(PHASE_PARAM)
                                 .set(PHASE_PARAM.PHASE_ID, id)
                                 .set(PHASE_PARAM.INPUT, phaseParam.input())
@@ -583,6 +696,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 customerRecord.getZone(),
                 customerRecord.getContact(),
                 customerRecord.getContactNumber(),
+                customerRecord.getProforma(),
                 customerRecord.getEnabled());
     }
 
@@ -599,19 +713,19 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<Customer> createCustomer(CreateCustomer customer) {
+    public Result<Customer> createCustomer(Customer customer) {
         return TryUtils.tryCatch(() -> outerDsl.insertInto(CUSTOMER)
                         .set(CUSTOMER.CODE, customer.code())
                         .set(CUSTOMER.NAME, customer.name())
                         .set(CUSTOMER.ZONE, customer.zone())
                         .set(CUSTOMER.CONTACT, customer.contact())
                         .set(CUSTOMER.CONTACT_NUMBER, customer.contactNumber())
-                        .set(CUSTOMER.ENABLED, true)
+                        .set(CUSTOMER.PROFORMA, customer.proforma())
                         .returning(CUSTOMER.ID)
                         .fetchOne(CUSTOMER.ID))
                 .map(id -> new Customer(id, customer.code(), customer.name(), customer.zone(),
                         customer.contact(),
-                        customer.contactNumber(), true));
+                        customer.contactNumber(), customer.proforma(), true));
 
     }
 
@@ -647,7 +761,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .set(JOB.CUSTOMER_ID, job.customer())
                             .set(JOB.CARRIER_ID, job.carrier())
                             .set(JOB.CALL_OFF, job.callOff())
-                            .set(JOB.PAYMENT_RECEIVED, job.paymentReceived())
+                            .set(JOB.PAYMENT_CONFIRMED, job.paymentConfirmed())
                             .set(JOB.STATUS, jobStatus)
                             .returning(JOB.ID)
                             .fetchOne(JOB.ID);
@@ -703,7 +817,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             partParams.addAll(
                                     addParams(innerDsl, phase.phaseId(), partPhaseId, phaseNo,
                                             part.params(),
-                                            now));
+                                            now, part.quantity()));
                             phaseNo++;
                         }
                         partNo++;
@@ -716,14 +830,14 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         partStatus));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
-                            job.callOff(), jobParts, jobStatus, job.paymentReceived());
+                            job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
                 }));
     }
 
     private List<JobPartParam> addParams(DSLContext innerDsl, int phaseId, int jobPartPhaseId,
             int phaseNo,
             List<CreateJobPartParam> params,
-            OffsetDateTime now) {
+            OffsetDateTime now, int packs) {
         List<JobPartParam> partParams = new ArrayList<>();
         for (CreateJobPartParam param : params) {
             if (param.phaseNumber() == phaseNo) {
@@ -739,28 +853,32 @@ public class DatabaseServiceImpl implements DatabaseService {
                 OffsetDateTime valueTime = param.value() == null ? null : now;
                 int partPhaseId = param.jobPartPhaseId() == 0 ? jobPartPhaseId
                         : param.jobPartPhaseId();
-                Integer paramId = innerDsl.insertInto(JOB_PART_PARAMS)
-                        .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId
-                        )
-                        .set(JOB_PART_PARAMS.NAME, paramData.getName())
-                        .set(JOB_PART_PARAMS.INPUT, paramData.getInput())
-                        .set(JOB_PART_PARAMS.CONFIG, paramData.getConfig())
-                        .set(JOB_PART_PARAMS.ORDER, paramData.getOrder())
-                        .set(JOB_PART_PARAMS.VALUE, param.value())
-                        .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
-                        .returning(JOB_PART_PARAMS.ID)
-                        .fetchOne(JOB_PART_PARAMS.ID);
-                if (paramId == null) {
-                    throw new DataAccessException(
-                            "Failed to insert Job Part Param, no ID returned") {
-                    };
+                var actualPacks = param.perPack() ? packs : 1;
+                for (int pack = 1; pack < actualPacks; pack++) {
+                    Integer paramId = innerDsl.insertInto(JOB_PART_PARAMS)
+                            .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId
+                            )
+                            .set(JOB_PART_PARAMS.NAME, paramData.getName())
+                            .set(JOB_PART_PARAMS.INPUT, paramData.getInput())
+                            .set(JOB_PART_PARAMS.CONFIG, paramData.getConfig())
+                            .set(JOB_PART_PARAMS.ORDER, paramData.getOrder())
+                            .set(JOB_PART_PARAMS.PACK, 1)
+                            .set(JOB_PART_PARAMS.VALUE, param.value())
+                            .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
+                            .returning(JOB_PART_PARAMS.ID)
+                            .fetchOne(JOB_PART_PARAMS.ID);
+                    if (paramId == null) {
+                        throw new DataAccessException(
+                                "Failed to insert Job Part Param, no ID returned") {
+                        };
+                    }
+                    partParams.add(
+                            new JobPartParam(paramId,
+                                    param.phaseNumber(), paramData.getInput(),
+                                    phaseId,
+                                    partPhaseId, pack, paramData.getName(),
+                                    param.value(), valueTime, paramData.getConfig()));
                 }
-                partParams.add(
-                        new JobPartParam(paramId,
-                                param.phaseNumber(), paramData.getInput(),
-                                phaseId,
-                                partPhaseId, paramData.getName(),
-                                param.value(), valueTime, paramData.getConfig()));
             }
         }
 
@@ -770,7 +888,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     private static CreateJobPartParam getCreateJobPartParam(Record phaseParamRecord,
             int phaseNumber, String value) {
         return new CreateJobPartParam(phaseParamRecord.get(PHASE_PARAM.ID), phaseNumber, value,
-                phaseParamRecord.get(JOB_PART_PHASES.ID));
+                phaseParamRecord.get(JOB_PART_PHASES.ID), true);
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -1030,7 +1148,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                                     j.callOff(),
                                                     part.part(),
                                                     j.status(),
-                                                    j.paymentReceived(), part.index + 1, j.parts().size(),
+                                                    j.paymentConfirmed(), part.index + 1, j.parts().size(),
                                                     product, customer, carrier
                                             )).toOptional();
                                 },
@@ -1130,9 +1248,10 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         evaluator.apply(new PhaseParamEvaluatorInput(
                                                 product,
                                                 r.get(PHASE_PARAM.CONFIG),
-                                                r.get(PHASE_PARAM.INPUT)))));
-                        addParams(innerDsl, phase.getPhaseId(), 0, phase.getPhaseNumber(),
-                                phaseRunData, now);
+                                                r.get(PHASE_PARAM.INPUT), true))));
+                        addParams(innerDsl, phase.getPhaseId()
+                                , 0, phase.getPhaseNumber(),
+                                phaseRunData, now, 7);
                     }
                 }
                 updatedCount += rows;
@@ -1178,7 +1297,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             jobRecord.getCallOff(),
                             jobParts,
                             jobRecord.getStatus(),
-                            jobRecord.getPaymentReceived()
+                            jobRecord.getPaymentConfirmed()
                     ));
                 })));
     }
@@ -1226,6 +1345,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB_PART_PARAMS.NAME,
                             JOB_PART_PARAMS.VALUE,
                             JOB_PART_PARAMS.CONFIG,
+                            JOB_PART_PARAMS.PACK,
                             JOB_PART_PARAMS.VALUED_AT)
                     .from(JOB_PART_PARAMS)
                     .join(JOB_PART_PHASES)
@@ -1241,6 +1361,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         record.get(JOB_PART_PARAMS.INPUT),
                         record.get(JOB_PART_PHASES.PHASE_ID),
                         partPhaseId,
+                        record.get(JOB_PART_PARAMS.PACK),
                         record.get(JOB_PART_PARAMS.NAME),
                         record.get(JOB_PART_PARAMS.VALUE),
                         record.get(JOB_PART_PARAMS.VALUED_AT),
@@ -1279,7 +1400,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                 carrierRecord.getCode(),
                 carrierRecord.getName(),
                 carrierRecord.getEnabled());
-
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,

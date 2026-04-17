@@ -19,6 +19,7 @@ public record SageProduct(
         String rackType,
         String finish,
         String machinery,
+        String packSize,
         String enabled
 ) {
 
@@ -53,6 +54,7 @@ public record SageProduct(
                             getRequired.apply(part, row, headerMapping.get("racktype")),
                             getRequired.apply(part, row, headerMapping.get("finish")),
                             getRequired.apply(part, row, headerMapping.get("machinery")),
+                            getRequired.apply(part, row, headerMapping.get("packsize")),
                             getRequired.apply(part, row, headerMapping.get("enabled")));
                 }
         );
