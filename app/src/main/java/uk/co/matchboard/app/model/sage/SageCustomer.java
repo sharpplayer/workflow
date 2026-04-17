@@ -28,7 +28,7 @@ public record SageCustomer(
             Map<String, String> headerMapping) {
 
         return TryUtils.tryCatch(() -> {
-                    String customer = getRequired.apply("(Unspecified)", row, headerMapping.get("part"));
+                    String customer = getRequired.apply("(Unspecified)", row, headerMapping.get("code"));
                     return new SageCustomer(
                             customer,
                             getRequired.apply(customer, row, headerMapping.get("name")),

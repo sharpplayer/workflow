@@ -17,6 +17,7 @@ import uk.co.matchboard.app.exception.ProductNotFoundException;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
@@ -34,6 +35,10 @@ public class ProductServiceImpl implements ProductService {
             "pitch", "edge", "finish",
             "profile", "material", "owner", 12,
             List.of("machine1", "machine2", "machine3"), 80, true);
+
+    public static final Integer USAGE_FROM_CALL_OFF = 1;
+    public static final Integer USAGE_TO_CALL_OFF = 2;
+    public static final Integer USAGE_PACK = 4;
 
     private record PhaseParamKey(int id, int order) {
 
@@ -68,18 +73,19 @@ public class ProductServiceImpl implements ProductService {
                             .flatMap(machines -> Result.sequence(sageList.stream()
                                     .map(sage -> {
                                         Set<String> machineSet = machines.stream()
-                                                .map(i -> i.name())
+                                                .map(Machine::name)
                                                 .collect(Collectors.toCollection(HashSet::new));
                                         Product existing = dbMap.get(sage.number());
                                         Result<Product> expected = createProduct(sage, machineSet);
 
                                         if (existing != null) {
                                             return expected.flatMap(e -> {
-                                                if (existing.equals(e)) {
+                                                if (existing.equalsApartFromId(e)) {
                                                     return Result.of(existing);
                                                 } else {
                                                     changeFlag.set(true);
-                                                    return databaseService.updateProduct(e);
+                                                    return databaseService.updateProduct(
+                                                            e.copyWithId(existing.id()));
                                                 }
                                             });
                                         } else {

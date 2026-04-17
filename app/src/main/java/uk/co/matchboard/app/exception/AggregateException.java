@@ -8,10 +8,10 @@ public class AggregateException extends Exception implements ValidationException
 
     public AggregateException(List<Exception> errors) {
         super(errors.stream()
-                .map(Exception::getMessage)   // extract messages
-                .filter(msg -> msg != null && !msg.isEmpty()) // skip null/empty
-                .reduce((msg1, msg2) -> msg1 + "; " + msg2)  // join with ;
-                .orElse("Multiple errors occurred"));        // fallback
+                .map(Exception::getMessage)
+                .filter(msg -> msg != null && !msg.isEmpty())
+                .reduce((msg1, msg2) -> msg1 + "; " + msg2)
+                .orElse("Multiple errors occurred"));
         this.errors = errors;
     }
 

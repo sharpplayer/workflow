@@ -40,7 +40,6 @@ export interface CrossJobParameters {
     customer: string,
     carrier: string,
     callOff: boolean,
-    scheduledOn: string,
     status: number
 }
 
@@ -166,7 +165,6 @@ export class AdminJobsComponent implements OnInit {
         customer: '',
         carrier: '',
         callOff: false,
-        scheduledOn: '',
         status: 0
     });
 
@@ -197,7 +195,6 @@ export class AdminJobsComponent implements OnInit {
                 customer: String(job.customer),
                 carrier: String(job.carrier),
                 callOff: job.callOff,
-                scheduledOn: '',
                 status: job.status
             });
 
@@ -380,7 +377,6 @@ export class AdminJobsComponent implements OnInit {
                 customer: '',
                 carrier: '',
                 callOff: false,
-                scheduledOn: '',
                 status: 0
             });
         }

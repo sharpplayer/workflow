@@ -75,7 +75,7 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
     @Override
     public Result<ConfigResponse> getCustomers() {
         Result<List<SageCustomer>> sageResult = sageInterfaceService.readCustomersFromFile(
-                "cusomers.csv");
+                "customers.csv");
         Result<List<Customer>> dbResult = databaseService.getCustomers();
 
         AtomicBoolean changeFlag = new AtomicBoolean(false);
@@ -92,11 +92,12 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
 
                                 if (existing != null) {
                                     return expected.flatMap(e -> {
-                                        if (existing.equals(e)) {
+                                        if (existing.equalsApartFromId(e)) {
                                             return Result.of(existing);
                                         } else {
                                             changeFlag.set(true);
-                                            return databaseService.updateCustomer(e);
+                                            return databaseService.updateCustomer(
+                                                    e.copyWithId(existing.id()));
                                         }
                                     });
                                 } else {
@@ -115,10 +116,9 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
         return latest.map(list -> list.stream()
                         .map(customer -> new KeyValuePair(
                                 Integer.toString(customer.id()),
-                                customer.name() + " (" + (customer.proforma() ? "*" : "") + ")"))
+                                customer.name() + (customer.proforma() ? " (*)" : "")))
                         .sorted(Comparator.comparing(KeyValuePair::value))
                         .toList())
-                .map(list -> new ConfigResponse("CUSTOMERS", list,
-                        updateResult.fold(_ -> "", Throwable::getMessage)));
+                .map(list -> new ConfigResponse("CUSTOMERS", list, "string[]"));
     }
 }

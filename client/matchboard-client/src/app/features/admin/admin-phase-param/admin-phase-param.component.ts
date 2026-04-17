@@ -38,6 +38,7 @@ interface PhaseParamData {
   type: string | null;
   options: ConfigItem[];
   input: number;
+  searchable: boolean;
   editable: boolean;
   optional: boolean;
 }
@@ -99,7 +100,7 @@ export interface PhaseParamSelected {
                   </option>
                 }
               </select>
-            } @else if (param.type === 'string[]' && param.editable) {
+            } @else if (param.type === 'string[]' && param.searchable) {
               <div class="param-select-wrapper">
                 <ng-select
                   [items]="param.options"
@@ -113,7 +114,9 @@ export interface PhaseParamSelected {
                   (ngModelChange)="onNgSelectChange(param.phaseParamId, $event)"
                 >
                 </ng-select>
-                <button type="button" (click)="addItem(param)">+</button>
+                @if(param.editable) {
+                  <button type="button" (click)="addItem(param)">+</button>
+                }
               </div>
             } @else if (param.type === 'string[]') {
               <select
@@ -254,6 +257,7 @@ export class AdminPhaseParamComponent {
           const list = await this.configService.getList(p.paramConfig);
           options = list.value;
           type = list.type;
+          console.log(p.paramConfig + ":" + type);
         } catch (err) {
           console.error(`Failed to load list for ${p.paramConfig}`, err);
         }
@@ -292,6 +296,7 @@ export class AdminPhaseParamComponent {
         type,
         options: [...defaults, ...finalOptions],
         input: p.input,
+        searchable: p.searchable ?? false,
         editable: p.editable ?? false,
         optional: p.optional ?? false
       });

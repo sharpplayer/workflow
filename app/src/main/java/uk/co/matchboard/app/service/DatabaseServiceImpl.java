@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.Record2;
 import org.jooq.SelectOnConditionStep;
 import org.jooq.impl.DSL;
 import org.springframework.dao.DataAccessException;
@@ -137,7 +138,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.getProfile(),
                 rec.getMaterial(),
                 rec.getOwner(),
-                1, //rec.getRackType(),
+                rec.getRackType(),
                 machinery,
                 rec.getPackSize(),
                 rec.getEnabled());
@@ -231,7 +232,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .set(PRODUCTS.OWNER, product.owner())
                     .set(PRODUCTS.EDGE, product.edge())
                     .set(PRODUCTS.PITCH, product.pitch())
-                    //.set(PRODUCTS.RACK_TYPE, product.rackType())
+                    .set(PRODUCTS.RACK_TYPE, product.rackType())
                     .set(PRODUCTS.FINISH, product.finish())
                     .set(PRODUCTS.PACK_SIZE, product.packSize())
                     .set(PRODUCTS.ENABLED, product.enabled())
@@ -254,8 +255,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .fetchOne(MACHINES.ID);
 
                     if (machineId == null) {
-                        throw new DataAccessException("Unknown machine: " + machineName) {
-                        };
+                        machineId = dsl.insertInto(MACHINES)
+                                .set(MACHINES.NAME, machineName)
+                                .returning(MACHINES.ID)
+                                .fetchOne(MACHINES.ID);
+
+                        if (machineId == null) {
+                            throw new DataAccessException(
+                                    "Failed to insert machine: " + machineName) {
+                            };
+                        }
                     }
 
                     dsl.insertInto(PRODUCT_MACHINES)
@@ -344,8 +353,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .set(PRODUCTS.OWNER, product.owner())
                     .set(PRODUCTS.EDGE, product.edge())
                     .set(PRODUCTS.PITCH, product.pitch())
-                    //.set(PRODUCTS.RACK_TYPE, product.rackType())
+                    .set(PRODUCTS.RACK_TYPE, product.rackType())
                     .set(PRODUCTS.FINISH, product.finish())
+                    .set(PRODUCTS.PACK_SIZE, product.packSize())
                     .set(PRODUCTS.ENABLED, product.enabled())
                     .where(PRODUCTS.ID.eq(product.id()))
                     .execute();
@@ -370,8 +380,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .fetchOne(MACHINES.ID);
 
                     if (machineId == null) {
-                        throw new DataAccessException("Unknown machine: " + machineName) {
-                        };
+                        machineId = dsl.insertInto(MACHINES)
+                                .set(MACHINES.NAME, machineName)
+                                .returning(MACHINES.ID)
+                                .fetchOne(MACHINES.ID);
+
+                        if (machineId == null) {
+                            throw new DataAccessException(
+                                    "Failed to insert machine: " + machineName) {
+                            };
+                        }
                     }
 
                     dsl.insertInto(PRODUCT_MACHINES)
@@ -814,10 +832,12 @@ public class DatabaseServiceImpl implements DatabaseService {
                             }
                             jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
                                     phaseNo, phase.specialInstructions(), status, "()"));
+                            int packs = getPacks(part.productId(), part.quantity(), phase.phaseId(),
+                                    innerDsl);
                             partParams.addAll(
                                     addParams(innerDsl, phase.phaseId(), partPhaseId, phaseNo,
                                             part.params(),
-                                            now, part.quantity()));
+                                            now, packs));
                             phaseNo++;
                         }
                         partNo++;
@@ -832,6 +852,32 @@ public class DatabaseServiceImpl implements DatabaseService {
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
                             job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
                 }));
+    }
+
+    private static int getPacks(int productId, int quantity, int phaseId, DSLContext innerDsl) {
+        int packs = 1;
+        Integer usage = innerDsl.select(PHASE.USAGE).from(PHASE)
+                .where(PHASE.ID.eq(phaseId)).fetchOne(PHASE.USAGE);
+        if (usage == null) {
+            throw new DataAccessException(
+                    "Failed to insert Job Part, no phase returned") {
+            };
+        } else {
+            if ((usage & ProductServiceImpl.USAGE_PACK) != 0) {
+                Integer packSize = innerDsl.select(PRODUCTS.PACK_SIZE)
+                        .from(PRODUCTS)
+                        .where(PRODUCTS.PACK_SIZE.eq(productId))
+                        .fetchOne(PRODUCTS.PACK_SIZE);
+                if (packSize == null) {
+                    throw new DataAccessException(
+                            "Failed to insert Job Part, no pack size returned for product "
+                                    + productId) {
+                    };
+                }
+                packs = 1 + (quantity / packSize);
+            }
+        }
+        return packs;
     }
 
     private List<JobPartParam> addParams(DSLContext innerDsl, int phaseId, int jobPartPhaseId,
@@ -1217,15 +1263,21 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .execute();
 
                 if (rows > 0) {
-                    Integer productId = innerDsl.select(JOB_PART.PRODUCT_ID).from(JOB_PART)
-                            .where(JOB_PART.ID.eq(jobPartId)).fetchOne(JOB_PART.PRODUCT_ID);
+                    Record2<Integer, Integer> productIdAndQuantity =
+                            innerDsl.select(JOB_PART.PRODUCT_ID, JOB_PART.QUANTITY)
+                                    .from(JOB_PART)
+                                    .where(JOB_PART.ID.eq(jobPartId))
+                                    .fetchOne();
 
-                    if (productId == null) {
+                    if (productIdAndQuantity == null) {
                         throw new DataAccessException(
                                 "Failed to find product, no product id on job part "
                                         + jobPartId) {
                         };
                     }
+
+                    int productId = productIdAndQuantity.component1();
+                    int quantity = productIdAndQuantity.component2();
 
                     var product = findProduct(productId);
 
@@ -1248,10 +1300,10 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         evaluator.apply(new PhaseParamEvaluatorInput(
                                                 product,
                                                 r.get(PHASE_PARAM.CONFIG),
-                                                r.get(PHASE_PARAM.INPUT), true))));
-                        addParams(innerDsl, phase.getPhaseId()
-                                , 0, phase.getPhaseNumber(),
-                                phaseRunData, now, 7);
+                                                r.get(PHASE_PARAM.INPUT)))));
+                        int packs = getPacks(productId, quantity, phase.getPhaseId(), innerDsl);
+                        addParams(innerDsl, phase.getPhaseId(), 0, phase.getPhaseNumber(),
+                                phaseRunData, now, packs);
                     }
                 }
                 updatedCount += rows;

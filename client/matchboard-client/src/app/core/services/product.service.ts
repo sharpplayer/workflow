@@ -3,8 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 
-export interface ProductView
-{
+export interface ProductView {
   id: number,
   name: string,
   oldName: string,
@@ -21,6 +20,7 @@ export interface PhaseParam {
   evaluation: string,
   type?: string,
   value?: string,
+  searchable?: boolean,
   editable?: boolean,
   optional?: boolean
 }
@@ -81,7 +81,7 @@ export class ProductService {
     const res = await firstValueFrom(
       this.http.get<PhasesResponse>(`${API_BASE_URL}/api/phases`, { withCredentials: true })
     );
-    return  res.phases;
+    return res.phases;
   }
 
   async savePhases(productId: number, phases: Phase[]): Promise<void> {
