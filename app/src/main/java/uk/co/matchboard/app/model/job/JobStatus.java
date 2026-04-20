@@ -2,7 +2,7 @@ package uk.co.matchboard.app.model.job;
 
 public enum JobStatus {
     SAVED(1),
-    READY(2),
+    AWAITING_MATERIAL(2),
     PARTIALLY_SCHEDULABLE(3),
     SCHEDULABLE(4),
     PARTIALLY_SCHEDULED(5),

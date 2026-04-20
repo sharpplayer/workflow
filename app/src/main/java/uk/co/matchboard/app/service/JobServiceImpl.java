@@ -10,11 +10,13 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.InvalidCustomerException;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
+import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
@@ -72,26 +74,39 @@ public class JobServiceImpl implements JobService {
         // If some don't match -> partially schedulable
         // If all match -> schedulable
 
-        JobStatus jobStatus =
-                job.parts().stream().anyMatch(p -> isSchedulable(job, p, null))
-                        ? JobStatus.SCHEDULABLE
-                        : JobStatus.SAVED;
-        return databaseService.createJob(job,
-                part -> isSchedulable(job, part, jobStatus) ? JobStatus.SCHEDULABLE.getCode()
-                        : JobStatus.SAVED.getCode(),
-                (_, lastStatus) -> {
-                    if (lastStatus == -1 && jobStatus == JobStatus.SCHEDULABLE) {
-                        return JobStatus.READY.getCode();
-                    } else {
-                        return JobStatus.AWAITING.getCode();
-                    }
-                }, jobStatus.getCode()
-        );
+        OptionalResult<Customer> optCustomer = OptionalResult.empty();
+        if (job.customer() != null) {
+            optCustomer = databaseService.findCustomer(job.customer());
+            Result<Customer> customerResult = optCustomer.fold(Result::of, Result::failure,
+                    () -> Result.failure(new InvalidCustomerException(job.customer())));
+            if (customerResult.isFaulted()) {
+                return customerResult.cast();
+            }
+        }
+
+        return optCustomer.flatMapResult(customer -> {
+            JobStatus status = JobStatus.SCHEDULABLE;
+            if (customer == null) {
+                if (!job.callOff()) {
+                    status = JobStatus.SAVED;
+                }
+            } else if (customer.proforma() && job.paymentConfirmed() == null) {
+                status = JobStatus.AWAITING_PAYMENT;
+            }
+
+            final var jobStatus = status;
+            return databaseService.createJob(job,
+                    part -> getSchedulableStatus(part, jobStatus).getCode(),
+                    (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode());
+        });
     }
 
-    private static boolean isSchedulable(CreateJob job, CreateJobPart p, JobStatus jobStatus) {
-        return job.paymentConfirmed() != null && p.scheduleFor() != null && p.materialAvailable()
-                && jobStatus != JobStatus.SAVED;
+    private static JobStatus getSchedulableStatus(CreateJobPart p, JobStatus jobStatus) {
+        if (!p.materialAvailable()) {
+            return JobStatus.AWAITING_MATERIAL;
+        }
+
+        return jobStatus;
     }
 
     @Override

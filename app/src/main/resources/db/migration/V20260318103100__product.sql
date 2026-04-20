@@ -26,9 +26,9 @@ CREATE UNIQUE INDEX idx_products_old_name
 
 CREATE TABLE machines
 (
-    id            SERIAL PRIMARY KEY,
-    name          TEXT UNIQUE NOT NULL,
-    time_per_unit NUMERIC DEFAULT 60
+    id               SERIAL PRIMARY KEY,
+    name             TEXT UNIQUE NOT NULL,
+    run_minutes_unit NUMERIC DEFAULT 1
 );
 
 CREATE TABLE product_machines

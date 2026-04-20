@@ -1175,7 +1175,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                             return Optional.empty();
                         })))
-                .flatMapOptional(selected ->
+                .flatMap(selected ->
                         findJob(selected.jobId()).fold(j -> {
                                     PartWithIndex part = IntStream.range(0, j.parts().size())
                                             .filter(i -> Objects.equals(

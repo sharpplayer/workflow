@@ -99,7 +99,7 @@ public class OptionalResult<T> {
         return onSuccess.apply(value);
     }
 
-    public <R> Result<R> mapResult(Function<T, Result<R>> function) {
+    public <R> Result<R> flatMapResult(Function<T, Result<R>> function) {
         if (isFaulted()) {
             return Result.failure(exception);
         }
@@ -107,17 +107,7 @@ public class OptionalResult<T> {
         return function.apply(value);
     }
 
-    public <R> OptionalResult<R> flatMap(Function<T, Result<R>> function) {
-        if (isFaulted()) {
-            return cast();
-        }
-        if (value == null) {
-            return OptionalResult.empty();
-        }
-        return function.apply(value).toOptional();
-    }
-
-    public <R> OptionalResult<R> flatMapOptional(Function<T, OptionalResult<R>> function) {
+    public <R> OptionalResult<R> flatMap(Function<T, OptionalResult<R>> function) {
         if (isFaulted()) {
             return cast();
         }

@@ -52,7 +52,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Result<User> login(String user, String password, String role) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        return userRecord.mapResult(data -> {
+        return userRecord.flatMapResult(data -> {
             if (data == null) {
                 return Result.failure(new InvalidUserException());
             }
@@ -138,7 +138,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Result<Boolean> validatePin(String user, String pin) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-        return userRecord.mapResult(data -> {
+        return userRecord.flatMapResult(data -> {
             if (data.enabled()) {
                 if (!passwordEncoder.matches(pin, data.pinHash())) {
                     return Result.failure(new InvalidUserException());

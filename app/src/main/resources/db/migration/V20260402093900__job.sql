@@ -26,9 +26,6 @@ CREATE TABLE job_part
     from_call_off      BOOLEAN     NOT NULL DEFAULT FALSE,
     material_available BOOLEAN     NOT NULL DEFAULT TRUE,
     status             INTEGER     NOT NULL,
-    schedule_for       TIMESTAMPTZ,
-    run_on             TIMESTAMPTZ,
-    run_order          INTEGER,
     started_at         TIMESTAMPTZ,
     completed_at       TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -37,12 +34,6 @@ CREATE TABLE job_part
 );
 
 CREATE INDEX idx_job_part_status ON job_part (status);
-
-CREATE INDEX idx_job_part_status_schedule_for
-    ON job_part (status, schedule_for) WHERE schedule_for IS NOT NULL;
-
-CREATE INDEX idx_job_part_run_on_status_run_order
-    ON job_part (status, run_on, run_order) WHERE run_on IS NOT NULL;
 
 CREATE TABLE job_part_phases
 (
@@ -66,8 +57,8 @@ CREATE TABLE job_part_params
 (
     id                SERIAL PRIMARY KEY,
     job_part_phase_id INTEGER     NOT NULL,
-    name              TEXT NOT NULL,
-    config            TEXT NOT NULL,
+    name              TEXT        NOT NULL,
+    config            TEXT        NOT NULL,
     input             INTEGER     NOT NULL,
     value             TEXT,
     status            INTEGER     NOT NULL,
@@ -83,3 +74,45 @@ CREATE SEQUENCE job_number_seq
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE CACHE 1;
+
+CREATE TABLE job_part_operation
+(
+    id                     SERIAL PRIMARY KEY,
+    job_part_id            INTEGER     NOT NULL,
+    machine_id             INTEGER     NOT NULL,
+    step_number            INTEGER     NOT NULL,
+
+    quantity               INTEGER     NOT NULL,
+    planned_start_at       TIMESTAMPTZ,
+    planned_finish_at      TIMESTAMPTZ,
+    setup_minutes          NUMERIC     NOT NULL,
+    planned_minutes        NUMERIC     NOT NULL,
+
+    scheduled_for_date     DATE        NOT NULL,
+    machine_queue_position INTEGER,
+
+    status                 INTEGER,
+
+    actual_start_at        TIMESTAMPTZ,
+    actual_finish_at       TIMESTAMPTZ,
+
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE (job_part_id, step_number),
+    UNIQUE (scheduled_for_date, machine_id, machine_queue_position)
+);
+
+CREATE TABLE job_part_operation_delay
+(
+    id                     SERIAL PRIMARY KEY,
+    job_part_operation_id  INTEGER     NOT NULL,
+    old_scheduled_for_date DATE,
+    new_scheduled_for_date DATE,
+    old_machine_id         INTEGER,
+    new_machine_id         INTEGER,
+    old_queue_position     INTEGER,
+    new_queue_position     INTEGER,
+    reason                 TEXT        NOT NULL,
+    delayed_by_user_id     INTEGER     NOT NULL,
+    delayed_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
