@@ -14,6 +14,18 @@ interface ConfigResponse {
     type: string;
 }
 
+export interface MachineInput {
+    id: number;
+    name: string;
+    setupTime: number;
+    timePerUnit: number;
+}
+
+interface MachineConfigResponse {
+    value: MachineInput[];
+    type: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
 
@@ -24,6 +36,13 @@ export class ConfigService {
             this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/${config}`)
         );
         return res;
+    }
+
+    async getMachineList(): Promise<MachineInput[]> {
+        const res = await firstValueFrom(
+            this.http.get<MachineConfigResponse>(`${API_BASE_URL}/api/config/machine`)
+        );
+        return res.value;
     }
 
     async addItem(configItem: string, body: any): Promise<ConfigItem> {

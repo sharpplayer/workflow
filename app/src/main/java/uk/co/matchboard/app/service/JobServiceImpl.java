@@ -16,19 +16,21 @@ import uk.co.matchboard.app.exception.InvalidSignOffException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
+import uk.co.matchboard.app.model.job.CreateSchedule;
 import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
-import uk.co.matchboard.app.model.job.UpdateSchedule;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 
@@ -119,13 +121,9 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public Result<SchedulableJobParts> getSchedule(String date) {
-        if (date == null) {
-            return databaseService.getUnscheduled().map(SchedulableJobParts::new);
-        } else {
-            return databaseService.getScheduleFor(OffsetDateTime.parse(date + "T00:00:00+00:00"))
-                    .map(SchedulableJobParts::new);
-        }
+    public Result<SchedulableJobParts> getSchedulable() {
+        return databaseService.getSchedulable()
+                .map(SchedulableJobParts::new);
     }
 
     @Override
@@ -189,22 +187,24 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public Result<SchedulableJobParts> updateSchedule(UpdateSchedule schedule) {
-        return databaseService.updateSchedule(
-                        OffsetDateTime.parse(schedule.date() + "T00:00:00+00:00"), schedule.jobPartIds(),
-                        this::evaluator)
-                .flatMap(_ -> getSchedule(schedule.date()));
+    public Result<Boolean> createSchedule(CreateSchedule schedule) {
+        return databaseService.createSchedule(schedule.jobParts(),
+                this::evaluator);
     }
 
-    private String evaluator(PhaseParamEvaluatorInput phaseParamEvaluatorInput) {
-        if (phaseParamEvaluatorInput.input() == ConfigurationServiceImpl.INPUT_JOB_CREATE) {
+    private ConfigValuePair evaluator(PhaseParamEvaluatorInput phaseParamEvaluatorInput) {
+        if ((phaseParamEvaluatorInput.input() == ConfigurationServiceImpl.INPUT_JOB_CREATE)
+                || phaseParamEvaluatorInput.paramConfig().startsWith("CHECK(")) {
             return phaseParamEvaluatorInput.product().fold(p ->
                             configurationService.resolveConfig(p,
                                     phaseParamEvaluatorInput.paramConfig(),
                                     phaseParamEvaluatorInput.input()),
-                    Throwable::getMessage, () -> null);
+                    ex -> new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(),
+                            ex.getMessage()),
+                    () -> new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(),
+                            null));
         }
-        return null;
+        return new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(), null);
     }
 
     @Override
@@ -259,6 +259,11 @@ public class JobServiceImpl implements JobService {
                                         .getFirst()).flatMap(ps -> validateCanSign(ps, completion.role()))
                 ).flatMap(_ -> databaseService.signOff(completion.paramData()))
                 .flatMapOptional(_ -> nextJob(completion.role()));
+    }
+
+    @Override
+    public Result<JobViews> getJobs(Long toNumber, int count) {
+        return databaseService.getJobs(toNumber, count).map(JobViews::new);
     }
 
     private RoleMatch roleMatch(String config, String role) {

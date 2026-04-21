@@ -24,6 +24,8 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
 
     public static final String CONFIG_CARRIER = "CARRIER";
 
+    public static final String CONFIG_MACHINE = "MACHINE";
+
     private final DatabaseService databaseService;
 
     private final SageInterfaceService sageInterfaceService;
@@ -52,6 +54,12 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
                 .map(list -> new ConfigResponse(CONFIG_CARRIER, list.stream()
                         .map(c -> new KeyValuePair(Integer.toString(c.id()),
                                 c.name() + " (" + c.code() + ")")), "string[]"));
+    }
+
+    @Override
+    public Result<ConfigResponse> getMachines() {
+        return databaseService.getAllMachines()
+                .map(list -> new ConfigResponse(CONFIG_MACHINE, list, "machine[]"));
     }
 
     private Result<Customer> createCustomer(SageCustomer customer) {

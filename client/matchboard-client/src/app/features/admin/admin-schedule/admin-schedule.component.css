@@ -280,9 +280,11 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 0;              /* ⬅️ was bottom: 0 */
+  top: 0;
+  /* ⬅️ was bottom: 0 */
   background: var(--reset-bg);
-  border-bottom: 1px dashed var(--reset-border); /* ⬅️ flipped */
+  border-bottom: 1px dashed var(--reset-border);
+  /* ⬅️ flipped */
   pointer-events: none;
   z-index: 0;
 }
@@ -348,4 +350,128 @@
     left: 6px;
     right: 6px;
   }
+}
+
+.job-card.related-job {
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  background-image:
+    repeating-linear-gradient(-45deg,
+      rgba(59, 130, 246, 0.12) 0px,
+      rgba(59, 130, 246, 0.12) 8px,
+      rgba(59, 130, 246, 0.04) 8px,
+      rgba(59, 130, 246, 0.04) 16px);
+}
+
+.job-card.selected-job {
+  border: 1px solid rgba(59, 130, 246, 0.95);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
+  background-image:
+    repeating-linear-gradient(-45deg,
+      rgba(59, 130, 246, 0.22) 0px,
+      rgba(59, 130, 246, 0.22) 8px,
+      rgba(59, 130, 246, 0.08) 8px,
+      rgba(59, 130, 246, 0.08) 16px);
+}
+
+.schedule-day-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid #d7dce5;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+
+.schedule-day-banner.exceptional {
+  border-color: #e0b04f;
+  background: #fff8e8;
+}
+
+.schedule-day-banner__copy {
+  min-width: 0;
+}
+
+.schedule-day-banner__eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.schedule-day-banner__main {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.schedule-day-banner__reason {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.schedule-day-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.schedule-date-field {
+  width: 220px;
+}
+
+.schedule-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.schedule-actions__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-actions__warning {
+  font-size: 13px;
+  color: #b42318;
+}
+
+.schedule-actions__error {
+  font-size: 13px;
+  color: #b42318;
+}
+
+.schedule-actions__success {
+  font-size: 13px;
+  color: #027a48;
+}
+
+button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: white;
+  cursor: pointer;
+  float: right;
+  margin-right: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+button:hover {
+  background-color: #357ab8;
+}
+
+button:disabled {
+  background-color: #959698;
 }

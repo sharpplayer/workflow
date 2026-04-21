@@ -35,6 +35,7 @@ public class ConfigurationController {
 
         String configName = name.toUpperCase();
         var result = switch (configName) {
+            case AuxiliaryServiceImpl.CONFIG_MACHINE -> auxiliaryService.getMachines();
             case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
             case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
             case JobServiceImpl.CONFIG_SCHEDULE_DATES -> jobService.getScheduleDates();

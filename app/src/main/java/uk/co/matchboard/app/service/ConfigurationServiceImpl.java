@@ -11,6 +11,7 @@ import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.ConfigResponse;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.product.Product;
 
@@ -58,23 +59,28 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     }
 
     @Override
-    public String resolveConfig(Product product, String config, int input) {
-        if (config.startsWith("PRODUCT(")) {
+    public ConfigValuePair resolveConfig(Product product, String config, int input) {
+        if (config.startsWith("CHECK(")) {
+            ConfigValuePair resolve = resolveConfig(product,
+                    config.substring(6, config.length() - 1), input);
+            return new ConfigValuePair("CHECK(" + resolve.value() + ")", resolve.value());
+        } else if (config.startsWith("PRODUCT(")) {
             String prop = config.substring(8, config.length() - 1);
             if (prop.equals("format")) {
                 if (product.width() > product.length()) {
-                    return "PORTRAIT";
+                    return new ConfigValuePair(config, "PORTRAIT");
                 } else {
-                    return "LANDSCAPE";
+                    return new ConfigValuePair(config, "LANDSCAPE");
                 }
             }
             return TryUtils.tryCatch(() -> {
                 Method accessor = Product.class.getMethod(prop);
-                return accessor.invoke(product);
-            }).fold(Object::toString, _ -> getDefaultInput(input));
+                return new ConfigValuePair(config, accessor.invoke(product).toString());
+            }).fold(i -> i,
+                    _ -> new ConfigValuePair(config, getDefaultInput(input)));
         }
 
-        return getDefaultInput(input);
+        return new ConfigValuePair(config, getDefaultInput(input));
     }
 
     @Override

@@ -28,8 +28,25 @@ CREATE TABLE machines
 (
     id               SERIAL PRIMARY KEY,
     name             TEXT UNIQUE NOT NULL,
+    setup_minutes    NUMERIC DEFAULT 1,
     run_minutes_unit NUMERIC DEFAULT 1
 );
+
+INSERT INTO machines (name, setup_minutes, run_minutes_unit)
+VALUES ('BEAMSAW', 1, 1),
+       ('MULTI PRO', 40, 1),
+       ('1525', 1, 1),
+       ('MINI PRO', 30, 1),
+       ('MORBIDELLI', 1, 1),
+       ('ANDERSON', 20, 1),
+       ('LOGIC', 1, 1),
+       ('SPINDLE', 1, 1),
+       ('DENIBBING', 1, 1),
+       ('MEZZ UNIT 24', 1, 1),
+       ('FOIL', 1, 1),
+       ('EDGEBANDING', 1, 1),
+       ('PRINT', 1, 1),
+       ('3DPRINT', 1, 1);
 
 CREATE TABLE product_machines
 (

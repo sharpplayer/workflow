@@ -11,5 +11,7 @@ public interface AuxiliaryService {
 
     Result<ConfigResponse> getCarriers();
 
+    Result<ConfigResponse> getMachines();
+
     Result<KeyValuePair> createCarrier(CreateCarrier carrier);
 }

@@ -21,7 +21,6 @@ export const PHASE_PARAM_ID_DUE_DATE = -5;
 export const PHASE_PARAM_ID_CUSTOMER = -6;
 export const PHASE_PARAM_ID_CARRIER = -7;
 export const PHASE_PARAM_ID_MATERIAL = -8;
-export const PHASE_PARAM_ID_SCHEDULE = -9;
 
 export const PHASE_PARAM_QUANTITY: PhaseParam = {
     phaseId: 0,
@@ -32,7 +31,7 @@ export const PHASE_PARAM_QUANTITY: PhaseParam = {
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'int',
-    optional : false
+    optional: false
 };
 
 const PHASE_PARAM_PAYMENT: PhaseParam = {
@@ -45,7 +44,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
     evaluation: '(Input At Job Start)',
     type: 'date',
     value: '',
-    optional : true
+    optional: true
 };
 
 export const PHASE_PARAM_CALLOFF: PhaseParam = {
@@ -58,7 +57,7 @@ export const PHASE_PARAM_CALLOFF: PhaseParam = {
     evaluation: '(Input At Job Create)',
     type: 'boolean',
     value: 'false',
-    optional : false
+    optional: false
 };
 
 const PHASE_PARAM_FINISHED: PhaseParam = {
@@ -71,7 +70,7 @@ const PHASE_PARAM_FINISHED: PhaseParam = {
     evaluation: '(Input At Job Create)',
     type: 'boolean',
     value: 'false',
-    optional : false
+    optional: false
 };
 
 const PHASE_PARAM_DUE_DATE: PhaseParam = {
@@ -83,7 +82,7 @@ const PHASE_PARAM_DUE_DATE: PhaseParam = {
     input: 1,
     evaluation: '(Input At Job Create)',
     type: 'date',
-    optional : false
+    optional: false
 };
 
 const PHASE_PARAM_CUSTOMER: PhaseParam = {
@@ -97,7 +96,7 @@ const PHASE_PARAM_CUSTOMER: PhaseParam = {
     type: 'string[]',
     searchable: true,
     editable: false,
-    optional : true
+    optional: true
 };
 
 const PHASE_PARAM_CARRIER: PhaseParam = {
@@ -111,7 +110,7 @@ const PHASE_PARAM_CARRIER: PhaseParam = {
     type: 'string[]',
     searchable: true,
     editable: true,
-    optional : true
+    optional: true
 };
 
 export const PHASE_PARAM_MATERIAL: PhaseParam = {
@@ -124,7 +123,7 @@ export const PHASE_PARAM_MATERIAL: PhaseParam = {
     evaluation: '(Input At Job Create)',
     type: 'boolean',
     value: 'true',
-    optional : false
+    optional: false
 };
 
 export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
@@ -246,7 +245,7 @@ export class AdminJobComponent {
         const cross = this.crossJobParams();
         const selected = this.selectedPart();
 
-        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: cross.paymentConfirmed ? 'true' : 'false' };
+        const paymentParam: PhaseParam = { ...PHASE_PARAM_PAYMENT, value: cross.paymentConfirmed };
         const dateParam: PhaseParam = { ...PHASE_PARAM_DUE_DATE, value: cross.dueDate };
         const customerParam: PhaseParam = { ...PHASE_PARAM_CUSTOMER, value: cross.customer };
         const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: cross.carrier };
@@ -265,6 +264,17 @@ export class AdminJobComponent {
         ];
 
         this.phaseParamsToShow.set(params);
+
+console.log(
+  'PHASE PARAMS TO SHOW:',
+  params.map(p => ({
+    id: p.phaseParamId,
+    name: p.paramName,
+    input: p.input,
+    type: p.type,
+    value: p.value
+  }))
+);
 
         if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
             const crossJobParamValueMap = new Map<number, string>([
@@ -306,11 +316,11 @@ export class AdminJobComponent {
 
         const current = this.crossJobParams();
 
-        const paymentParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId)?.value ?? '';
-        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId)?.value ?? '';
-        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_CUSTOMER.phaseParamId)?.value ?? '';
-        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId)?.value ?? '';
-        const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_CALLOFF.phaseParamId)?.value === 'true';
+        const paymentParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_PAYMENT)?.value ?? '';
+        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_DUE_DATE)?.value ?? '';
+        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CUSTOMER)?.value ?? '';
+        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CARRIER)?.value ?? '';
+        const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CALLOFF)?.value === 'true';
 
         // Keep schedule in shared state as the default for the next new part,
         // but parent will not push it back into existing parts.
@@ -428,9 +438,10 @@ export class AdminJobComponent {
             }
         }
 
-        const paidParam = params.find(p => p.phaseParamId === PHASE_PARAM_PAYMENT.phaseParamId);
-        const isPaid = paidParam?.value === 'true';
-        if (isCallOff && isPaid) {
+        const paidParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_PAYMENT);
+        const hasPaymentDate = !!paidParam?.value;
+
+        if (isCallOff && hasPaymentDate) {
             errors.push({
                 phaseParamId: paidParam.phaseParamId,
                 message: 'Payment should not be received for call off jobs.'

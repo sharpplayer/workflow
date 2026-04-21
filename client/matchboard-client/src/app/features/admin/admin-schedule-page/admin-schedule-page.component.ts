@@ -1,6 +1,10 @@
-import { Component } from '@angular/core';
-import { AdminScheduleComponent, JobInput, MachineInput, RestTimesInput } from '../admin-schedule/admin-schedule.component';
-
+import { Component, OnInit, inject } from '@angular/core';
+import {
+    AdminScheduleComponent,
+    RestTimesInput
+} from '../admin-schedule/admin-schedule.component';
+import { ConfigService, MachineInput } from '../../../core/services/config.service';
+import { JobService, SchedulableJobPart } from '../../../core/services/job.service';
 
 @Component({
     selector: 'admin-schedule-page',
@@ -14,33 +18,28 @@ import { AdminScheduleComponent, JobInput, MachineInput, RestTimesInput } from '
     </app-admin-schedule>
   `,
 })
-export class AdminSchedulePageComponent {
-    machines: MachineInput[] = [
-        { machineId: 1, machineName: 'Saw', resetTime: 40 },
-        { machineId: 2, machineName: 'Mill', resetTime: 30 },
-        { machineId: 3, machineName: 'Drill', resetTime: 20 },
-        { machineId: 4, machineName: 'Polish', resetTime: 10 },
-    ];
+export class AdminSchedulePageComponent implements OnInit {
+    private readonly configService = inject(ConfigService);
+    private readonly jobService = inject(JobService);
 
-    jobs: JobInput[] = [
-        { jobPartId: 1001, requiredMachine: 1, stepNumber: 1, timeOnMachine: 30, width: 100, length: 150, thickness: 8 },
-        { jobPartId: 1001, requiredMachine: 2, stepNumber: 2, timeOnMachine: 45, width: 100, length: 200, thickness: 8 },
-        { jobPartId: 1001, requiredMachine: 4, stepNumber: 3, timeOnMachine: 20, width: 100, length: 150, thickness: 8 },
+    machines: MachineInput[] = [];
 
-        { jobPartId: 1002, requiredMachine: 1, stepNumber: 1, timeOnMachine: 25, width: 80, length: 120, thickness: 6 },
-        { jobPartId: 1002, requiredMachine: 3, stepNumber: 2, timeOnMachine: 35, width: 80, length: 120, thickness: 6 },
-
-        { jobPartId: 1003, requiredMachine: 2, stepNumber: 1, timeOnMachine: 50, width: 90, length: 200, thickness: 10 },
-        { jobPartId: 1003, requiredMachine: 4, stepNumber: 2, timeOnMachine: 40, width: 90, length: 200, thickness: 10 },
-
-        { jobPartId: 1004, requiredMachine: 1, stepNumber: 1, timeOnMachine: 15, width: 60, length: 90, thickness: 4 },
-        { jobPartId: 1004, requiredMachine: 3, stepNumber: 2, timeOnMachine: 30, width: 60, length: 90, thickness: 4 },
-        { jobPartId: 1004, requiredMachine: 4, stepNumber: 3, timeOnMachine: 25, width: 60, length: 90, thickness: 4 },
-
-        { jobPartId: 1005, requiredMachine: 2, stepNumber: 1, timeOnMachine: 60, width: 150, length: 220, thickness: 12 },
-    ];
+    jobs: SchedulableJobPart[] = [];
 
     restTimes: RestTimesInput = {
         times: 'Start:00:00-08:00;Mid Morning:10:00-10:15;Lunch:12:30-13:00;Afternoon:14:00-14:15;Close:16:00-24:00'
     };
+
+    async ngOnInit(): Promise<void> {
+        const allMachines = await this.configService.getMachineList();
+        this.jobs = await this.jobService.getJobSchedulableParts();
+
+        const usedMachineIds = new Set(
+            this.jobs.map(job => job.machineId)
+        );
+
+        this.machines = allMachines.filter(machine =>
+            usedMachineIds.has(machine.id)
+        );
+    }
 }

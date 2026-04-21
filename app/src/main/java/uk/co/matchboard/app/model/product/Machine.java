@@ -1,5 +1,7 @@
 package uk.co.matchboard.app.model.product;
 
-public record Machine(int id, String name) {
+import java.math.BigDecimal;
+
+public record Machine(int id, String name, BigDecimal setupTime, BigDecimal timePerUnit) {
 
 }

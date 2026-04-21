@@ -16,6 +16,8 @@ CREATE TABLE job
 
 CREATE INDEX idx_job_status ON job (status);
 
+CREATE INDEX idx_job_number ON job (number);
+
 CREATE TABLE job_part
 (
     id                 SERIAL PRIMARY KEY,

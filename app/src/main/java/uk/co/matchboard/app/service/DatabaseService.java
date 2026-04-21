@@ -9,13 +9,16 @@ import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
 import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.model.config.Customer;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartPhase;
+import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
 import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobPartParam;
+import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
@@ -75,10 +78,10 @@ public interface DatabaseService {
 
     Result<List<SchedulableJobPart>> getUnscheduled();
 
-    Result<List<SchedulableJobPart>> getScheduleFor(OffsetDateTime date);
+    Result<List<SchedulableJobPart>> getSchedulable();
 
-    Result<Boolean> updateSchedule(OffsetDateTime date, List<Integer> jobPartIds,
-            Function<PhaseParamEvaluatorInput, String> evaluator);
+    Result<Boolean> createSchedule(List<CreateScheduledJobPart> jobPartIds,
+            Function<PhaseParamEvaluatorInput, ConfigValuePair> evaluator);
 
     OptionalResult<Job> findJob(int jobId);
 
@@ -98,4 +101,6 @@ public interface DatabaseService {
     Result<Customer> updateCustomer(Customer customer);
 
     Result<List<Machine>> getAllMachines();
+
+    Result<List<JobView>> getJobs(Long toNumber, int count);
 }

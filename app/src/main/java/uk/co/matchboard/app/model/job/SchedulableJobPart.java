@@ -1,10 +1,14 @@
 package uk.co.matchboard.app.model.job;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-public record SchedulableJobPart(int jobPartId, String product, String oldName, int quantity,
-                                 boolean fromCallOff,
-                                 int jobId, long jobNumber, int partStatus, int jobStatus,
-                                 int partNo, int jobParts, Integer order, OffsetDateTime dueDate) {
+public record SchedulableJobPart(int jobPartId, int jobId, long jobNumber, String product,
+                                 String oldName,
+                                 int machineId, int quantity,
+                                 int stepNumber, int length, int width, int thickness,
+                                 int partStatus, int jobStatus,
+                                 int partNo, int jobParts, OffsetDateTime dueDate,
+                                 BigDecimal timeOnMachine, int steps, int productId) {
 
 }

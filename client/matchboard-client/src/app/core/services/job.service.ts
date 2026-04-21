@@ -26,18 +26,24 @@ export interface ScheduledJobPhase {
 
 export interface SchedulableJobPart {
   jobPartId: number;
-  product: string;
-  oldName: string;
-  quantity: number;
-  fromCallOff: boolean;
   jobId: number;
   jobNumber: number;
+  product: string;
+  oldName: string;
+  machineId: number;
+  quantity: number;
+  stepNumber: number;
+  width: number;
+  length: number;
+  thickness: number;
   partStatus: JobStatus;
   jobStatus: JobStatus;
   partNo: number;
   jobParts: number;
-  order?: number;
-  dueDate: Date
+  dueDate: Date;
+  timeOnMachine: number;
+  steps: number;
+  productId: number;
 }
 
 export interface SchedulableJobParts {
@@ -134,7 +140,6 @@ export interface CreateJobPart {
   quantity: number;
   fromCallOff: boolean;
   materialAvailable: boolean;
-  scheduleFor: string | null;
   phases: CreateJobPartPhase[];
   params: CreateJobPartParam[]
 }
@@ -149,8 +154,36 @@ export interface CreateJob {
   customer: number;
   carrier: number;
   callOff: boolean;
-  paymentConfirmed: string;
+  paymentConfirmed: string | null;
   parts: CreateJobPart[];
+}
+
+export interface JobView {
+  id: number;
+  number: number;
+  parts: number;
+  due: Date;
+  customer: string;
+  status: JobStatus;
+}
+
+interface JobViews {
+  jobs: JobView[];
+}
+
+export interface CreateScheduledJobPart {
+  jobId: number;
+  jobPartId: number;
+  machineId: number;
+  stepNumber: number;
+  quantity: number;
+  setupMinutes: number;
+  plannedMinutes: number;
+  plannedStartAt: string;   
+  plannedFinishAt: string;  
+  scheduledDate: string;
+  position: number;
+  productId: number;
 }
 
 export enum JobStatus {
@@ -165,6 +198,13 @@ export enum JobStatus {
   PARTIALLY_COMPLETED = 8,
   AWAITING = 9,
   STARTED = 10,
+  AWAITING_PAYMENT = 11,
+}
+
+export enum PhaseStatus {
+  INITIALISED = 1,
+  MATCHING = 2,
+  UNMATCHING = 3
 }
 
 export const JobStatusLabel: Record<JobStatus, string> = {
@@ -179,6 +219,7 @@ export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.PARTIALLY_COMPLETED]: "Partially Completed",
   [JobStatus.AWAITING]: "Awaiting",
   [JobStatus.STARTED]: "Started",
+  [JobStatus.AWAITING_PAYMENT]: "Awaiting Payment",
 };
 
 @Injectable({ providedIn: 'root' })
@@ -205,6 +246,26 @@ export class JobService {
     );
   }
 
+  async getJobs(toNumber: number | null, count: number): Promise<JobView[]> {
+    const params: any = { count };
+
+    if (toNumber != null) {
+      params.toNumber = toNumber;
+    }
+
+    const jobs = await firstValueFrom(
+      this.http.get<JobViews>(
+        `${API_BASE_URL}/api/jobs`,
+        {
+          params,
+          withCredentials: true
+        }
+      )
+    );
+
+    return jobs.jobs;
+  }
+
   async nextJob(role: string): Promise<JobWithOnePart> {
     return await firstValueFrom(
       this.http.get<JobWithOnePart>(
@@ -217,14 +278,14 @@ export class JobService {
     );
   }
 
-  async getJobSchedulableParts(date: string | null): Promise<SchedulableJobParts> {
+  async getJobSchedulableParts(): Promise<SchedulableJobPart[]> {
 
-    return await firstValueFrom(
+    const jobs = await firstValueFrom(
       this.http.get<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, {
-        params: date ? { date } : {},
         withCredentials: true
       })
     );
+    return jobs.schedulable;
   }
 
   async getJobScheduledPhases(date: string | null, role: string): Promise<ScheduledJobPhases> {
@@ -237,9 +298,9 @@ export class JobService {
     );
   }
 
-  async scheduleJobParts(date: string, jobPartIds: number[]) {
+  async submitSchedule(jobParts : CreateScheduledJobPart[]) {
     return await firstValueFrom(
-      this.http.post<SchedulableJobParts>(`${API_BASE_URL}/api/schedule`, { date, jobPartIds },
+      this.http.post<boolean>(`${API_BASE_URL}/api/schedule`, { jobParts },
         { withCredentials: true })
     );
 

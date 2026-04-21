@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.job.CreateJob;
-import uk.co.matchboard.app.model.job.UpdateSchedule;
+import uk.co.matchboard.app.model.job.CreateSchedule;
 import uk.co.matchboard.app.service.JobService;
 
 @RestController
@@ -19,6 +19,13 @@ public class JobController {
 
     public JobController(JobService jobService) {
         this.jobService = jobService;
+    }
+
+    @GetMapping("/jobs")
+    public ResponseEntity<?> getJobs(@RequestParam(required = false) Long toNumber,
+            @RequestParam int count) {
+        return jobService.getJobs(toNumber, count)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
     @PostMapping("/jobs")
@@ -50,8 +57,8 @@ public class JobController {
     public ResponseEntity<?> getSchedule(
             @RequestParam(required = false) String date, @RequestParam(required = false) String role
     ) {
-        if (role == null) {
-            return jobService.getSchedule(date)
+        if (date == null && role == null) {
+            return jobService.getSchedulable()
                     .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
         } else {
             return jobService.getSchedule(date, role)
@@ -60,8 +67,8 @@ public class JobController {
     }
 
     @PostMapping("/schedule")
-    public ResponseEntity<?> updateSchedule(@RequestBody UpdateSchedule schedule) {
-        return jobService.updateSchedule(schedule)
+    public ResponseEntity<?> createSchedule(@RequestBody CreateSchedule schedule) {
+        return jobService.createSchedule(schedule)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 }

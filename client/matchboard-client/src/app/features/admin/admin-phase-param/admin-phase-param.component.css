@@ -130,3 +130,21 @@ button:disabled {
   height: 24px;
   font-size: 16px;
 }
+
+.check-review {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-review__value {
+  min-width: 0;
+}
+
+.check-review__btn {
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  padding: 2px 8px;
+  line-height: 1.2;
+}

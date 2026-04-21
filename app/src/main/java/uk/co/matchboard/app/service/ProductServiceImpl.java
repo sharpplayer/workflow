@@ -193,7 +193,7 @@ public class ProductServiceImpl implements ProductService {
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
                         pp.paramConfig(),
                         pp.input(),
-                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input())))
+                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input()).value()))
                 .collect(Collectors.toList());
     }
 

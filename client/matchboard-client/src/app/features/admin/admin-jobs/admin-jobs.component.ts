@@ -6,7 +6,6 @@ import {
     PHASE_PARAM_ID_CALLOFF,
     PHASE_PARAM_ID_QUANTITY,
     PHASE_PARAM_ID_MATERIAL,
-    PHASE_PARAM_ID_SCHEDULE,
     PHASE_PARAM_ID_PAYMENT,
     PHASE_PARAM_ID_DUE_DATE,
     PHASE_PARAM_ID_CUSTOMER,
@@ -47,7 +46,6 @@ export interface CrossJobParameters {
     selector: 'admin-jobs',
     standalone: true,
     imports: [CommonModule, AdminJobComponent, DatePipe],
-    providers: [DatePipe],
     template: `
     <div>
         <span>
@@ -149,12 +147,10 @@ export class AdminJobsComponent implements OnInit {
     private staticParamIds = [
         PHASE_PARAM_ID_QUANTITY,
         PHASE_PARAM_ID_CALLOFF,
-        PHASE_PARAM_ID_MATERIAL,
-        PHASE_PARAM_ID_SCHEDULE
+        PHASE_PARAM_ID_MATERIAL
     ];
 
     private jobService = inject(JobService);
-    private datePipe = inject(DatePipe);
     private route = inject(ActivatedRoute);
 
     crossJobParams = signal<CrossJobParameters>({
@@ -268,11 +264,6 @@ export class AdminJobsComponent implements OnInit {
 
             case PHASE_PARAM_ID_MATERIAL:
                 return String(part.materialAvailable ?? false);
-
-            case PHASE_PARAM_ID_SCHEDULE:
-                return part.scheduleFor
-                    ? this.toDateInputValue(part.scheduleFor)
-                    : '';
 
             default:
                 return '';
@@ -403,7 +394,7 @@ export class AdminJobsComponent implements OnInit {
             switch (p.phaseParamId) {
                 case PHASE_PARAM_ID_PAYMENT:
                     return { ...p, value: cross.paymentConfirmed };
-                case PHASE_PARAM_ID_CALLOFF: // call off
+                case PHASE_PARAM_ID_CALLOFF:
                     return { ...p, value: String(cross.callOff) };
                 case PHASE_PARAM_ID_DUE_DATE:
                     return { ...p, value: cross.dueDate };
@@ -411,12 +402,12 @@ export class AdminJobsComponent implements OnInit {
                     return { ...p, value: cross.customer };
                 case PHASE_PARAM_ID_CARRIER:
                     return { ...p, value: cross.carrier };
-                // IMPORTANT: do not sync -9 schedule here
                 default:
                     return p;
             }
         });
 
+        console.log("S:" + cross.paymentConfirmed);
         const paramMap = new Map(
             params.map(p => [p.phaseParamId, p.value])
         );
@@ -454,21 +445,18 @@ export class AdminJobsComponent implements OnInit {
         crossJobParams: CrossJobParameters,
         jobParts: ProductSelectedWithMap[]
     ): CreateJob {
+        console.log("H:" + crossJobParams.paymentConfirmed + ":H");
         return {
             due: new Date(crossJobParams.dueDate).toISOString(),
             customer: Number(crossJobParams.customer),
             carrier: Number(crossJobParams.carrier),
             callOff: crossJobParams.callOff,
-            paymentConfirmed: new Date(crossJobParams.paymentConfirmed).toISOString(),
+            paymentConfirmed: crossJobParams.paymentConfirmed ? new Date(crossJobParams.paymentConfirmed).toISOString() : null,
             parts: jobParts.map((jobPart): CreateJobPart => ({
                 productId: jobPart.product.id,
                 quantity: Number(jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_QUANTITY)!.value),
                 fromCallOff: jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_CALLOFF)?.value === 'true',
                 materialAvailable: jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_MATERIAL)?.value === 'true',
-                scheduleFor: (() => {
-                    const v = jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_SCHEDULE)?.value;
-                    return v ? new Date(v).toISOString() : null;
-                })(),
                 phases: jobPart.phases.map((phase): CreateJobPartPhase => ({
                     phaseId: phase.phase.id,
                     specialInstructions: phase.specialInstruction
@@ -495,7 +483,6 @@ export class AdminJobsComponent implements OnInit {
 
         const invalidParams = job.params.filter(
             p => p.input !== 3 &&
-                p.phaseParamId !== PHASE_PARAM_ID_SCHEDULE &&
                 (p.value === '' || p.value.startsWith('('))
         );
 
@@ -503,10 +490,7 @@ export class AdminJobsComponent implements OnInit {
             return invalidParams.map(p => p.key).join(', ') + ' required';
         }
 
-        const scheduledOn = job.params.find(p => p.phaseParamId === PHASE_PARAM_ID_SCHEDULE)?.value;
-        return scheduledOn
-            ? (this.datePipe.transform(scheduledOn, 'dd/MM/yyyy') ?? 'Invalid date')
-            : 'Not Scheduled';
+        return "Schedulable";
     }
 
     jobStatusLabel(status: JobStatus): string {

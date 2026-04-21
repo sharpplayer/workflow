@@ -11,6 +11,7 @@ import moment, { Moment } from 'moment';
 import { NgSelectModule } from '@ng-select/ng-select';
 import { FormsModule } from '@angular/forms';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
+import { PhaseStatus } from '../../../core/services/job.service';
 
 export interface PhaseParamValidationError {
     phaseParamId: number;
@@ -41,6 +42,7 @@ interface PhaseParamData {
   searchable: boolean;
   editable: boolean;
   optional: boolean;
+  status: PhaseStatus;
 }
 
 export interface PhaseParamSelected {
@@ -124,9 +126,7 @@ export interface PhaseParamSelected {
                 (ngModelChange)="onValueChange(param.phaseParamId, $event)"
               >
                 @for (opt of param.options; track opt.key) {
-                  <option
-                    [ngValue]="opt.key"
-                  >
+                  <option [ngValue]="opt.key">
                     {{ opt.value }}
                   </option>
                 }
@@ -137,7 +137,7 @@ export interface PhaseParamSelected {
                 [checked]="param.value === 'true'"
                 (change)="onValueChange(param.phaseParamId, $any($event.target).checked, 'boolean')"
               />
-            } @else if (param.type?.startsWith('date')) {
+            } @else if (param.type === 'date') {
               <mat-form-field appearance="fill">
                 <input
                   matInput
@@ -146,18 +146,16 @@ export interface PhaseParamSelected {
                   (dateChange)="onDateChange(param.phaseParamId, $event.value)"
                   placeholder="Select a date"
                 />
-                 <!-- Clear button -->
-                @if(param.optional)
-                {
-                <button
-                  matSuffix
-                  mat-icon-button
-                  class="clear-date-btn"
-                  (click)="clearDate(param.phaseParamId)"
-                  aria-label="Clear date"
-                >
-                  ✕
-                </button>
+                @if(param.optional) {
+                  <button
+                    matSuffix
+                    mat-icon-button
+                    class="clear-date-btn"
+                    (click)="clearDate(param.phaseParamId)"
+                    aria-label="Clear date"
+                  >
+                    ✕
+                  </button>
                 }
                 <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
@@ -169,6 +167,45 @@ export interface PhaseParamSelected {
                 [value]="param.value"
                 (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'int')"
               />
+            } @else if (param.type === 'check') {
+              @if (!isEditingCheck(param.phaseParamId)) {
+                <div class="check-review">
+                  <span class="check-review__value">{{ param.value }}</span>
+
+                  <button
+                    type="button"
+                    class="check-review__btn"
+                    aria-label="Accept value"
+                    (click)="acceptCheckValue(param.phaseParamId)"
+                  >
+                    ✓
+                  </button>
+
+                  <button
+                    type="button"
+                    class="check-review__btn"
+                    aria-label="Reject value and edit"
+                    (click)="startEditingCheck(param.phaseParamId)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              } @else {
+                @if (isIntLike(param.value)) {
+                  <input
+                    type="number"
+                    step="1"
+                    [value]="param.value"
+                    (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'check-int')"
+                  />
+                } @else {
+                  <input
+                    type="text"
+                    [value]="param.value"
+                    (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'check-text')"
+                  />
+                }
+              }
             } @else {
               <input
                 type="text"
@@ -218,6 +255,8 @@ export class AdminPhaseParamComponent {
 
   selectedParamForAdd = signal<PhaseParamData | null>(null);
 
+  readonly editingCheckParams = signal<Record<number, boolean>>({});
+
   errorMap = computed(() => {
     const map = new Map<number, string>();
     for (const err of this.validationErrors()) {
@@ -237,6 +276,29 @@ export class AdminPhaseParamComponent {
         this.filteredParams.set([]);
       }
     });
+
+    effect(() => {
+      console.log(
+        'phaseParams in AdminPhaseParamComponent',
+        this.phaseParams().map(p => ({
+          id: p.phaseParamId,
+          name: p.paramName,
+          input: p.input,
+          type: p.type,
+          value: p.value
+        }))
+      );
+
+      console.log(
+        'selectedParams in AdminPhaseParamComponent',
+        this.selectedParams()?.map(p => ({
+          id: p.phaseParamId,
+          key: p.key,
+          input: p.input,
+          value: p.value
+        }))
+      );
+    });
   }
 
   private async initialize(params: PhaseParam[], selectedParams: PhaseParamSelected[] | null) {
@@ -253,13 +315,18 @@ export class AdminPhaseParamComponent {
 
       let def = '';
       if (p.paramConfig) {
-        try {
-          const list = await this.configService.getList(p.paramConfig);
-          options = list.value;
-          type = list.type;
-          console.log(p.paramConfig + ":" + type);
-        } catch (err) {
-          console.error(`Failed to load list for ${p.paramConfig}`, err);
+        if (p.paramConfig.startsWith('CHECK(')) {
+          def = p.paramConfig.substring(6, p.paramConfig.length - 1);
+          type = 'check';
+        } else {
+          try {
+            const list = await this.configService.getList(p.paramConfig);
+            options = list.value;
+            type = list.type;
+            console.log(p.paramConfig + ':' + type);
+          } catch (err) {
+            console.error(`Failed to load list for ${p.paramConfig}`, err);
+          }
         }
       }
 
@@ -267,7 +334,7 @@ export class AdminPhaseParamComponent {
       if (p.input === 1 && options.length > 0 && !p.optional) {
         def = options[0].key;
       }
-      if (p.input === 2) {
+      if (p.input === 2 && !p.optional) {
         def = p.evaluation ?? '(Input At Job Start)';
         defaults.push({
           key: def,
@@ -298,17 +365,71 @@ export class AdminPhaseParamComponent {
         input: p.input,
         searchable: p.searchable ?? false,
         editable: p.editable ?? false,
-        optional: p.optional ?? false
+        optional: p.optional ?? false,
+        status: type === 'check' ? PhaseStatus.INITIALISED : PhaseStatus.MATCHING
       });
     }
 
     this.filteredParams.set(result);
+    this.editingCheckParams.set({});
   }
 
   private isWrappedEvaluation(evaluation: PhaseParam): boolean {
     return !!evaluation.evaluation &&
       evaluation.evaluation.trim().startsWith('(') &&
       evaluation.evaluation.trim().endsWith(')');
+  }
+
+  isEditingCheck(id: number): boolean {
+    return !!this.editingCheckParams()[id];
+  }
+
+  startEditingCheck(id: number): void {
+    this.editingCheckParams.update(state => ({
+      ...state,
+      [id]: true
+    }));
+
+    this.filteredParams.update(params =>
+      params.map(p =>
+        p.phaseParamId === id
+          ? {
+              ...p,
+              status: PhaseStatus.UNMATCHING
+            }
+          : p
+      )
+    );
+
+    this.emitChanges();
+  }
+
+  stopEditingCheck(id: number): void {
+    this.editingCheckParams.update(state => ({
+      ...state,
+      [id]: false
+    }));
+  }
+
+  acceptCheckValue(id: number): void {
+    this.filteredParams.update(params =>
+      params.map(p =>
+        p.phaseParamId === id
+          ? {
+              ...p,
+              status: PhaseStatus.MATCHING
+            }
+          : p
+      )
+    );
+
+    this.stopEditingCheck(id);
+    this.emitChanges();
+  }
+
+  isIntLike(value: string | null | undefined): boolean {
+    if (value == null) return false;
+    return /^-?\d+$/.test(String(value).trim());
   }
 
   onValueChange(id: number, value: string | boolean, type?: string) {
@@ -318,7 +439,7 @@ export class AdminPhaseParamComponent {
 
         let nextValue: string;
 
-        if (type === 'int') {
+        if (type === 'int' || type === 'check-int') {
           const parsed = Number(value);
           nextValue = Number.isInteger(parsed) ? parsed.toString() : '';
         } else if (type === 'boolean') {
@@ -329,7 +450,11 @@ export class AdminPhaseParamComponent {
 
         return {
           ...p,
-          value: nextValue
+          value: nextValue,
+          status:
+            p.type === 'check' && (type === 'check-int' || type === 'check-text')
+              ? PhaseStatus.UNMATCHING
+              : p.status
         };
       })
     );
@@ -342,9 +467,9 @@ export class AdminPhaseParamComponent {
       params.map(p =>
         p.phaseParamId === id
           ? {
-            ...p,
-            value: date ? date.format(UK_DATE_FORMATS.storage) : ''
-          }
+              ...p,
+              value: date ? date.format(UK_DATE_FORMATS.storage) : ''
+            }
           : p
       )
     );
@@ -395,10 +520,10 @@ export class AdminPhaseParamComponent {
         params.map(p =>
           p.phaseParamId === param.phaseParamId
             ? {
-              ...p,
-              options: [...p.options, newItem],
-              value: newItem.key
-            }
+                ...p,
+                options: [...p.options, newItem],
+                value: newItem.key
+              }
             : p
         )
       );
@@ -418,9 +543,9 @@ export class AdminPhaseParamComponent {
       params.map(p =>
         p.phaseParamId === id
           ? {
-            ...p,
-            value: key ?? ''
-          }
+              ...p,
+              value: key ?? ''
+            }
           : p
       )
     );
@@ -446,6 +571,6 @@ export class AdminPhaseParamComponent {
   }
 
   clearDate(id: number) {
-   this.onDateChange(id, null);
+    this.onDateChange(id, null);
   }
 }
