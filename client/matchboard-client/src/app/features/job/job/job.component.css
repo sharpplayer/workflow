@@ -339,3 +339,13 @@ button:disabled {
   opacity: 0.6;
   pointer-events: none;
 }
+
+.value.landscape {
+  background-color: orange;
+  color: white; /* optional for readability */
+}
+
+.value.portrait {
+  background-color: green;
+  color: white; /* optional */
+}

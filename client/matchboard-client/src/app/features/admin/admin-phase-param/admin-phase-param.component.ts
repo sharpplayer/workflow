@@ -1,21 +1,28 @@
 import { Component, inject, input, output, LOCALE_ID, effect, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PhaseParam } from '../../../core/services/product.service';
-import { ConfigItem, ConfigService } from '../../../core/services/config.service';
+import { FormsModule } from '@angular/forms';
+
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/material/core';
 import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/material-moment-adapter';
+
 import moment, { Moment } from 'moment';
 import { NgSelectModule } from '@ng-select/ng-select';
-import { FormsModule } from '@angular/forms';
+
+import { PhaseParam } from '../../../core/services/product.service';
+import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
-import { PhaseStatus } from '../../../core/services/job.service';
+import { ParamStatus } from '../../../core/services/job.service';
 
 export interface PhaseParamValidationError {
-    phaseParamId: number;
-    message: string;
+  phaseParamId: number;
+  message: string;
 }
 
 export const UK_DATE_FORMATS = {
@@ -42,7 +49,7 @@ interface PhaseParamData {
   searchable: boolean;
   editable: boolean;
   optional: boolean;
-  status: PhaseStatus;
+  status: ParamStatus;
 }
 
 export interface PhaseParamSelected {
@@ -59,12 +66,16 @@ export interface PhaseParamSelected {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
+    MatCheckboxModule,
+    MatButtonModule,
+    MatIconModule,
     MatMomentDateModule,
     NgSelectModule,
-    FormsModule,
     AdminCarrierComponent
   ],
   providers: [
@@ -89,56 +100,75 @@ export interface PhaseParamSelected {
           <td>{{ param.key }}</td>
           <td>
             @if (param.type === 'colour[]') {
-              <select
-                [ngModel]="param.value"
-                (ngModelChange)="onValueChange(param.phaseParamId, $event)"
-              >
-                @for (opt of param.options; track opt.key) {
-                  <option
-                    [ngValue]="opt.key"
-                    [style.color]="opt.value.startsWith('(') ? null : opt.value.toLowerCase()"
-                  >
-                    {{ opt.value.startsWith('(') ? '' : '● ' }}{{ opt.value }}
-                  </option>
-                }
-              </select>
+              <mat-form-field appearance="fill" class="param-field">
+                <mat-select
+                  [ngModel]="param.value"
+                  (ngModelChange)="onValueChange(param.phaseParamId, $event)"
+                >
+                  @for (opt of param.options; track opt.key) {
+                    <mat-option [value]="opt.key">
+                      <span class="colour-option">
+                        @if (!opt.value.startsWith('(')) {
+                          <span
+                            class="colour-dot"
+                            [style.background-color]="opt.value.toLowerCase()"
+                          ></span>
+                        }
+                        <span>{{ opt.value }}</span>
+                      </span>
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
             } @else if (param.type === 'string[]' && param.searchable) {
               <div class="param-select-wrapper">
-                <ng-select
-                  [items]="param.options"
-                  bindLabel="value"
-                  bindValue="key"
-                  [searchable]="true"
-                  [clearable]="true"
-                  [appendTo]="'body'"
-                  placeholder="Select or type..."
-                  [ngModel]="param.value"
-                  (ngModelChange)="onNgSelectChange(param.phaseParamId, $event)"
-                >
-                </ng-select>
-                @if(param.editable) {
-                  <button type="button" (click)="addItem(param)">+</button>
+                <div class="param-field ng-select-field">
+                  <ng-select
+                    [items]="param.options"
+                    bindLabel="value"
+                    bindValue="key"
+                    [searchable]="true"
+                    [clearable]="true"
+                    [appendTo]="'body'"
+                    placeholder="Select or type..."
+                    [ngModel]="param.value"
+                    (ngModelChange)="onNgSelectChange(param.phaseParamId, $event)"
+                  >
+                  </ng-select>
+                </div>
+
+                @if (param.editable) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    aria-label="Add item"
+                    (click)="addItem(param)"
+                  >
+                    <mat-icon>add</mat-icon>
+                  </button>
                 }
               </div>
             } @else if (param.type === 'string[]') {
-              <select
-                [ngModel]="param.value"
-                (ngModelChange)="onValueChange(param.phaseParamId, $event)"
-              >
-                @for (opt of param.options; track opt.key) {
-                  <option [ngValue]="opt.key">
-                    {{ opt.value }}
-                  </option>
-                }
-              </select>
+              <mat-form-field appearance="fill" class="param-field">
+                <mat-select
+                  [ngModel]="param.value"
+                  (ngModelChange)="onValueChange(param.phaseParamId, $event)"
+                >
+                  @for (opt of param.options; track opt.key) {
+                    <mat-option [value]="opt.key">
+                      {{ opt.value }}
+                    </mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
             } @else if (param.type === 'boolean') {
-              <input
-                type="checkbox"
-                [checked]="param.value === 'true'"
-                (change)="onValueChange(param.phaseParamId, $any($event.target).checked, 'boolean')"
-              />
+              <mat-checkbox
+                [ngModel]="param.value === 'true'"
+                (ngModelChange)="onValueChange(param.phaseParamId, $event, 'boolean')"
+              >
+              </mat-checkbox>
             } @else if (param.type === 'date') {
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="fill" class="param-field">
                 <input
                   matInput
                   [matDatepicker]="picker"
@@ -146,72 +176,87 @@ export interface PhaseParamSelected {
                   (dateChange)="onDateChange(param.phaseParamId, $event.value)"
                   placeholder="Select a date"
                 />
-                @if(param.optional) {
+                @if (param.optional) {
                   <button
                     matSuffix
                     mat-icon-button
                     class="clear-date-btn"
+                    type="button"
                     (click)="clearDate(param.phaseParamId)"
                     aria-label="Clear date"
                   >
-                    ✕
+                    <mat-icon>close</mat-icon>
                   </button>
                 }
                 <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
               </mat-form-field>
             } @else if (param.type === 'int') {
-              <input
-                type="number"
-                step="1"
-                [value]="param.value"
-                (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'int')"
-              />
+              <mat-form-field appearance="fill" class="param-field">
+                <input
+                  matInput
+                  type="number"
+                  step="1"
+                  [ngModel]="param.value"
+                  (ngModelChange)="onValueChange(param.phaseParamId, $event, 'int')"
+                />
+              </mat-form-field>
             } @else if (param.type === 'check') {
               @if (!isEditingCheck(param.phaseParamId)) {
                 <div class="check-review">
                   <span class="check-review__value">{{ param.value }}</span>
 
                   <button
+                    mat-icon-button
                     type="button"
                     class="check-review__btn"
                     aria-label="Accept value"
                     (click)="acceptCheckValue(param.phaseParamId)"
                   >
-                    ✓
+                    <mat-icon>check</mat-icon>
                   </button>
 
                   <button
+                    mat-icon-button
                     type="button"
                     class="check-review__btn"
                     aria-label="Reject value and edit"
                     (click)="startEditingCheck(param.phaseParamId)"
                   >
-                    ✕
+                    <mat-icon>close</mat-icon>
                   </button>
                 </div>
               } @else {
                 @if (isIntLike(param.value)) {
-                  <input
-                    type="number"
-                    step="1"
-                    [value]="param.value"
-                    (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'check-int')"
-                  />
+                  <mat-form-field appearance="fill" class="param-field">
+                    <input
+                      matInput
+                      type="number"
+                      step="1"
+                      [ngModel]="param.value"
+                      (ngModelChange)="onValueChange(param.phaseParamId, $event, 'check-int')"
+                    />
+                  </mat-form-field>
                 } @else {
-                  <input
-                    type="text"
-                    [value]="param.value"
-                    (input)="onValueChange(param.phaseParamId, $any($event.target).value, 'check-text')"
-                  />
+                  <mat-form-field appearance="fill" class="param-field">
+                    <input
+                      matInput
+                      type="text"
+                      [ngModel]="param.value"
+                      (ngModelChange)="onValueChange(param.phaseParamId, $event, 'check-text')"
+                    />
+                  </mat-form-field>
                 }
               }
             } @else {
-              <input
-                type="text"
-                [value]="param.value"
-                (input)="onValueChange(param.phaseParamId, $any($event.target).value)"
-              />
+              <mat-form-field appearance="fill" class="param-field">
+                <input
+                  matInput
+                  type="text"
+                  [ngModel]="param.value"
+                  (ngModelChange)="onValueChange(param.phaseParamId, $event)"
+                />
+              </mat-form-field>
             }
           </td>
           <td>
@@ -366,7 +411,7 @@ export class AdminPhaseParamComponent {
         searchable: p.searchable ?? false,
         editable: p.editable ?? false,
         optional: p.optional ?? false,
-        status: type === 'check' ? PhaseStatus.INITIALISED : PhaseStatus.MATCHING
+        status: type === 'check' ? ParamStatus.INITIALISED : ParamStatus.MATCHING
       });
     }
 
@@ -395,7 +440,7 @@ export class AdminPhaseParamComponent {
         p.phaseParamId === id
           ? {
               ...p,
-              status: PhaseStatus.UNMATCHING
+              status: ParamStatus.UNMATCHING
             }
           : p
       )
@@ -417,7 +462,7 @@ export class AdminPhaseParamComponent {
         p.phaseParamId === id
           ? {
               ...p,
-              status: PhaseStatus.MATCHING
+              status: ParamStatus.MATCHING
             }
           : p
       )
@@ -429,7 +474,7 @@ export class AdminPhaseParamComponent {
 
   isIntLike(value: string | null | undefined): boolean {
     if (value == null) return false;
-    return /^-?\d+$/.test(String(value).trim());
+    return /^-?\\d+$/.test(String(value).trim());
   }
 
   onValueChange(id: number, value: string | boolean, type?: string) {
@@ -453,7 +498,7 @@ export class AdminPhaseParamComponent {
           value: nextValue,
           status:
             p.type === 'check' && (type === 'check-int' || type === 'check-text')
-              ? PhaseStatus.UNMATCHING
+              ? ParamStatus.UNMATCHING
               : p.status
         };
       })

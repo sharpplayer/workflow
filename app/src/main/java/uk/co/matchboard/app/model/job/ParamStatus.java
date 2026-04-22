@@ -1,13 +1,13 @@
 package uk.co.matchboard.app.model.job;
 
-public enum PhaseStatus {
+public enum ParamStatus {
     INITIALISED(1),
     MATCHED(2),
     UNMATCHED(3);
 
     private final int code;
 
-    PhaseStatus(int code) {
+    ParamStatus(int code) {
         this.code = code;
     }
 
@@ -15,8 +15,8 @@ public enum PhaseStatus {
         return code;
     }
 
-    public static PhaseStatus fromCode(int code) {
-        for (PhaseStatus status : PhaseStatus.values()) {
+    public static ParamStatus fromCode(int code) {
+        for (ParamStatus status : ParamStatus.values()) {
             if (status.code == code) {
                 return status;
             }

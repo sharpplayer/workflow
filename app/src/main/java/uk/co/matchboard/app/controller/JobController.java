@@ -47,23 +47,21 @@ public class JobController {
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
-    @GetMapping("/schedule-dates")
-    public ResponseEntity<?> getScheduleDates() {
-        return jobService.getScheduleDates()
-                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
-    }
-
     @GetMapping("/schedule")
     public ResponseEntity<?> getSchedule(
-            @RequestParam(required = false) String date, @RequestParam(required = false) String role
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Integer machineId
     ) {
-        if (date == null && role == null) {
+        if (date == null && role == null && machineId == null) {
             return jobService.getSchedulable()
                     .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
-        } else {
-            return jobService.getSchedule(date, role)
+        } else if (machineId != null) {
+            return jobService.getScheduleForMachine(date, machineId)
                     .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
         }
+        return jobService.getSchedule(date, role)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
     @PostMapping("/schedule")

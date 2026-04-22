@@ -38,7 +38,6 @@ public class ConfigurationController {
             case AuxiliaryServiceImpl.CONFIG_MACHINE -> auxiliaryService.getMachines();
             case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
             case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
-            case JobServiceImpl.CONFIG_SCHEDULE_DATES -> jobService.getScheduleDates();
             default -> configurationService.getConfig(configName);
         };
         return result.fold(d -> ResponseEntity.ok().body(d),

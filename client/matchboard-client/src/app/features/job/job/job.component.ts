@@ -18,7 +18,7 @@ import {
   computed
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { DatePipe } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { LoginComponent, LoginResult } from '../../login/login/login.component';
 import { LoginResetComponent } from '../../login/reset/reset.component';
 import { AuthService, ResetResult } from '../../../core/services/auth.service';
@@ -30,7 +30,7 @@ import { DeviceService } from '../../../core/services/device.service';
 @Component({
   selector: 'job',
   standalone: true,
-  imports: [DatePipe, JobPhaseParamComponent],
+  imports: [DatePipe, JobPhaseParamComponent, CommonModule],
   template: `
     <div class="job-page">
       @if (job(); as currentJob) {
@@ -95,7 +95,13 @@ import { DeviceService } from '../../../core/services/device.service';
             <div class="details-top-row">
               <div class="field">
                 <div class="caption">Format</div>
-                <div class="value">
+                <div
+                  class="value"
+                  [ngClass]="{
+                    'landscape': currentJob.product.width > currentJob.product.length,
+                    'portrait': currentJob.product.width <= currentJob.product.length
+                  }"
+                >
                   {{ currentJob.product.width > currentJob.product.length ? 'LANDSCAPE' : 'PORTRAIT' }}
                 </div>
               </div>

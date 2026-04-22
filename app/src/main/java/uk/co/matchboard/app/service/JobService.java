@@ -9,6 +9,7 @@ import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
+import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 
@@ -18,11 +19,11 @@ public interface JobService {
 
     Result<Job> createJob(CreateJob job);
 
-    Result<ConfigResponse> getScheduleDates();
-
     Result<SchedulableJobParts> getSchedulable();
 
     Result<ScheduledJobPhases> getSchedule(String date, String role);
+
+    Result<ScheduledJobPartViews> getScheduleForMachine(String date, int machine);
 
     Result<Boolean> createSchedule(CreateSchedule schedule);
 

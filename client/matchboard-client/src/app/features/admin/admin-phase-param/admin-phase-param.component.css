@@ -148,3 +148,36 @@ button:disabled {
   padding: 2px 8px;
   line-height: 1.2;
 }
+
+.param-field {
+  width: 100%;
+}
+
+.param-field .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.param-select-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.ng-select-field {
+  flex: 1;
+}
+
+.colour-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.colour-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex: 0 0 12px;
+}

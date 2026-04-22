@@ -1,0 +1,115 @@
+.schedule-list-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.controls mat-form-field {
+  min-width: 220px;
+}
+
+table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 10%);
+}
+
+thead {
+  color: #fff;
+  background: #4a90e2;
+}
+
+th,
+td {
+  padding: 10px 15px;
+  text-align: left;
+}
+
+thead th {
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(odd) {
+  background: #fff;
+}
+
+tbody tr:nth-child(even) {
+  background: #f9f9f9;
+}
+
+tbody tr.selected {
+  background: #e6f2ff;
+}
+
+.no-data {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+}
+
+.error-message {
+  margin-bottom: 0.75rem;
+  color: #b00020;
+}
+
+.orientation-badge,
+.variance-badge {
+  display: inline-block;
+  min-width: 90px;
+  padding: 4px 8px;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.orientation-portrait,
+.variance-positive {
+  color: #1b5e20;
+  background: #c8e6c9;
+}
+
+.orientation-landscape {
+  color: #e65100;
+  background: #ffe0b2;
+}
+
+.variance-negative {
+  color: #b71c1c;
+  background: #ffcdd2;
+}
+
+.due-date-badge {
+  display: inline-block;
+  min-width: 100px;
+  padding: 4px 8px;
+  text-align: center;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+/* Past → RED */
+.due-past {
+  background: #ffcdd2;
+  color: #b71c1c;
+}
+
+/* Today → ORANGE */
+.due-today {
+  background: #ffe0b2;
+  color: #e65100;
+}
+
+/* Future → GREEN */
+.due-future {
+  background: #c8e6c9;
+  color: #1b5e20;
+}

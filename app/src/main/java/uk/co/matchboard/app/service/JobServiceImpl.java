@@ -3,7 +3,6 @@ package uk.co.matchboard.app.service;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,10 +14,9 @@ import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.config.ConfigResponse;
+import uk.co.matchboard.app.functional.TryUtils;
 import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.config.Customer;
-import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateSchedule;
@@ -29,6 +27,7 @@ import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
@@ -46,8 +45,6 @@ public class JobServiceImpl implements JobService {
     private record PartPhaseKey(int partNumber, int phaseNumber, int jobPartPhaseId) {
 
     }
-
-    public static final String CONFIG_SCHEDULE_DATES = "SCHEDULE-DATES";
 
     private final DatabaseService databaseService;
 
@@ -107,17 +104,7 @@ public class JobServiceImpl implements JobService {
         if (!p.materialAvailable()) {
             return JobStatus.AWAITING_MATERIAL;
         }
-
         return jobStatus;
-    }
-
-    @Override
-    public Result<ConfigResponse> getScheduleDates() {
-        return databaseService.getScheduleDates()
-                .map(dateList -> new ConfigResponse("schedule-dates",
-                        dateList.stream().map(date -> new KeyValuePair(date.format(
-                                DateTimeFormatter.ofPattern("yyyy-MM-dd")), date.format(
-                                DateTimeFormatter.ofPattern("dd/MM/yyyy")))).toList(), "date[]"));
     }
 
     @Override
@@ -152,6 +139,24 @@ public class JobServiceImpl implements JobService {
                             );
                         })
                         .toList()).map(ScheduledJobPhases::new);
+    }
+
+    @Override
+    public Result<ScheduledJobPartViews> getScheduleForMachine(String date, int machine) {
+        Result<LocalDate> toDate;
+        if (date == null) {
+            toDate = Result.of(LocalDate.now());
+        } else {
+            toDate = TryUtils.tryCatch(() -> LocalDate.parse(date));
+        }
+        return toDate.flatMap(d -> {
+                    LocalDate fromDate = null;
+                    if (date != null) {
+                        fromDate = d;
+                    }
+                    return databaseService.getScheduleForMachine(machine, fromDate, d);
+                })
+                .map(ScheduledJobPartViews::new);
     }
 
     private Result<LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>>> getScheduleParamsFor(

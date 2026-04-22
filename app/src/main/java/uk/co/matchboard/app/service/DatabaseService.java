@@ -1,10 +1,15 @@
 package uk.co.matchboard.app.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
@@ -22,6 +27,7 @@ import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
@@ -74,8 +80,6 @@ public interface DatabaseService {
     Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
             BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus);
 
-    Result<List<OffsetDateTime>> getScheduleDates();
-
     Result<List<SchedulableJobPart>> getUnscheduled();
 
     Result<List<SchedulableJobPart>> getSchedulable();
@@ -86,6 +90,10 @@ public interface DatabaseService {
     OptionalResult<Job> findJob(int jobId);
 
     Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
+
+    Result<List<ScheduledJobPartView>> getScheduleForMachine(int machineId,
+            LocalDate fromDate,
+            LocalDate toDate);
 
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
             Integer jobPhaseId);

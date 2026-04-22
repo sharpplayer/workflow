@@ -19,6 +19,7 @@ import static uk.co.matchboard.generated.Tables.USERS;
 
 import jakarta.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,9 +66,10 @@ import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
-import uk.co.matchboard.app.model.job.PhaseStatus;
+import uk.co.matchboard.app.model.job.ParamStatus;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
@@ -966,7 +968,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(JOB_PART_PARAMS.PACK, 1)
                         .set(JOB_PART_PARAMS.VALUE, param.value())
                         .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
-                        .set(JOB_PART_PARAMS.STATUS, PhaseStatus.INITIALISED.getCode())
+                        .set(JOB_PART_PARAMS.STATUS, ParamStatus.INITIALISED.getCode())
                         .returning(JOB_PART_PARAMS.ID)
                         .fetchOne(JOB_PART_PARAMS.ID);
                 if (paramId == null) {
@@ -980,7 +982,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 phaseId,
                                 partPhaseId, 1, paramData.getName(),
                                 param.value(), valueTime, paramData.getConfig(),
-                                PhaseStatus.INITIALISED.getCode()));
+                                ParamStatus.INITIALISED.getCode()));
 
             }
         }
@@ -994,13 +996,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                 configAndValue.config() == null ? phaseParamRecord.get(PHASE_PARAM.CONFIG)
                         : configAndValue.config(), configAndValue.value(),
                 phaseParamRecord.get(JOB_PART_PHASES.ID), true);
-    }
-
-    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
-            backoff = @Backoff(delay = 500, multiplier = 2.0))
-    @Override
-    public Result<List<OffsetDateTime>> getScheduleDates() {
-        return TryUtils.tryCatch(Collections::emptyList);
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -1123,6 +1118,93 @@ public class DatabaseServiceImpl implements DatabaseService {
                     )
                     .fetch(DatabaseServiceImpl::getScheduledJobPartParam);
         });
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<List<ScheduledJobPartView>> getScheduleForMachine(int machineId,
+            LocalDate fromDate,
+            LocalDate toDate) {
+        return TryUtils.tryCatch(() -> {
+            LocalDate effectiveFromDate = fromDate != null
+                    ? fromDate
+                    : toDate.minusDays(3);
+
+            Condition condition = JOB_PART_OPERATION.MACHINE_ID.eq(machineId)
+                    .and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.between(effectiveFromDate, toDate));
+            if (fromDate == null) {
+                condition = condition.and(
+                        JOB_PART_OPERATION.STATUS.in(JobStatus.SCHEDULED.getCode(),
+                                JobStatus.STARTED.getCode()));
+            }
+
+            return outerDsl
+                    .select(
+                            JOB.DUE,
+                            JOB.NUMBER,
+                            JOB_PART.PART_NUMBER,
+                            JOB.PARTS,
+                            PRODUCTS.NAME,
+                            JOB.CUSTOMER_ID,
+                            JOB_PART_OPERATION.QUANTITY,
+                            PRODUCTS.PROFILE,
+                            PRODUCTS.LENGTH,
+                            PRODUCTS.WIDTH,
+                            PRODUCTS.THICKNESS,
+                            PRODUCTS.MATERIAL,
+                            PRODUCTS.PITCH,
+                            PRODUCTS.EDGE,
+                            PRODUCTS.FINISH,
+                            JOB_PART_OPERATION.PLANNED_START_AT,
+                            JOB_PART_OPERATION.PLANNED_FINISH_AT,
+                            JOB_PART_OPERATION.PLANNED_MINUTES,
+                            JOB_PART_OPERATION.SETUP_MINUTES,
+                            JOB_PART_OPERATION.ACTUAL_START_AT,
+                            JOB_PART_OPERATION.ACTUAL_FINISH_AT,
+                            JOB_PART_OPERATION.STATUS
+                    )
+                    .from(JOB_PART_OPERATION)
+                    .join(JOB_PART)
+                    .on(JOB_PART_OPERATION.JOB_PART_ID.eq(JOB_PART.ID))
+                    .join(JOB)
+                    .on(JOB_PART.JOB_ID.eq(JOB.ID))
+                    .join(PRODUCTS)
+                    .on(JOB_PART.PRODUCT_ID.eq(PRODUCTS.ID))
+                    .where(condition)
+                    .orderBy(
+                            JOB_PART_OPERATION.SCHEDULED_FOR_DATE.asc(),   // carry-over first
+                            JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.asc(),
+                            JOB.DUE.asc()
+                    )
+                    .fetch(DatabaseServiceImpl::getScheduledJobPartView);
+        });
+    }
+
+    private static ScheduledJobPartView getScheduledJobPartView(
+            Record rec) {
+        return new ScheduledJobPartView(rec.get(JOB.DUE), rec.get(JOB.NUMBER),
+                rec.get(JOB_PART.PART_NUMBER),
+                rec.get(JOB.PARTS),
+                rec.get(PRODUCTS.NAME),
+                rec.get(JOB.CUSTOMER_ID),
+                rec.get(JOB_PART_OPERATION.QUANTITY),
+                rec.get(PRODUCTS.PROFILE),
+                rec.get(PRODUCTS.LENGTH),
+                rec.get(PRODUCTS.WIDTH),
+                rec.get(PRODUCTS.THICKNESS),
+                rec.get(PRODUCTS.MATERIAL),
+                rec.get(PRODUCTS.PITCH),
+                rec.get(PRODUCTS.EDGE),
+                rec.get(PRODUCTS.FINISH),
+                rec.get(JOB_PART_OPERATION.PLANNED_START_AT),
+                rec.get(JOB_PART_OPERATION.PLANNED_FINISH_AT),
+                rec.get(JOB_PART_OPERATION.ACTUAL_START_AT),
+                rec.get(JOB_PART_OPERATION.ACTUAL_FINISH_AT),
+                rec.get(JOB_PART_OPERATION.PLANNED_MINUTES),
+                rec.get(JOB_PART_OPERATION.SETUP_MINUTES),
+                rec.get(JOB_PART_OPERATION.STATUS)
+        );
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,

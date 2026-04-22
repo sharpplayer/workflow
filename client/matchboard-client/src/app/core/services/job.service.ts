@@ -179,8 +179,8 @@ export interface CreateScheduledJobPart {
   quantity: number;
   setupMinutes: number;
   plannedMinutes: number;
-  plannedStartAt: string;   
-  plannedFinishAt: string;  
+  plannedStartAt: string;
+  plannedFinishAt: string;
   scheduledDate: string;
   position: number;
   productId: number;
@@ -201,10 +201,39 @@ export enum JobStatus {
   AWAITING_PAYMENT = 11,
 }
 
-export enum PhaseStatus {
+export enum ParamStatus {
   INITIALISED = 1,
   MATCHING = 2,
   UNMATCHING = 3
+}
+
+export interface ScheduledJobPartView {
+  dueDate: string;          // ISO datetime (OffsetDateTime)
+  jobNumber: number;
+  partNumber: number;
+  jobParts: number;
+  productName: string;
+  customerId: number | null;
+  quantity: number;
+  profile: string;
+  length: number;
+  width: number;
+  thickness: number;
+  material: string;
+  pitch: string;
+  edge: string;
+  finish: string;
+  plannedStart: string | null;
+  plannedFinish: string | null;
+  actualStart: string | null;
+  actualFinish: string | null;
+  plannedMinutes: number;
+  setupMinutes: number;
+  status: JobStatus;
+}
+
+export interface ScheduledJobPartViews {
+  jobParts: ScheduledJobPartView[];
 }
 
 export const JobStatusLabel: Record<JobStatus, string> = {
@@ -288,6 +317,23 @@ export class JobService {
     return jobs.schedulable;
   }
 
+  async getJobsForMachine(
+    machineId: number,
+    date?: string | null
+  ): Promise<ScheduledJobPartView[]> {
+
+    console.log("GETTING:" + machineId);
+    const jobs = await firstValueFrom(
+      this.http.get<ScheduledJobPartViews>(`${API_BASE_URL}/api/schedule`, {
+        params: date ? { date, machineId: machineId.toString() } : { machineId: machineId.toString() },
+        withCredentials: true
+      })
+    );
+    console.log("GOT" + jobs.jobParts);
+
+    return jobs.jobParts;
+  }
+
   async getJobScheduledPhases(date: string | null, role: string): Promise<ScheduledJobPhases> {
 
     return await firstValueFrom(
@@ -298,7 +344,7 @@ export class JobService {
     );
   }
 
-  async submitSchedule(jobParts : CreateScheduledJobPart[]) {
+  async submitSchedule(jobParts: CreateScheduledJobPart[]) {
     return await firstValueFrom(
       this.http.post<boolean>(`${API_BASE_URL}/api/schedule`, { jobParts },
         { withCredentials: true })
