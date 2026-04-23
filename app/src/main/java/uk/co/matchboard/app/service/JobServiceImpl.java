@@ -32,6 +32,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
+import uk.co.matchboard.app.service.DatabaseService.SignStatus;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -262,7 +263,7 @@ public class JobServiceImpl implements JobService {
                         databaseService.getJobPartParams(
                                 completion.paramData().keySet().stream().toList()
                                         .getFirst()).flatMap(ps -> validateCanSign(ps, completion.role()))
-                ).flatMap(_ -> databaseService.signOff(completion.paramData()))
+                ).flatMap(status -> databaseService.signOff(completion.paramData(), status))
                 .flatMapOptional(_ -> nextJob(completion.role()));
     }
 
@@ -309,7 +310,7 @@ public class JobServiceImpl implements JobService {
         return sawNotThisRole ? RoleMatch.NOT_THIS_ROLE : RoleMatch.NONE;
     }
 
-    public Result<Boolean> validateCanSign(List<JobPartParam> params, String role) {
+    public Result<SignStatus> validateCanSign(List<JobPartParam> params, String role) {
         if (params == null || params.isEmpty()) {
             throw new IllegalStateException("No params found");
         }
@@ -349,7 +350,7 @@ public class JobServiceImpl implements JobService {
             }
         }
 
-        return Result.of(true);
+        return Result.of(SignStatus.SIGN_PHASE);
     }
 
     private boolean isNonSignConfig(String config) {

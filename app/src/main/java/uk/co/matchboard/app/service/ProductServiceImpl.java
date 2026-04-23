@@ -39,6 +39,7 @@ public class ProductServiceImpl implements ProductService {
     public static final Integer USAGE_FROM_CALL_OFF = 1;
     public static final Integer USAGE_TO_CALL_OFF = 2;
     public static final Integer USAGE_PACK = 4;
+    public static final Integer USAGE_SCHEDULE = 8;
 
     private record PhaseParamKey(int id, int order) {
 

@@ -69,6 +69,7 @@ export interface JobPartParam {
   value: string | null;
   valuedAt: Date | null;
   config: string;
+  status: ParamStatus;
 };
 
 export interface JobPart {
@@ -230,6 +231,8 @@ export interface ScheduledJobPartView {
   plannedMinutes: number;
   setupMinutes: number;
   status: JobStatus;
+  actualStartParamId : number,
+  actualFinishParamId : number
 }
 
 export interface ScheduledJobPartViews {

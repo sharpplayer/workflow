@@ -1,19 +1,24 @@
 import {
   Component,
+  ElementRef,
+  ViewChild,
   computed,
   inject,
   input,
-  output
+  output,
+  signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { JobPartParam } from '../../../core/services/job.service';
+import { JobPartParam, ParamStatus } from '../../../core/services/job.service';
 import { DeviceService } from '../../../core/services/device.service';
 
 export interface LoggedOnOperator {
   username: string;
   role: string;
 }
+
+type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
 
 @Component({
   selector: 'job-phase-param',
@@ -57,6 +62,50 @@ export interface LoggedOnOperator {
           }
         </div>
       }
+    } @else if (isCheck()) {
+      <div
+        class="check-cell"
+        [class.check-cell--matching]="checkVisualState() === 'matching'"
+        [class.check-cell--unmatching]="checkVisualState() === 'unmatching'"
+        [class.check-cell--editing]="isEditingCheck()"
+      >
+        @if (!isEditingCheck()) {
+          <div class="check-review">
+            <span class="check-review__value">{{ displayValue() || '-' }}</span>
+
+            <div class="check-review__actions">
+              <button
+                type="button"
+                class="check-review__btn check-review__btn--tick"
+                aria-label="Accept value"
+                [disabled]="disabled() || !canAcceptCheck()"
+                (click)="acceptCheckValue()">
+                ✓
+              </button>
+
+              <button
+                type="button"
+                class="check-review__btn check-review__btn--cross"
+                aria-label="Reject value and edit"
+                [disabled]="disabled()"
+                (click)="startEditingCheck()">
+                ✕
+              </button>
+            </div>
+          </div>
+        } @else {
+          <input
+            #checkInput
+            class="param-input check-input"
+            [type]="checkInputType()"
+            [attr.inputmode]="checkInputMode()"
+            [disabled]="disabled()"
+            [value]="displayValue()"
+            (input)="onCheckInput($event)"
+            (blur)="finishEditingCheck(checkInput.value)"
+          />
+        }
+      </div>
     } @else if (isEditableText()) {
       <input
         class="param-input"
@@ -78,6 +127,9 @@ export interface LoggedOnOperator {
 export class JobPhaseParamComponent {
   private readonly deviceService = inject(DeviceService);
 
+  @ViewChild('checkInput')
+  private checkInputRef?: ElementRef<HTMLInputElement>;
+
   readonly param = input.required<JobPartParam>();
   readonly currentValue = input<string>('');
   readonly disabled = input<boolean>(false);
@@ -85,9 +137,18 @@ export class JobPhaseParamComponent {
 
   readonly valueChanged = output<{ param: JobPartParam; value: string }>();
   readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
+  readonly checkStatusChanged = output<{ param: JobPartParam; status: ParamStatus; value: string }>();
+
+  readonly editingCheck = signal(false);
+  readonly checkOriginalValue = signal('');
+  readonly checkVisualState = signal<CheckVisualState>('neutral');
 
   readonly isSignoff = computed(() => {
     return !!this.param().config?.startsWith('SIGN(');
+  });
+
+  readonly isCheck = computed(() => {
+    return !!this.param().config?.startsWith('CHECK(');
   });
 
   readonly signRole = computed(() => {
@@ -118,8 +179,6 @@ export class JobPhaseParamComponent {
       this.excludedUsernames().map(username => username.trim().toLowerCase())
     );
 
-    console.log(this.deviceService.status());
-    
     return this.deviceService.status()?.users.filter(operator =>
       operator.role.trim().toLowerCase() === role &&
       !excluded.has(operator.user.trim().toLowerCase())
@@ -136,7 +195,7 @@ export class JobPhaseParamComponent {
   });
 
   readonly isEditableText = computed(() => {
-    return !this.disabled() && !this.isSignoff() && this.param().input === 3;
+    return !this.disabled() && !this.isSignoff() && !this.isCheck() && this.param().input === 3;
   });
 
   requestSignoff(username?: string, role?: string): void {
@@ -147,13 +206,132 @@ export class JobPhaseParamComponent {
     });
   }
 
-  inputType(): string {
-    const config = (this.param().config ?? '').toLowerCase();
+  isEditingCheck(): boolean {
+    return this.editingCheck();
+  }
 
-    if (config === 'int' || config === 'float') {
-      return 'text';
+  canAcceptCheck(): boolean {
+    if (this.checkVisualState() !== 'unmatching') {
+      return true;
     }
 
+    return this.displayValue() === this.checkOriginalValue();
+  }
+
+  acceptCheckValue(): void {
+    if (this.isEditingCheck()) {
+      const rawValue = this.getOpenCheckInputValue();
+      this.finishEditingCheck(rawValue);
+      return;
+    }
+
+    if (!this.canAcceptCheck()) {
+      return;
+    }
+
+    const value = this.displayValue();
+
+    if (!this.checkOriginalValue()) {
+      this.checkOriginalValue.set(value);
+    }
+
+    this.editingCheck.set(false);
+    this.checkVisualState.set('matching');
+
+    this.checkStatusChanged.emit({
+      param: this.param(),
+      status: ParamStatus.MATCHING,
+      value
+    });
+  }
+
+  startEditingCheck(): void {
+    if (this.isEditingCheck()) {
+      const rawValue = this.getOpenCheckInputValue();
+      this.finishEditingCheck(rawValue);
+      return;
+    }
+
+    if (this.checkVisualState() !== 'unmatching') {
+      this.checkOriginalValue.set(this.displayValue());
+    }
+
+    this.editingCheck.set(true);
+    this.checkVisualState.set('unmatching');
+
+    this.checkStatusChanged.emit({
+      param: this.param(),
+      status: ParamStatus.UNMATCHING,
+      value: this.displayValue()
+    });
+  }
+
+  finishEditingCheck(rawValue: string): void {
+    const cleaned = this.cleanCheckValue(rawValue);
+    const original = this.checkOriginalValue();
+    const isMatch = cleaned === original;
+
+    this.editingCheck.set(false);
+    this.checkVisualState.set(isMatch ? 'matching' : 'unmatching');
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: cleaned
+    });
+
+    this.checkStatusChanged.emit({
+      param: this.param(),
+      status: isMatch ? ParamStatus.MATCHING : ParamStatus.UNMATCHING,
+      value: cleaned
+    });
+  }
+
+  onCheckInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const cleaned = this.cleanCheckValue(input.value);
+
+    if (input.value !== cleaned) {
+      input.value = cleaned;
+    }
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: cleaned
+    });
+  }
+
+  checkInputType(): string {
+    return this.isCheckIntegerMode() ? 'number' : 'text';
+  }
+
+  checkInputMode(): string {
+    return this.isCheckIntegerMode() ? 'numeric' : 'text';
+  }
+
+  private isCheckIntegerMode(): boolean {
+    return this.isIntLike(this.checkOriginalValue());
+  }
+
+  private cleanCheckValue(value: string): string {
+    const raw = String(value ?? '');
+
+    if (this.isCheckIntegerMode()) {
+      if (raw === '' || raw === '-') {
+        return raw;
+      }
+
+      const parsed = parseInt(raw, 10);
+      return Number.isNaN(parsed) ? '' : String(parsed);
+    }
+
+    return raw;
+  }
+
+  private getOpenCheckInputValue(): string {
+    return this.checkInputRef?.nativeElement.value ?? this.displayValue();
+  }
+
+  inputType(): string {
     return 'text';
   }
 
@@ -227,5 +405,10 @@ export class JobPhaseParamComponent {
       param: this.param(),
       value: cleaned
     });
+  }
+
+  isIntLike(value: string | null | undefined): boolean {
+    if (value == null) return false;
+    return /^-?\d+$/.test(String(value).trim());
   }
 }

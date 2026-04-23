@@ -23,6 +23,10 @@
   background: #fff;
 }
 
+/* =========================
+   SUMMARY GRID
+   ========================= */
+
 .job-summary-grid {
   display: grid;
   grid-template-columns: 20rem 1fr;
@@ -41,14 +45,19 @@
   gap: 0;
 }
 
+/* =========================
+   FIELD BOXES (NEW)
+   ========================= */
+
 .field {
   display: flex;
   flex-direction: column;
   text-align: center;
-  gap: 0.3rem;
+  gap: 0;
   min-width: 0;
 }
 
+/* Caption (top half of box) */
 .caption {
   width: 100%;
   box-sizing: border-box;
@@ -57,8 +66,12 @@
   text-transform: uppercase;
   background: #000;
   color: #fff;
+
+  border: 1px solid #fff;
+  border-bottom: none; /* prevent double border */
 }
 
+/* Value (bottom half of box) */
 .value {
   padding: 0.5rem 0.6rem;
   font-size: 1rem;
@@ -67,8 +80,12 @@
   color: #000;
   text-align: center;
   word-break: break-word;
+
+  border: 1px solid #fff;
+  border-top: none; /* prevent double border */
 }
 
+/* Job ref big box */
 .job-ref-value {
   display: flex;
   align-items: center;
@@ -80,7 +97,13 @@
   line-height: 1;
   color: #ff2b2b;
   text-align: center;
+
+  border: 1px solid #fff;
 }
+
+/* =========================
+   PRODUCT DETAILS
+   ========================= */
 
 .product-details {
   padding: 1rem 0 0;
@@ -106,6 +129,22 @@
   gap: 0;
 }
 
+.details-full-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100%;
+  margin-top: 0;
+}
+
+.details-full-row .field {
+  width: 100%;
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+
 button {
   padding: 4px 8px;
   border: none;
@@ -125,6 +164,10 @@ button:disabled {
   background-color: #959698;
   cursor: default;
 }
+
+/* =========================
+   SPECIAL INSTRUCTIONS
+   ========================= */
 
 .special-instructions-table {
   width: 100%;
@@ -176,6 +219,10 @@ button:disabled {
   color: #5e6b7a;
 }
 
+/* =========================
+   JOB CONTENT
+   ========================= */
+
 .job-content {
   position: fixed;
   top: 30rem;
@@ -212,6 +259,10 @@ button:disabled {
   width: 110px;
 }
 
+/* =========================
+   TABLE HEADERS (WHITE BOX)
+   ========================= */
+
 .phase-title-row th {
   position: sticky;
   top: 0;
@@ -220,7 +271,7 @@ button:disabled {
   color: #fff;
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #d9dfe7;
+  border: 1px solid #fff;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -232,11 +283,27 @@ button:disabled {
   color: #fff;
   text-align: center;
   padding: 0.35rem 0.5rem;
-  border: 1px solid #d9dfe7;
+  border: 1px solid #fff;
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
 }
+
+.phase-param-header-row th.signoff-column {
+  background: #1b5e20;
+  color: #fff;
+  border: 1px solid #fff;
+}
+
+.phase-param-header-row th.signoff-empty {
+  background: #000;
+  color: #fff;
+  border: 1px solid #fff;
+}
+
+/* =========================
+   TABLE BODY
+   ========================= */
 
 .phase-table tbody td {
   background: #fff;
@@ -267,18 +334,13 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-.phase-param-header-row th.signoff-column {
-  background: #1b5e20;
-  color: #fff;
+.phase-table tbody td.signoff-column {
+  background: #daf7dc;
+  color: #000;
 }
 
 .phase-table tbody td.signoff-column:not(:last-child) {
   border-right: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.phase-table tbody td.signoff-column {
-  background: #daf7dc;
-  color: #000;
 }
 
 .phase-param-header-row th.signoff-column:first-of-type,
@@ -286,23 +348,15 @@ button:disabled {
   border-left: 2px solid #7a7a7a;
 }
 
-.phase-param-header-row th.signoff-empty {
-  background: #000;
-  color: #fff;
-}
-
 .phase-table tbody td.signoff-empty {
   background: #fff;
   color: #000;
 }
 
-.job-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
+/* =========================
+   INACTIVE PHASE
+   ========================= */
 
-/* Inactive phase styling */
 .phase-block.phase-inactive .phase-title-row th {
   background: #e6e6e6;
   color: #888;
@@ -340,12 +394,16 @@ button:disabled {
   pointer-events: none;
 }
 
+/* =========================
+   ORIENTATION COLORS
+   ========================= */
+
 .value.landscape {
   background-color: orange;
-  color: white; /* optional for readability */
+  color: white;
 }
 
 .value.portrait {
   background-color: green;
-  color: white; /* optional */
+  color: white;
 }

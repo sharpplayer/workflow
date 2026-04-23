@@ -25,7 +25,9 @@ public record ScheduledJobPartView(
         OffsetDateTime actualFinish,
         BigDecimal plannedMinutes,
         BigDecimal setupMinutes,
-        int status
+        int status,
+        int actualStartParamId,
+        int actualFinishParamId
 ) {
 
 }

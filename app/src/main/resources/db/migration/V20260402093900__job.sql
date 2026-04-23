@@ -79,26 +79,27 @@ CREATE SEQUENCE job_number_seq
 
 CREATE TABLE job_part_operation
 (
-    id                     SERIAL PRIMARY KEY,
-    job_part_id            INTEGER     NOT NULL,
-    machine_id             INTEGER     NOT NULL,
-    step_number            INTEGER     NOT NULL,
+    id                       SERIAL PRIMARY KEY,
+    job_part_id              INTEGER     NOT NULL,
+    machine_id               INTEGER     NOT NULL,
+    step_number              INTEGER     NOT NULL,
 
-    quantity               INTEGER     NOT NULL,
-    planned_start_at       TIMESTAMPTZ,
-    planned_finish_at      TIMESTAMPTZ,
-    setup_minutes          NUMERIC     NOT NULL,
-    planned_minutes        NUMERIC     NOT NULL,
+    quantity                 INTEGER     NOT NULL,
+    planned_start_at         TIMESTAMPTZ,
+    planned_finish_at        TIMESTAMPTZ,
+    setup_minutes            NUMERIC     NOT NULL,
+    planned_minutes          NUMERIC     NOT NULL,
 
-    scheduled_for_date     DATE        NOT NULL,
-    machine_queue_position INTEGER,
+    scheduled_for_date       DATE        NOT NULL,
+    machine_queue_position   INTEGER,
 
-    status                 INTEGER,
+    status                   INTEGER,
 
-    actual_start_at        TIMESTAMPTZ,
-    actual_finish_at       TIMESTAMPTZ,
-
-    created_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actual_start_at          TIMESTAMPTZ,
+    actual_finish_at         TIMESTAMPTZ,
+    start_job_part_param_id  INTEGER,
+    finish_job_part_param_id INTEGER,
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     UNIQUE (job_part_id, step_number),
     UNIQUE (scheduled_for_date, machine_id, machine_queue_position)

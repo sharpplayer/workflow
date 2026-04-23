@@ -6,12 +6,13 @@ import { API_BASE_URL } from '../../app.config';
 export interface SessionView {
   user: string;
   role: string;
+  workstation: number;
 }
 
 export interface DeviceStatus {
   deviceId: string;
   users: SessionView[];
-  passwordReset: boolean;
+  passwordReset: boolean
 }
 
 @Injectable({ providedIn: 'root' })

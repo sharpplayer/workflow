@@ -39,6 +39,12 @@ import uk.co.matchboard.app.model.user.User;
 
 public interface DatabaseService {
 
+     enum SignStatus {
+        SIGN_PHASE,
+        SIGN_SCHEDULE_START,
+        SIGN_SCHEDULE_FINISH
+    }
+
     OptionalResult<User> findUser(String user);
 
     Result<User> createUser(User user);
@@ -102,7 +108,7 @@ public interface DatabaseService {
 
     OptionalResult<Carrier> findCarrier(int carrierId);
 
-    Result<Boolean> signOff(Map<Integer, String> signOffParams);
+    Result<Boolean> signOff(Map<Integer, String> signOffParams, SignStatus status);
 
     Result<List<JobPartParam>> getJobPartParams(Integer paramId);
 
@@ -111,4 +117,6 @@ public interface DatabaseService {
     Result<List<Machine>> getAllMachines();
 
     Result<List<JobView>> getJobs(Long toNumber, int count);
+
+    int getMachine(String role);
 }

@@ -1,10 +1,12 @@
-import { computed, inject, Injectable } from '@angular/core';
+import { ApplicationRef, ComponentRef, computed, createComponent, EnvironmentInjector, inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 import { DeviceService, DeviceStatus } from './device.service';
 import { Router } from '@angular/router';
 import { LoggedOnOperator } from '../../features/job/job-phase-param/job-phase-param.component';
+import { LoginComponent, LoginResult } from '../../features/login/login/login.component';
+import { LoginResetComponent } from '../../features/login/reset/reset.component';
 
 export interface ResetResult {
   username: string;
@@ -87,23 +89,31 @@ export class AuthService {
       });
     }
 
-
-    if (status.users.length == 0) {
+    if (status.users.length === 0) {
       return this.router.navigate(['/login']);
     }
 
-    const role = status.users[0].role;
-
-
+    const user = status.users[0];
+    const role = user.role;
+    const workstation = user.workstation;
 
     if (role === 'ADMIN') {
       return this.router.navigate(['/admin'], {
-        state: { username, role: role }
+        state: { username, role }
       });
     }
 
+    console.log("WS:" + workstation)
+    if (workstation !== 0) {
+      console.log("WS2:" + workstation)
+      return this.router.navigate(['/schedule', workstation], {
+        state: { username, role, workstation }
+      });
+    }
+    console.log("WS3:" + workstation)
+
     return this.router.navigate(['/job'], {
-      state: { username, role: role }
+      state: { username, role }
     });
   }
 
@@ -121,7 +131,6 @@ export class AuthService {
     } catch (err) {
       console.error('Logout failed', err);
     }
-
   }
 
   async logoutAll() {
@@ -138,7 +147,117 @@ export class AuthService {
     } catch (err) {
       console.error('Logout failed', err);
     }
-
   }
 
+  private readonly environmentInjector = inject(EnvironmentInjector);
+  private readonly appRef = inject(ApplicationRef);
+
+  async open(params: {
+    username?: string;
+    role?: string;
+  }): Promise<LoginResult | null> {
+    const result$ = new Subject<LoginResult | null>();
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 9999 !important;
+      background: rgba(0,0,0,0.55) !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    `;
+    document.body.appendChild(container);
+
+    let currentRef: ComponentRef<LoginComponent | LoginResetComponent> | null = null;
+
+    const destroyCurrent = (): void => {
+      if (currentRef) {
+        this.appRef.detachView(currentRef.hostView);
+        currentRef.destroy();
+        currentRef = null;
+      }
+    };
+
+    const cleanup = (): void => {
+      destroyCurrent();
+      container.remove();
+      result$.complete();
+    };
+
+    const mount = (ref: ComponentRef<LoginComponent | LoginResetComponent>): void => {
+      this.appRef.attachView(ref.hostView);
+      const domElem = ref.location.nativeElement as HTMLElement;
+      container.appendChild(domElem);
+      currentRef = ref;
+    };
+
+    const showReset = (userNameValue: string, mode: 'password' | 'pin' = 'password'): void => {
+      destroyCurrent();
+
+      const ref = createComponent(LoginResetComponent, {
+        environmentInjector: this.environmentInjector
+      });
+
+      ref.setInput('username', userNameValue);
+
+      if (mode === 'pin') {
+        ref.setInput('mode', 'pin');
+      }
+
+      ref.instance.passwordReset.subscribe((resetResult: ResetResult) => {
+        this.resetPassword(resetResult);
+        cleanup();
+      });
+
+      mount(ref);
+    };
+
+    const showLogin = (): void => {
+      destroyCurrent();
+
+      const ref = createComponent(LoginComponent, {
+        environmentInjector: this.environmentInjector
+      });
+
+      const username = params.username ?? '';
+      const role = params.role ?? '';
+      const mode: 'pin' | 'password' =
+        username && this.deviceService.isUserLoggedIn(username) ? 'pin' : 'password';
+      console.log("MODE:" + username + ":" + mode)
+      ref.setInput('username', username);
+      ref.setInput('role', role);
+      ref.setInput('mode', mode);
+      ref.setInput('showCancel', true);
+
+      ref.instance.loginSubmit.subscribe((loginResult: LoginResult) => {
+        result$.next(loginResult);
+
+        if (loginResult.passwordReset) {
+          showReset(loginResult.username, 'password');
+        } else if (loginResult.pinReset) {
+          showReset(loginResult.username, 'pin');
+        } else {
+          cleanup();
+        }
+      });
+
+      ref.instance.cancelled.subscribe(() => {
+        result$.next(null);
+        cleanup();
+      });
+
+      mount(ref);
+    };
+
+    showLogin();
+
+    return firstValueFrom(result$);
+  }
 }

@@ -32,7 +32,7 @@ template: `
     </thead>
     <tbody>
       @if (phases().length > 0) {
-        @for (phase of phases(); track phase.phaseNumber; let i = $index) {
+        @for (phase of phases(); track trackPhase($index, phase); let i = $index) {
           <tr>
             <td>{{ i + 1 }}</td>
             <td>{{ getJobRef(phase.jobNumber) }}</td>
@@ -84,5 +84,9 @@ export class PhaseListComponent {
 
   getJobRef(job : number){
     return this.jobService.getJobRef(job);
+  }
+
+  trackPhase(index: number, phase: ScheduledJobPhase): string {
+    return `${phase.jobNumber}:${phase.phaseNumber}`;
   }
 }

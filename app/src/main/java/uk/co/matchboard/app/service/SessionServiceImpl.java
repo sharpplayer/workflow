@@ -20,8 +20,11 @@ public class SessionServiceImpl implements SessionService {
 
     private final UserService userService;
 
-    public SessionServiceImpl(UserService userService) {
+    private final DatabaseService databaseService;
+
+    public SessionServiceImpl(UserService userService, DatabaseService databaseService) {
         this.userService = userService;
+        this.databaseService = databaseService;
     }
 
     @Override
@@ -46,7 +49,7 @@ public class SessionServiceImpl implements SessionService {
         endSession(deviceId, user);
         return userService.login(user, password, role).flatMap(u -> {
             var newSession = new Session(user, Instant.now().plusSeconds(60 * 30), role,
-                    u.passwordReset());
+                    u.passwordReset(), databaseService.getMachine(role));
             return addSession(deviceId, newSession);
         });
     }

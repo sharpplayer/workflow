@@ -1,9 +1,12 @@
 package uk.co.matchboard.app.service;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.UnknownConfigException;
@@ -36,9 +39,23 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         this.databaseService = databaseService;
     }
 
-    public ConfigResponse getListConfig(String config, String value, String type) {
-        return new ConfigResponse(config,
-                Arrays.stream(value.split(",")).map(v -> new KeyValuePair(v, v)).toList(), type);
+    @Override
+    public Result<ConfigResponse> getListConfig(String config, String value, String type) {
+        Result<List<KeyValuePair>> roles = Result.of(new ArrayList<>());
+        if (config.equals("ROLES")) {
+            roles = databaseService.getAllMachines().map(
+                    l -> l.stream().map(machine -> new KeyValuePair(machine.name(), machine.name()))
+                            .collect(Collectors.toCollection(ArrayList::new)));
+        }
+        return roles.map(list -> new ConfigResponse(
+                config,
+                Stream.concat(
+                        list.stream(),
+                        Arrays.stream(value.split(","))
+                                .map(v -> new KeyValuePair(v, v))
+                ).toList(),
+                type
+        ));
     }
 
     @Override
@@ -52,7 +69,7 @@ public class ConfigurationServiceImpl implements ConfigurationService {
 
     private Result<ConfigResponse> convertItem(Config item) {
         if (item.type().equals("string[]") || item.type().equals("colour[]")) {
-            return Result.of(getListConfig(item.name(), item.value(), item.type()));
+            return getListConfig(item.name(), item.value(), item.type());
         }
         return Result.failure(new UnknownConfigException(
                 item.name().toUpperCase() + " type not supported:" + item.type()));
@@ -75,12 +92,19 @@ public class ConfigurationServiceImpl implements ConfigurationService {
             }
             return TryUtils.tryCatch(() -> {
                 Method accessor = Product.class.getMethod(prop);
-                return new ConfigValuePair(config, accessor.invoke(product).toString());
+                return new ConfigValuePair(config, convertToString(accessor.invoke(product)));
             }).fold(i -> i,
                     _ -> new ConfigValuePair(config, getDefaultInput(input)));
         }
 
         return new ConfigValuePair(config, getDefaultInput(input));
+    }
+
+    private String convertToString(Object value) {
+        if(value instanceof List list){
+            return list.stream().collect(Collectors.joining(" → ")).toString();
+        }
+        return value.toString();
     }
 
     @Override

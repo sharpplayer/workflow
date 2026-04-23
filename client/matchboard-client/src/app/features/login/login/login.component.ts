@@ -178,9 +178,12 @@ export class LoginComponent {
     this.isPin() && this.loginOptions().options.includes('pin')
   );
 
-  readonly credentialLabel = computed(() =>
-    this.isPinAvailable() ? 'PIN' : 'Password'
-  );
+  readonly credentialLabel = computed(() => {
+    if (this.isPin() && !this.isPinAvailable()) {
+      return 'Password (PIN not set)';
+    }
+    return this.isPinAvailable() ? 'PIN' : 'Password';
+  });
 
   readonly displayError = computed(() => {
     if (this.authError()) {
@@ -212,6 +215,14 @@ export class LoginComponent {
       if (this.roleProvided()) {
         this.selectedRole.set(this.constrainedRole());
       }
+    });
+
+    effect(() => {
+      console.log('LOGIN INPUTS', {
+        username: this.username?.(),
+        role: this.role?.(),
+        mode: this.mode?.()
+      });
     });
 
     toObservable(this.effectiveUsername)
@@ -298,6 +309,7 @@ export class LoginComponent {
     if (!this.canSubmit()) return;
 
     this.optionsErrorMsg.set('');
+    console.log("SSSSSSSSSSSSSSX");
 
     this.loginSubmit.emit({
       username: this.effectiveUsername(),

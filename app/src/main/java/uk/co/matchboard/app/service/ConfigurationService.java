@@ -14,4 +14,6 @@ public interface ConfigurationService {
     ConfigValuePair resolveConfig(Product product, String config, int input);
 
     boolean hasPossibleTypos(List<String> productMachines, Set<String> machines);
+
+    Result<ConfigResponse> getListConfig(String config, String value, String type);
 }

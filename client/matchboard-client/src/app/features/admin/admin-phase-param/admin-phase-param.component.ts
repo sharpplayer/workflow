@@ -201,53 +201,6 @@ export interface PhaseParamSelected {
                   (ngModelChange)="onValueChange(param.phaseParamId, $event, 'int')"
                 />
               </mat-form-field>
-            } @else if (param.type === 'check') {
-              @if (!isEditingCheck(param.phaseParamId)) {
-                <div class="check-review">
-                  <span class="check-review__value">{{ param.value }}</span>
-
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="check-review__btn"
-                    aria-label="Accept value"
-                    (click)="acceptCheckValue(param.phaseParamId)"
-                  >
-                    <mat-icon>check</mat-icon>
-                  </button>
-
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="check-review__btn"
-                    aria-label="Reject value and edit"
-                    (click)="startEditingCheck(param.phaseParamId)"
-                  >
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </div>
-              } @else {
-                @if (isIntLike(param.value)) {
-                  <mat-form-field appearance="fill" class="param-field">
-                    <input
-                      matInput
-                      type="number"
-                      step="1"
-                      [ngModel]="param.value"
-                      (ngModelChange)="onValueChange(param.phaseParamId, $event, 'check-int')"
-                    />
-                  </mat-form-field>
-                } @else {
-                  <mat-form-field appearance="fill" class="param-field">
-                    <input
-                      matInput
-                      type="text"
-                      [ngModel]="param.value"
-                      (ngModelChange)="onValueChange(param.phaseParamId, $event, 'check-text')"
-                    />
-                  </mat-form-field>
-                }
-              }
             } @else {
               <mat-form-field appearance="fill" class="param-field">
                 <input
@@ -425,58 +378,6 @@ export class AdminPhaseParamComponent {
       evaluation.evaluation.trim().endsWith(')');
   }
 
-  isEditingCheck(id: number): boolean {
-    return !!this.editingCheckParams()[id];
-  }
-
-  startEditingCheck(id: number): void {
-    this.editingCheckParams.update(state => ({
-      ...state,
-      [id]: true
-    }));
-
-    this.filteredParams.update(params =>
-      params.map(p =>
-        p.phaseParamId === id
-          ? {
-              ...p,
-              status: ParamStatus.UNMATCHING
-            }
-          : p
-      )
-    );
-
-    this.emitChanges();
-  }
-
-  stopEditingCheck(id: number): void {
-    this.editingCheckParams.update(state => ({
-      ...state,
-      [id]: false
-    }));
-  }
-
-  acceptCheckValue(id: number): void {
-    this.filteredParams.update(params =>
-      params.map(p =>
-        p.phaseParamId === id
-          ? {
-              ...p,
-              status: ParamStatus.MATCHING
-            }
-          : p
-      )
-    );
-
-    this.stopEditingCheck(id);
-    this.emitChanges();
-  }
-
-  isIntLike(value: string | null | undefined): boolean {
-    if (value == null) return false;
-    return /^-?\\d+$/.test(String(value).trim());
-  }
-
   onValueChange(id: number, value: string | boolean, type?: string) {
     this.filteredParams.update(params =>
       params.map(p => {
@@ -484,7 +385,7 @@ export class AdminPhaseParamComponent {
 
         let nextValue: string;
 
-        if (type === 'int' || type === 'check-int') {
+        if (type === 'int') {
           const parsed = Number(value);
           nextValue = Number.isInteger(parsed) ? parsed.toString() : '';
         } else if (type === 'boolean') {
@@ -496,10 +397,7 @@ export class AdminPhaseParamComponent {
         return {
           ...p,
           value: nextValue,
-          status:
-            p.type === 'check' && (type === 'check-int' || type === 'check-text')
-              ? ParamStatus.UNMATCHING
-              : p.status
+          status: ParamStatus.INITIALISED
         };
       })
     );

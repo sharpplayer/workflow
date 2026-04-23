@@ -88,22 +88,23 @@ CREATE TABLE phase_param
 CREATE INDEX idx_phase_param_phase_id_input_order
     ON phase_param (phase_id, input, "order");
 
--- 1 is from stock (from call off)
--- 2 is call off stock orders
--- 4 is per-pack
+-- 1 is for from call off (from stock)
+-- 2 is for call off orders (to stock)
+-- 4 is parameters are per-pack
+-- 8 is scheduling phase
 INSERT INTO phase (description, usage, enabled)
 VALUES ('Material Logistics', (1 | 2), TRUE),
-       ('Workstations', (1), TRUE),
-       ('Setting Instructions', (1), TRUE),
-       ('First Off QC Inspection', (1), TRUE),
-       ('RPI Data and QC Inspection', (4|1), TRUE),
-       ('Racking Prep', (1), TRUE),
+       ('Setting Instructions', (2), TRUE),
+       ('Workstations', (2 | 8), TRUE),
+       ('First Off QC Inspection', (2), TRUE),
+       ('RPI Data and QC Inspection', (2 | 4), TRUE),
+       ('Racking Prep', (2), TRUE),
        ('Spraying', (1 | 2), TRUE),
        ('Drying', (1 | 2), TRUE),
-       ('Stacking and Strapping', (1 | 2), TRUE),
-       ('Palletising and Shrinkwrap', (1 | 2), TRUE),
-       ('Bearers, Labels, Shrinkwrap', (1 | 2), TRUE),
-       ('Loading and Dispatch Docs', (1 | 2), TRUE);
+       ('Stacking and Strapping', (1 | 2 | 4), TRUE),
+       ('Palletising and Shrinkwrap', (1), TRUE),
+       ('Bearers, Labels, Shrinkwrap', (1), TRUE),
+       ('Loading and Dispatch Docs', (1), TRUE);
 
 
 
@@ -115,7 +116,7 @@ FROM phase p
                       ('Material Logistics', 'To', '', 3, 3),
                       ('Material Logistics', 'Wastage', 'WASTAGE', 3, 4),
                       ('Setting Instructions', 'Sign', 'SIGN(INSPECTOR)', 3, 9),
-                      ('Workstations', 'Machinery', 'PRODUCT(machinery)', 1, 1),
+                      ('Workstations', 'Machinery', 'SCHEDULE(PRODUCT(machinery))', 3, 1),
                       ('Setting Instructions', 'Material', 'PRODUCT(material)', 1, 1),
                       ('Setting Instructions', 'Orientation', 'PRODUCT(format)', 1, 2),
                       ('Setting Instructions', 'Length', 'PRODUCT(length)', 1, 3),
