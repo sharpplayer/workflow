@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
+  NgZone,
   computed,
   inject,
   input,
@@ -35,6 +37,13 @@ interface RestPeriod {
   collapsible: boolean;
 }
 
+interface RestPeriodVisual extends RestPeriod {
+  topPx: number;
+  heightPx: number;
+  markerTopPx: number;
+  timeLabel: string;
+}
+
 interface TimeRange {
   start: number;
   end: number;
@@ -48,7 +57,12 @@ interface ScheduledJob extends SchedulableJobPart {
   topPx: number;
   heightPx: number;
   isInvalidSequence: boolean;
-  resetAppliedMinutes: number;
+
+  setupMinutes: number;
+  plannedMinutes: number;
+  packMinutes: number;
+  breakMinutes: number;
+
   effectiveDuration: number;
 }
 
@@ -68,6 +82,11 @@ interface ResolvedScheduleDay {
   isOverride: boolean;
 }
 
+interface MachineEntry {
+  machine: MachineInput;
+  jobs: ScheduledJob[];
+}
+
 @Component({
   selector: 'app-admin-schedule',
   standalone: true,
@@ -79,7 +98,7 @@ interface ResolvedScheduleDay {
     MatDatepickerModule,
     MatButtonModule,
     MatIconModule,
-    MatMomentDateModule
+    MatMomentDateModule,
   ],
   providers: [
     { provide: MAT_DATE_LOCALE, useValue: 'en-GB' },
@@ -89,9 +108,15 @@ interface ResolvedScheduleDay {
   styleUrl: './admin-schedule.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[style.--machine-count]': 'machines().length || 1',
+    '[style.--machine-count]': 'machineEntries().length || 1',
   },
   template: `
+    @let restVisuals = restPeriodVisuals();
+    @let hours = visibleHourMarks();
+    @let entries = machineEntries();
+    @let dayHeight = dayHeightPx();
+    @let dragOverIndex = machineDragOverIndexSig();
+
     <div class="admin-schedule">
       <div
         class="schedule-day-banner"
@@ -115,13 +140,11 @@ interface ResolvedScheduleDay {
 
         <div class="schedule-day-banner__actions">
           @if (selectedScheduleDateSig()) {
-            <button
-              type="button"
-              (click)="resetScheduleDate()"
-            >
+            <button type="button" (click)="resetScheduleDate()">
               Use recommended day
             </button>
           }
+
           <mat-form-field appearance="fill" class="schedule-date-field">
             <input
               matInput
@@ -133,33 +156,42 @@ interface ResolvedScheduleDay {
             <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
             <mat-datepicker #picker></mat-datepicker>
           </mat-form-field>
-
         </div>
       </div>
 
       <div class="schedule-header">
         <div class="time-column header-cell">Time / Breaks</div>
 
-        @for (entry of machineEntries(); track trackMachine($index, entry)) {
-          <div class="machine-column header-cell">
+        @for (entry of entries; track trackMachine($index, entry)) {
+          <div
+            class="machine-column header-cell"
+            draggable="true"
+            [class.machine-column--dragging]="machineColumnDragIdSig() === entry.machine.id"
+            [class.machine-column--drop-before]="dragOverIndex === $index"
+            [class.machine-column--drop-after]="dragOverIndex === $index + 1"
+            (dragstart)="onMachineColumnDragStart($event, entry.machine.id)"
+            (dragover)="onMachineColumnDragOver($event, $index)"
+            (drop)="onMachineColumnDrop($event)"
+            (dragend)="onMachineColumnDragEnd()"
+          >
             {{ entry.machine.name }}
           </div>
         }
       </div>
 
-      <div class="schedule-body" [style.height.px]="dayHeightPx()">
+      <div class="schedule-body" [style.height.px]="dayHeight">
         <div class="time-column body-cell time-gutter">
-          @for (hour of visibleHourMarks(); track hour.minute) {
+          @for (hour of hours; track hour.minute) {
             <div class="hour-marker" [style.top.px]="hour.topPx">
               <span>{{ hour.label }}</span>
             </div>
           }
 
-          @for (period of restPeriods(); track period.id) {
+          @for (period of restVisuals; track period.id) {
             @if (period.collapsed) {
               <div
                 class="rest-marker"
-                [style.top.px]="collapsedMarkerTopPx(period)"
+                [style.top.px]="period.markerTopPx"
               >
                 <button
                   type="button"
@@ -176,8 +208,8 @@ interface ResolvedScheduleDay {
             } @else {
               <div
                 class="rest-gutter-block"
-                [style.top.px]="clockMinuteToTopPx(period.start, restPeriods())"
-                [style.height.px]="visibleDurationPx(period.start, period.end, restPeriods())"
+                [style.top.px]="period.topPx"
+                [style.height.px]="period.heightPx"
               >
                 <button
                   type="button"
@@ -191,7 +223,7 @@ interface ResolvedScheduleDay {
                 <div class="rest-gutter-copy">
                   <div class="rest-gutter-name">{{ period.name }}</div>
                   <div class="rest-gutter-time">
-                    {{ formatMinute(period.start) }} - {{ formatMinute(period.end) }}
+                    {{ period.timeLabel }}
                   </div>
                 </div>
               </div>
@@ -199,27 +231,31 @@ interface ResolvedScheduleDay {
           }
         </div>
 
-        @for (entry of machineEntries(); track trackMachine($index, entry)) {
-          <div class="machine-column body-cell machine-lane">
-            @for (hour of visibleHourMarks(); track hour.minute) {
+        @for (entry of entries; track trackMachine($index, entry)) {
+          <div
+            class="machine-column body-cell machine-lane"
+            [class.machine-column--drop-before]="dragOverIndex === $index"
+            [class.machine-column--drop-after]="dragOverIndex === $index + 1"
+            (dragover)="onMachineColumnDragOver($event, $index)"
+            (drop)="onMachineColumnDrop($event)"
+          >
+            @for (hour of hours; track hour.minute) {
               <div class="hour-line" [style.top.px]="hour.topPx"></div>
             }
 
-            @for (period of restPeriods(); track period.id) {
+            @for (period of restVisuals; track period.id) {
               @if (!period.collapsed) {
                 <div
                   class="rest-block"
-                  [style.top.px]="clockMinuteToTopPx(period.start, restPeriods())"
-                  [style.height.px]="visibleDurationPx(period.start, period.end, restPeriods())"
+                  [style.top.px]="period.topPx"
+                  [style.height.px]="period.heightPx"
                 >
-                  <span>
-                    {{ period.name }} · {{ formatMinute(period.start) }} - {{ formatMinute(period.end) }}
-                  </span>
+                  <span>{{ period.name }} · {{ period.timeLabel }}</span>
                 </div>
               } @else {
                 <div
                   class="rest-line"
-                  [style.top.px]="clockMinuteToTopPx(period.start, restPeriods())"
+                  [style.top.px]="period.topPx"
                 ></div>
               }
             }
@@ -229,7 +265,7 @@ interface ResolvedScheduleDay {
                 class="job-card"
                 [class.invalid-sequence]="job.isInvalidSequence"
                 [class.dragging]="dragStateSig()?.uid === job.uid"
-                [class.has-reset]="job.resetAppliedMinutes > 0"
+                [class.has-reset]="job.setupMinutes > 0"
                 [class.related-job]="isRelatedJob(job)"
                 [class.selected-job]="isSelectedJob(job)"
                 [style.top.px]="job.topPx"
@@ -237,10 +273,10 @@ interface ResolvedScheduleDay {
                 (mousedown)="startDrag($event, job)"
                 (click)="selectJob(job)"
               >
-                @if (job.resetAppliedMinutes > 0) {
+                @if (job.setupMinutes > 0) {
                   <div
                     class="reset-strip"
-                    [style.height.px]="job.resetAppliedMinutes * pixelsPerMinute"
+                    [style.height.px]="job.setupMinutes * pixelsPerMinute"
                   ></div>
                 }
 
@@ -254,9 +290,13 @@ interface ResolvedScheduleDay {
                   </div>
 
                   <div class="job-copy one-line">
-                    Job {{ job.timeOnMachine }} min
+                    Job {{ job.plannedMinutes }} min
                     <span class="job-sep">·</span>
-                    Reset {{ job.resetAppliedMinutes }} min
+                    Pack {{ job.packMinutes }} min
+                    <span class="job-sep">·</span>
+                    Break {{ job.breakMinutes }} min
+                    <span class="job-sep">·</span>
+                    Setup {{ job.setupMinutes }} min
                   </div>
 
                   <div class="job-copy subtle one-line">
@@ -269,39 +309,39 @@ interface ResolvedScheduleDay {
         }
       </div>
     </div>
-<div class="schedule-actions">
-  <div class="schedule-actions__messages">
-    @if (hasInvalidJobs()) {
-      <div class="schedule-actions__warning">
-        Fix {{ invalidJobCount() }} invalid job {{ invalidJobCount() === 1 ? 'part' : 'parts' }} before submitting.
+
+    <div class="schedule-actions">
+      <div class="schedule-actions__messages">
+        @if (hasInvalidJobs()) {
+          <div class="schedule-actions__warning">
+            Fix {{ invalidJobCount() }} invalid job {{ invalidJobCount() === 1 ? 'part' : 'parts' }} before submitting.
+          </div>
+        }
+
+        @if (submitErrorSig()) {
+          <div class="schedule-actions__error">
+            {{ submitErrorSig() }}
+          </div>
+        }
+
+        @if (submitSuccessSig()) {
+          <div class="schedule-actions__success">
+            {{ submitSuccessSig() }}
+          </div>
+        }
       </div>
-    }
 
-    @if (submitErrorSig()) {
-      <div class="schedule-actions__error">
-        {{ submitErrorSig() }}
-      </div>
-    }
-
-    @if (submitSuccessSig()) {
-      <div class="schedule-actions__success">
-        {{ submitSuccessSig() }}
-      </div>
-    }
-  </div>
-
-  <button
-    type="button"
-    [disabled]="hasInvalidJobs() || submittingSig()"
-    (click)="submitSchedule()"
-  >
-    {{ submittingSig() ? 'Submitting...' : 'Submit schedule' }}
-  </button>
-</div>
-
+      <button
+        type="button"
+        [disabled]="hasInvalidJobs() || submittingSig()"
+        (click)="submitSchedule()"
+      >
+        {{ submittingSig() ? 'Submitting...' : 'Submit schedule' }}
+      </button>
+    </div>
   `,
 })
-export class AdminScheduleComponent {
+export class AdminScheduleComponent  {
   readonly machines = input.required<MachineInput[]>();
   readonly jobs = input.required<SchedulableJobPart[]>();
   readonly restTimes = input.required<RestTimesInput>();
@@ -312,12 +352,17 @@ export class AdminScheduleComponent {
   readonly useLengthForVisualHeight = false;
   readonly dragSelectThresholdPx = 4;
 
+  private readonly machineOrderStorageKey = 'admin-schedule-machine-order-v1';
+
   readonly dragStateSig = signal<DragState | null>(null);
   readonly selectedJobNumberSig = signal<number | null>(null);
   readonly dragMovedSig = signal(false);
-
   readonly selectedScheduleDateSig = signal<Moment | null>(null);
 
+  readonly machineColumnDragIdSig = signal<number | null>(null);
+  readonly machineDragOverIndexSig = signal<number | null>(null);
+
+  private readonly preferredMachineOrderSig = signal<number[]>(this.loadPreferredMachineOrder());
   private readonly draggedJobsByMachineSig = signal<Record<number, ScheduledJob[]> | null>(null);
   private readonly overriddenJobsByMachineSig = signal<Record<number, ScheduledJob[]> | null>(null);
   private readonly restCollapsedOverrideSig = signal<Record<string, boolean>>({});
@@ -327,6 +372,24 @@ export class AdminScheduleComponent {
   readonly submittingSig = signal(false);
   readonly submitErrorSig = signal<string | null>(null);
   readonly submitSuccessSig = signal<string | null>(null);
+
+  readonly jobsByMachine = computed(() => {
+    const periods = this.restPeriods();
+    const dragged = this.draggedJobsByMachineSig();
+
+    if (dragged) {
+      return this.withVisuals(dragged, periods);
+    }
+
+    const overridden = this.overriddenJobsByMachineSig();
+
+    if (overridden) {
+      return this.withVisuals(overridden, periods);
+    }
+
+    return this.baseJobsByMachine();
+  });
+
   readonly hasInvalidJobs = computed(() =>
     Object.values(this.jobsByMachine())
       .flat()
@@ -338,7 +401,6 @@ export class AdminScheduleComponent {
       .flat()
       .filter(job => job.isInvalidSequence).length
   );
-
 
   readonly resolvedScheduleDay = computed<ResolvedScheduleDay>(() => {
     const selected = this.selectedScheduleDateSig();
@@ -353,21 +415,59 @@ export class AdminScheduleComponent {
       reason: isOverride
         ? this.buildSelectedDayReason(effective, recommended)
         : this.buildRecommendedDayReason(recommended),
-      isExceptional: isOverride ? this.isExceptionalDay(effective, recommended) : this.isExceptionalRecommendedDay(recommended),
+      isExceptional: isOverride
+        ? this.isExceptionalDay(effective, recommended)
+        : this.isExceptionalRecommendedDay(recommended),
       isOverride,
     };
   });
 
-  private readonly parsedRestPeriods = computed(() =>
-    this.parseRestPeriods(this.restTimes()?.times ?? '')
-  );
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly ngZone = inject(NgZone);
+
+  private debugViewCheckedCount = 0;
+  private debugLastViewCheckedLogAt = 0;
+
+  ngAfterViewChecked(): void {
+    this.debugViewCheckedCount++;
+
+    const now = performance.now();
+
+    if (now - this.debugLastViewCheckedLogAt > 500) {
+      this.debugLastViewCheckedLogAt = now;
+    }
+  }
+
+  private readonly parsedRestPeriods = computed(() => {
+    const value = this.restTimes()?.times ?? '';
+    return this.parseRestPeriods(value);
+  });
 
   readonly restPeriods = computed(() => {
     const overrides = this.restCollapsedOverrideSig();
-    return this.parsedRestPeriods().map(period => ({
+    const parsed = this.parsedRestPeriods();
+
+    return parsed.map(period => ({
       ...period,
       collapsed: overrides[period.id] ?? period.collapsed,
     }));
+  });
+
+  readonly restPeriodVisuals = computed<RestPeriodVisual[]>(() => {
+    const periods = this.restPeriods();
+
+    return periods.map(period => {
+      const topPx = this.clockMinuteToTopPx(period.start, periods);
+      const heightPx = this.visibleDurationPx(period.start, period.end, periods);
+
+      return {
+        ...period,
+        topPx,
+        heightPx,
+        markerTopPx: this.getCollapsedMarkerTopPx(period, periods),
+        timeLabel: `${this.formatMinute(period.start)} - ${this.formatMinute(period.end)}`,
+      };
+    });
   });
 
   readonly logicalRestRanges = computed<TimeRange[]>(() =>
@@ -383,6 +483,7 @@ export class AdminScheduleComponent {
 
   readonly visibleHourMarks = computed(() => {
     const periods = this.restPeriods();
+
     return Array.from({ length: 25 }, (_, i) => ({
       minute: i * 60,
       label: `${i.toString().padStart(2, '0')}:00`,
@@ -390,32 +491,181 @@ export class AdminScheduleComponent {
     }));
   });
 
-  readonly baseJobsByMachine = computed(() =>
-    this.buildInitialScheduleMap(
-      this.machines() ?? [],
-      this.jobs() ?? [],
-      this.logicalRestRanges(),
-      this.restPeriods()
-    )
-  );
+  readonly usedMachineIds = computed(() => {
+    const ids = new Set<number>();
 
-  readonly jobsByMachine = computed(() => {
-    const periods = this.restPeriods();
-    const dragged = this.draggedJobsByMachineSig();
-    if (dragged) return this.withVisuals(dragged, periods);
+    for (const job of this.jobs() ?? []) {
+      ids.add(job.machineId);
+    }
 
-    const overridden = this.overriddenJobsByMachineSig();
-    if (overridden) return this.withVisuals(overridden, periods);
-
-    return this.baseJobsByMachine();
+    return ids;
   });
 
-  readonly machineEntries = computed(() =>
-    this.machines().map(machine => ({
+  readonly visibleMachines = computed(() => {
+    const usedIds = this.usedMachineIds();
+    const preferredOrder = this.getResolvedPreferredMachineOrder();
+
+    return (this.machines() ?? [])
+      .filter(machine => usedIds.has(machine.id))
+      .sort((a, b) => {
+        const ai = preferredOrder.indexOf(a.id);
+        const bi = preferredOrder.indexOf(b.id);
+
+        return ai - bi;
+      });
+  });
+
+  readonly baseJobsByMachine = computed(() => {
+    const visibleMachines = this.visibleMachines();
+    const jobs = this.jobs() ?? [];
+    const logicalRestRanges = this.logicalRestRanges();
+    const restPeriods = this.restPeriods();
+
+    return this.buildInitialScheduleMap(
+      visibleMachines,
+      jobs,
+      logicalRestRanges,
+      restPeriods
+    );
+  });
+
+
+  readonly machineEntries = computed<MachineEntry[]>(() => {
+    const visibleMachines = this.visibleMachines();
+    const jobsByMachine = this.jobsByMachine();
+
+    return visibleMachines.map(machine => ({
       machine,
-      jobs: this.jobsByMachine()[machine.id] ?? [],
-    }))
-  );
+      jobs: jobsByMachine[machine.id] ?? [],
+    }));
+  });
+
+
+  onMachineColumnDragStart(event: DragEvent, machineId: number): void {
+    this.machineColumnDragIdSig.set(machineId);
+    this.machineDragOverIndexSig.set(null);
+
+    event.dataTransfer?.setData('text/plain', String(machineId));
+
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  onMachineColumnDragOver(event: DragEvent, visibleIndex: number): void {
+    const draggedMachineId = this.machineColumnDragIdSig();
+
+    if (draggedMachineId === null) return;
+
+    event.preventDefault();
+
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+
+    const target = event.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    const midpoint = rect ? rect.left + rect.width / 2 : 0;
+    const dropIndex = event.clientX < midpoint ? visibleIndex : visibleIndex + 1;
+
+    this.machineDragOverIndexSig.set(dropIndex);
+  }
+
+  onMachineColumnDrop(event: DragEvent): void {
+    event.preventDefault();
+
+    const draggedMachineId = this.machineColumnDragIdSig();
+    const dropIndex = this.machineDragOverIndexSig();
+
+    if (draggedMachineId === null || dropIndex === null) {
+      this.onMachineColumnDragEnd();
+      return;
+    }
+
+    this.applyMachineColumnReorder(draggedMachineId, dropIndex);
+    this.onMachineColumnDragEnd();
+  }
+
+  onMachineColumnDragEnd(): void {
+    this.machineColumnDragIdSig.set(null);
+    this.machineDragOverIndexSig.set(null);
+  }
+
+  private applyMachineColumnReorder(draggedMachineId: number, dropIndex: number): void {
+    const visibleBeforeMove = this.visibleMachines().map(machine => machine.id);
+    const preferredWithoutDragged = this
+      .getResolvedPreferredMachineOrder()
+      .filter(id => id !== draggedMachineId);
+
+    const visibleWithoutDragged = visibleBeforeMove.filter(id => id !== draggedMachineId);
+
+    const boundedDropIndex = Math.max(0, Math.min(dropIndex, visibleWithoutDragged.length));
+
+    let nextOrder: number[];
+
+    if (boundedDropIndex === 0) {
+      nextOrder = [draggedMachineId, ...preferredWithoutDragged];
+    } else {
+      const previousVisibleId = visibleWithoutDragged[boundedDropIndex - 1];
+      const previousIndexInPreferred = preferredWithoutDragged.indexOf(previousVisibleId);
+
+      if (previousIndexInPreferred === -1) {
+        nextOrder = [...preferredWithoutDragged, draggedMachineId];
+      } else {
+        nextOrder = [
+          ...preferredWithoutDragged.slice(0, previousIndexInPreferred + 1),
+          draggedMachineId,
+          ...preferredWithoutDragged.slice(previousIndexInPreferred + 1),
+        ];
+      }
+    }
+
+    this.setPreferredMachineOrder(this.dedupeMachineOrder(nextOrder));
+  }
+
+  private getResolvedPreferredMachineOrder(): number[] {
+    const knownMachineIds = (this.machines() ?? []).map(machine => machine.id);
+    const preferred = this.preferredMachineOrderSig().filter(id => knownMachineIds.includes(id));
+    const missing = knownMachineIds.filter(id => !preferred.includes(id));
+
+    return [...preferred, ...missing];
+  }
+
+  private setPreferredMachineOrder(order: number[]): void {
+    this.preferredMachineOrderSig.set(order);
+    this.savePreferredMachineOrder(order);
+  }
+
+  private loadPreferredMachineOrder(): number[] {
+    try {
+      if (typeof localStorage === 'undefined') return [];
+
+      const raw = localStorage.getItem(this.machineOrderStorageKey);
+      if (!raw) return [];
+
+      const parsed = JSON.parse(raw);
+
+      return Array.isArray(parsed)
+        ? parsed.filter((id): id is number => Number.isInteger(id))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private savePreferredMachineOrder(order: number[]): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+
+      localStorage.setItem(this.machineOrderStorageKey, JSON.stringify(order));
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
+  private dedupeMachineOrder(order: number[]): number[] {
+    return [...new Set(order)];
+  }
 
   onScheduleDateChange(date: Moment | null): void {
     this.selectedScheduleDateSig.set(date ? date.clone().startOf('day') : null);
@@ -469,7 +719,7 @@ export class AdminScheduleComponent {
     return date.format('dddd, D MMMM YYYY');
   }
 
-  jobRef(jobNumber: number) {
+  jobRef(jobNumber: number): string {
     return this.jobService.getJobRef(jobNumber);
   }
 
@@ -491,6 +741,7 @@ export class AdminScheduleComponent {
     this.restCollapsedOverrideSig.update(current => {
       const periods = this.restPeriods();
       const match = periods.find(p => p.id === id);
+
       if (!match || !match.collapsible) return current;
 
       return {
@@ -501,9 +752,14 @@ export class AdminScheduleComponent {
   }
 
   collapsedMarkerTopPx(period: RestPeriod): number {
-    const y = this.clockMinuteToTopPx(period.start, this.restPeriods());
+    return this.getCollapsedMarkerTopPx(period, this.restPeriods());
+  }
+
+  private getCollapsedMarkerTopPx(period: RestPeriod, periods: RestPeriod[]): number {
+    const y = this.clockMinuteToTopPx(period.start, periods);
     const markerHeight = 24;
     const maxTop = Math.max(0, this.dayHeightPx() - markerHeight);
+
     return Math.max(0, Math.min(y - markerHeight / 2, maxTop));
   }
 
@@ -533,15 +789,18 @@ export class AdminScheduleComponent {
   onMove(event: MouseEvent): void {
     const drag = this.dragStateSig();
     const snapshot = this.draggedJobsByMachineSig();
+
     if (!drag || !snapshot) return;
 
     const delta = event.clientY - drag.startY;
+
     if (Math.abs(delta) > this.dragSelectThresholdPx) {
       this.dragMovedSig.set(true);
     }
 
     const list = [...(snapshot[drag.machineId] ?? [])];
     const idx = list.findIndex(j => j.uid === drag.uid);
+
     if (idx === -1) return;
 
     const job = { ...list[idx] };
@@ -558,8 +817,8 @@ export class AdminScheduleComponent {
 
     const previewLane = [...list].map(j => ({ ...j }));
     previewLane[idx] = { ...job, startMinute };
-    const sortedPreviewLane = this.sortLaneJobs(previewLane, drag.uid);
 
+    const sortedPreviewLane = this.sortLaneJobs(previewLane, drag.uid);
     const previewIndex = sortedPreviewLane.findIndex(j => j.uid === job.uid);
     const previousJobOnMachine = previewIndex > 0 ? sortedPreviewLane[previewIndex - 1] : null;
 
@@ -568,8 +827,10 @@ export class AdminScheduleComponent {
 
     job.startMinute = startMinute;
     job.endMinute = endMinute;
-    job.resetAppliedMinutes = durationInfo.resetAppliedMinutes;
+    job.setupMinutes = durationInfo.setupMinutes;
     job.effectiveDuration = durationInfo.effectiveDuration;
+
+    this.applyDurationMetrics(job);
     this.applyVisualMetrics(job, periods);
 
     list[idx] = job;
@@ -601,6 +862,7 @@ export class AdminScheduleComponent {
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
+
     if (!target?.closest('.job-card')) {
       this.selectedJobNumberSig.set(null);
     }
@@ -627,14 +889,16 @@ export class AdminScheduleComponent {
     const cursor = new Map<number, number>();
 
     for (const m of machines) {
-      const reset = Number.isFinite(m.setupTime) ? m.setupTime : 0;
-      const start = Math.max(firstStart, reset);
+      const setupMinutes = Number.isFinite(m.setupTime) ? m.setupTime : 0;
+      const start = Math.max(firstStart, setupMinutes);
+
       cursor.set(m.id, this.adjustStart(this.clampMinute(start), logicalRanges));
       map[m.id] = [];
     }
 
     jobs.forEach((job, i) => {
       const machineId = job.machineId;
+
       if (!cursor.has(machineId)) return;
 
       const previousJobOnMachine = map[machineId].length
@@ -654,16 +918,24 @@ export class AdminScheduleComponent {
         topPx: 0,
         heightPx: 0,
         isInvalidSequence: false,
-        resetAppliedMinutes: durationInfo.resetAppliedMinutes,
+
+        setupMinutes: durationInfo.setupMinutes,
+        plannedMinutes: this.getPlannedMinutes(job),
+        packMinutes: this.getPackMinutes(job),
+        breakMinutes: 0,
+
         effectiveDuration: durationInfo.effectiveDuration,
       };
 
+      this.applyDurationMetrics(scheduled);
       this.applyVisualMetrics(scheduled, periods);
+
       map[machineId].push(scheduled);
       cursor.set(machineId, end);
     });
 
     this.validateSequenceMap(map);
+
     return map;
   }
 
@@ -677,6 +949,7 @@ export class AdminScheduleComponent {
     const lane = [...(snapshot[machineId] ?? [])].map(j => ({ ...j }));
 
     const draggedIndex = lane.findIndex(j => j.uid === draggedUid);
+
     if (draggedIndex === -1) return { ...snapshot };
 
     const sortedLane = this.sortLaneJobs(lane, draggedUid);
@@ -693,8 +966,10 @@ export class AdminScheduleComponent {
 
       curr.startMinute = nextStart;
       curr.endMinute = this.computeEnd(curr.startMinute, durationInfo.effectiveDuration, logicalRanges);
-      curr.resetAppliedMinutes = durationInfo.resetAppliedMinutes;
+      curr.setupMinutes = durationInfo.setupMinutes;
       curr.effectiveDuration = durationInfo.effectiveDuration;
+
+      this.applyDurationMetrics(curr);
       this.applyVisualMetrics(curr, periods);
     }
 
@@ -732,7 +1007,10 @@ export class AdminScheduleComponent {
     for (const [machineId, jobs] of Object.entries(map)) {
       clone[+machineId] = jobs.map(job => {
         const copy = { ...job };
+
+        this.applyDurationMetrics(copy);
         this.applyVisualMetrics(copy, periods);
+
         return copy;
       });
     }
@@ -745,12 +1023,23 @@ export class AdminScheduleComponent {
     job.heightPx = Math.max(12, this.visibleDurationPx(job.startMinute, job.endMinute, periods));
   }
 
+  private applyDurationMetrics(job: ScheduledJob): void {
+    job.plannedMinutes = this.getPlannedMinutes(job);
+    job.packMinutes = this.getPackMinutes(job);
+    job.breakMinutes = this.getBreakMinutes(
+      job.startMinute,
+      job.endMinute,
+      job.effectiveDuration
+    );
+  }
+
   private validateSequenceMap(map: Record<number, ScheduledJob[]>): void {
     const all = Object.values(map).flat();
     const grouped = new Map<number, ScheduledJob[]>();
 
     for (const j of all) {
       j.isInvalidSequence = false;
+
       const list = grouped.get(j.jobPartId) ?? [];
       list.push(j);
       grouped.set(j.jobPartId, list);
@@ -768,7 +1057,7 @@ export class AdminScheduleComponent {
     });
   }
 
-  private getMachineResetTime(machineId: number): number {
+  private getMachineSetupTime(machineId: number): number {
     const machine = this.machines().find(m => m.id === machineId);
     return machine?.setupTime ?? 0;
   }
@@ -784,26 +1073,50 @@ export class AdminScheduleComponent {
     );
   }
 
+  private secondsToWholeMinutes(seconds: number): number {
+    return Math.ceil((seconds ?? 0) / 60);
+  }
+
+  private getPlannedMinutes(job: SchedulableJobPart | ScheduledJob): number {
+    return this.secondsToWholeMinutes(job.timeOnMachineSeconds);
+  }
+
+  private getPackMinutes(job: SchedulableJobPart | ScheduledJob): number {
+    return this.secondsToWholeMinutes(job.timeForPacksSeconds);
+  }
+
+  private getBreakMinutes(
+    startMinute: number,
+    endMinute: number,
+    nonBreakMinutes: number
+  ): number {
+    return Math.max(0, (endMinute - startMinute) - nonBreakMinutes);
+  }
+
   private getEffectiveDuration(
     job: SchedulableJobPart | ScheduledJob,
     previousJobOnMachine: SchedulableJobPart | ScheduledJob | null,
     machineId: number
-  ): { effectiveDuration: number; resetAppliedMinutes: number } {
-    const baseDuration = this.useLengthForVisualHeight ? job.length : job.timeOnMachine;
+  ): { effectiveDuration: number; setupMinutes: number } {
+    const plannedMinutes = this.useLengthForVisualHeight
+      ? job.length
+      : this.getPlannedMinutes(job);
+
+    const packMinutes = this.getPackMinutes(job);
 
     if (!previousJobOnMachine) {
       return {
-        effectiveDuration: baseDuration,
-        resetAppliedMinutes: 0,
+        effectiveDuration: plannedMinutes + packMinutes,
+        setupMinutes: 0,
       };
     }
 
-    const needsReset = this.hasDimensionChange(previousJobOnMachine, job);
-    const resetAppliedMinutes = needsReset ? this.getMachineResetTime(machineId) : 0;
+    const needsSetup = this.hasDimensionChange(previousJobOnMachine, job);
+    const setupMinutes = needsSetup ? this.getMachineSetupTime(machineId) : 0;
 
     return {
-      effectiveDuration: baseDuration + resetAppliedMinutes,
-      resetAppliedMinutes,
+      effectiveDuration: setupMinutes + plannedMinutes + packMinutes,
+      setupMinutes,
     };
   }
 
@@ -815,6 +1128,7 @@ export class AdminScheduleComponent {
       if (t >= this.minutesInDay) return this.minutesInDay;
 
       const activeRest = ranges.find(r => t >= r.start && t < r.end);
+
       if (!activeRest) return t;
 
       t = activeRest.end;
@@ -832,6 +1146,7 @@ export class AdminScheduleComponent {
       if (t >= this.minutesInDay) return this.minutesInDay;
 
       const activeRest = ranges.find(r => t >= r.start && t < r.end);
+
       if (activeRest) {
         t = activeRest.end;
         continue;
@@ -865,6 +1180,7 @@ export class AdminScheduleComponent {
       .filter(Boolean)
       .map((part, index): RestPeriod | null => {
         const match = part.match(pattern);
+
         if (!match) return null;
 
         const [, nameRaw, startText, endText] = match;
@@ -907,6 +1223,7 @@ export class AdminScheduleComponent {
       if (period.start >= clamped) continue;
 
       const overlap = Math.min(clamped, period.end) - period.start;
+
       if (overlap > 0) visible -= overlap;
     }
 
@@ -916,6 +1233,7 @@ export class AdminScheduleComponent {
   private getVisibleDuration(start: number, end: number, periods: RestPeriod[]): number {
     const s = this.clampMinute(start);
     const e = this.clampMinute(end);
+
     if (e <= s) return 0;
 
     return this.getVisibleMinutesUntil(e, periods) - this.getVisibleMinutesUntil(s, periods);
@@ -960,7 +1278,9 @@ export class AdminScheduleComponent {
 
   private toMin(t: string): number {
     const [h, m] = (t ?? '').split(':').map(Number);
+
     if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+
     return h * 60 + m;
   }
 
@@ -972,10 +1292,11 @@ export class AdminScheduleComponent {
     const clamped = this.clampMinute(m);
     const h = Math.floor(clamped / 60);
     const mm = clamped % 60;
+
     return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
   }
 
-  trackMachine = (_: number, e: { machine: MachineInput }) => e.machine.id;
+  trackMachine = (_: number, e: MachineEntry) => e.machine.id;
   trackJob = (_: number, j: ScheduledJob) => j.uid;
 
   async submitSchedule(): Promise<void> {
@@ -1002,8 +1323,10 @@ export class AdminScheduleComponent {
             machineId: job.machineId,
             stepNumber: job.stepNumber,
             quantity: job.quantity,
-            setupMinutes: job.resetAppliedMinutes,
-            plannedMinutes: job.timeOnMachine,
+            setupMinutes: job.setupMinutes,
+            plannedMinutes: job.plannedMinutes,
+            breakMinutes: job.breakMinutes,
+            packMinutes: job.packMinutes,
             plannedStartAt,
             plannedFinishAt,
             scheduledDate,
@@ -1029,6 +1352,4 @@ export class AdminScheduleComponent {
       .add(minuteOfDay, 'minutes')
       .toISOString();
   }
-
 }
-

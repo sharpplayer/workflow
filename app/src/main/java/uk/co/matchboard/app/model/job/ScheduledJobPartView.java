@@ -1,6 +1,5 @@
 package uk.co.matchboard.app.model.job;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record ScheduledJobPartView(
@@ -23,10 +22,13 @@ public record ScheduledJobPartView(
         OffsetDateTime plannedFinish,
         OffsetDateTime actualStart,
         OffsetDateTime actualFinish,
-        BigDecimal plannedMinutes,
-        BigDecimal setupMinutes,
+        int plannedMinutes,
+        int setupMinutes,
+        int breakMinutes,
+        int packMinutes,
         int status,
         int actualStartParamId,
+        Integer firstOffParamId,
         int actualFinishParamId
 ) {
 

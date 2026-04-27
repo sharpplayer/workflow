@@ -265,17 +265,6 @@ export class AdminJobComponent {
 
         this.phaseParamsToShow.set(params);
 
-console.log(
-  'PHASE PARAMS TO SHOW:',
-  params.map(p => ({
-    id: p.phaseParamId,
-    name: p.paramName,
-    input: p.input,
-    type: p.type,
-    value: p.value
-  }))
-);
-
         if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
             const crossJobParamValueMap = new Map<number, string>([
                 [paymentParam.phaseParamId, paymentParam.value ?? ''],

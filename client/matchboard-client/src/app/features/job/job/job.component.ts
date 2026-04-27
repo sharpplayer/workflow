@@ -655,8 +655,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
       const hasValue = value != null && String(value).trim() !== '';
       const status = statuses[param.partParamId] ?? param.status ?? ParamStatus.INITIALISED;
 
-      console.log(param.name + ':' + value + ':' + status);
-
       if (!hasValue) {
         return false;
       }

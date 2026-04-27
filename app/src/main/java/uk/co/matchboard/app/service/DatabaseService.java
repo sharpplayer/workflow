@@ -1,15 +1,11 @@
 package uk.co.matchboard.app.service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import org.springframework.dao.TransientDataAccessException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.Carrier;
@@ -39,7 +35,7 @@ import uk.co.matchboard.app.model.user.User;
 
 public interface DatabaseService {
 
-     enum SignStatus {
+    enum SignStatus {
         SIGN_PHASE,
         SIGN_SCHEDULE_START,
         SIGN_SCHEDULE_FINISH

@@ -18,7 +18,6 @@ export interface MachineInput {
     id: number;
     name: string;
     setupTime: number;
-    timePerUnit: number;
 }
 
 interface MachineConfigResponse {

@@ -70,6 +70,7 @@ public class JobServiceImpl implements JobService {
     public Result<Job> createJob(CreateJob job) {
         // Validate job
 
+        // Check the phases are relevant for at least one machine
         // If all don't match -> saved
         // If some don't match -> partially schedulable
         // If all match -> schedulable
@@ -150,13 +151,14 @@ public class JobServiceImpl implements JobService {
         } else {
             toDate = TryUtils.tryCatch(() -> LocalDate.parse(date));
         }
-        return toDate.flatMap(d -> {
-                    LocalDate fromDate = null;
-                    if (date != null) {
-                        fromDate = d;
-                    }
-                    return databaseService.getScheduleForMachine(machine, fromDate, d);
-                })
+        return toDate.flatMap(
+                        d -> {
+                            LocalDate fromDate = null;
+                            if (date != null) {
+                                fromDate = d;
+                            }
+                            return databaseService.getScheduleForMachine(machine, fromDate, d);
+                        })
                 .map(ScheduledJobPartViews::new);
     }
 

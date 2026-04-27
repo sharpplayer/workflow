@@ -12,7 +12,6 @@ import uk.co.matchboard.app.service.AuxiliaryService;
 import uk.co.matchboard.app.service.AuxiliaryServiceImpl;
 import uk.co.matchboard.app.service.ConfigurationService;
 import uk.co.matchboard.app.service.JobService;
-import uk.co.matchboard.app.service.JobServiceImpl;
 
 @RestController
 public class ConfigurationController {

@@ -1,5 +1,42 @@
 package uk.co.matchboard.app.service;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.Carrier;
+import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
+import uk.co.matchboard.app.model.config.CreateCarrier;
+import uk.co.matchboard.app.model.config.Customer;
+import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.CreateJobPart;
+import uk.co.matchboard.app.model.job.CreateJobPartPhase;
+import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
+import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobPartParam;
+import uk.co.matchboard.app.model.job.JobView;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
+import uk.co.matchboard.app.model.job.SchedulableJobPart;
+import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartView;
+import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Machine;
+import uk.co.matchboard.app.model.product.Phase;
+import uk.co.matchboard.app.model.product.PhaseParam;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
+import uk.co.matchboard.app.model.product.PhasesUpdate;
+import uk.co.matchboard.app.model.product.Product;
+import uk.co.matchboard.app.model.user.User;
+
+
 import static uk.co.matchboard.generated.Sequences.JOB_NUMBER_SEQ;
 import static uk.co.matchboard.generated.Tables.CARRIER;
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
@@ -18,20 +55,14 @@ import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
 
 import jakarta.annotation.Nonnull;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.jooq.Condition;
@@ -45,45 +76,20 @@ import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.stereotype.Service;
-import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
-import uk.co.matchboard.app.model.config.Carrier;
-import uk.co.matchboard.app.model.config.Config;
-import uk.co.matchboard.app.model.config.ConfigValuePair;
-import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.Customer;
-import uk.co.matchboard.app.model.job.CreateJob;
-import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartParam;
-import uk.co.matchboard.app.model.job.CreateJobPartPhase;
-import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
-import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobPart;
-import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
-import uk.co.matchboard.app.model.job.JobView;
-import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.ParamStatus;
-import uk.co.matchboard.app.model.job.SchedulableJobPart;
-import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
-import uk.co.matchboard.app.model.job.ScheduledJobPartView;
-import uk.co.matchboard.app.model.product.CreatePhase;
-import uk.co.matchboard.app.model.product.Machine;
-import uk.co.matchboard.app.model.product.Phase;
-import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
-import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
-import uk.co.matchboard.app.model.product.PhasesUpdate;
-import uk.co.matchboard.app.model.product.Product;
-import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.product.ProductMachine;
 import uk.co.matchboard.generated.tables.records.CarrierRecord;
 import uk.co.matchboard.generated.tables.records.CustomerRecord;
 import uk.co.matchboard.generated.tables.records.JobPartParamsRecord;
 import uk.co.matchboard.generated.tables.records.JobPartRecord;
 import uk.co.matchboard.generated.tables.records.JobRecord;
+import uk.co.matchboard.generated.tables.records.ProductMachinesRecord;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
 
@@ -100,6 +106,36 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     private record PartWithIndex(JobPart part, int index) {
 
+    }
+
+    private static class MachinePhaseSignoffParams {
+
+        private final List<Integer> params = new ArrayList<>();
+
+        public void addParam(Integer id) {
+            params.add(id);
+        }
+
+        public Integer getStartSignOffParam() {
+            if (!params.isEmpty()) {
+                return params.getFirst();
+            }
+            return null;
+        }
+
+        public Integer getFinishSignOffParam() {
+            if (params.size() >= 2) {
+                return params.getLast();
+            }
+            return null;
+        }
+
+        public Integer getFirstOffSignOffParam() {
+            if (params.size() == 3) {
+                return params.get(1);
+            }
+            return null;
+        }
     }
 
     private final DSLContext outerDsl;
@@ -135,12 +171,15 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @NonNull
     private static Product getProduct(ProductsRecord rec, DSLContext dsl) {
-        List<String> machinery = dsl.select(MACHINES.NAME)
+        List<ProductMachine> machinery = dsl.select(MACHINES.ID, MACHINES.NAME,
+                        PRODUCT_MACHINES.SECONDS_PER_UNIT, PRODUCT_MACHINES.SECONDS_PER_PACK)
                 .from(PRODUCT_MACHINES)
                 .join(MACHINES).on(MACHINES.ID.eq(PRODUCT_MACHINES.MACHINE_ID))
                 .where(PRODUCT_MACHINES.PRODUCT_ID.eq(rec.getId()))
                 .orderBy(PRODUCT_MACHINES.STEP_NUMBER.asc())
-                .fetch(MACHINES.NAME);
+                .fetch(r -> new ProductMachine(r.get(MACHINES.ID), r.get(MACHINES.NAME),
+                        r.get(PRODUCT_MACHINES.SECONDS_PER_UNIT),
+                        r.get(PRODUCT_MACHINES.SECONDS_PER_PACK)));
 
         return new Product(rec.getId(),
                 rec.getName(),
@@ -260,10 +299,10 @@ public class DatabaseServiceImpl implements DatabaseService {
                 };
             }
 
-            List<String> machinery = product.machinery();
+            List<ProductMachine> machinery = product.machinery();
             if (machinery != null && !machinery.isEmpty()) {
                 for (int i = 0; i < machinery.size(); i++) {
-                    String machineName = machinery.get(i);
+                    String machineName = machinery.get(i).name();
 
                     Integer machineId = dsl.select(MACHINES.ID)
                             .from(MACHINES)
@@ -287,6 +326,10 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .set(PRODUCT_MACHINES.PRODUCT_ID, productId)
                             .set(PRODUCT_MACHINES.STEP_NUMBER, i + 1)
                             .set(PRODUCT_MACHINES.MACHINE_ID, machineId)
+                            .set(PRODUCT_MACHINES.SECONDS_PER_UNIT, machinery.get(i)
+                                    .secondsPerUnit())
+                            .set(PRODUCT_MACHINES.SECONDS_PER_PACK, machinery.get(i)
+                                    .setupPerPack())
                             .execute();
                 }
             }
@@ -383,8 +426,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .fetch(record -> new Machine(
                             record.get(MACHINES.ID),
                             record.get(MACHINES.NAME),
-                            record.get(MACHINES.SETUP_MINUTES),
-                            record.get(MACHINES.RUN_MINUTES_UNIT)
+                            record.get(MACHINES.SETUP_SECONDS)
                     ));
 
         }
@@ -453,24 +495,24 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .where(PRODUCT_MACHINES.PRODUCT_ID.eq(product.id()))
                         .execute();
 
-                List<String> machinery = product.machinery();
+                List<ProductMachine> machinery = product.machinery();
                 if (machinery != null && !machinery.isEmpty()) {
                     for (int i = 0; i < machinery.size(); i++) {
-                        String machineName = machinery.get(i);
+                        ProductMachine machine = machinery.get(i);
 
                         Integer machineId = dsl.select(MACHINES.ID)
                                 .from(MACHINES)
-                                .where(MACHINES.NAME.eq(machineName))
+                                .where(MACHINES.NAME.eq(machine.name()))
                                 .fetchOne(MACHINES.ID);
 
                         if (machineId == null) {
                             machineId = dsl.insertInto(MACHINES)
-                                    .set(MACHINES.NAME, machineName)
+                                    .set(MACHINES.NAME, machine.name())
                                     .returning(MACHINES.ID)
                                     .fetchOne(MACHINES.ID);
                             if (machineId == null) {
                                 throw new DataAccessException(
-                                        "Failed to insert machine: " + machineName) {
+                                        "Failed to insert machine: " + machine.name()) {
                                 };
                             }
                         }
@@ -479,6 +521,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .set(PRODUCT_MACHINES.PRODUCT_ID, product.id())
                                 .set(PRODUCT_MACHINES.STEP_NUMBER, i + 1)
                                 .set(PRODUCT_MACHINES.MACHINE_ID, machineId)
+                                .set(PRODUCT_MACHINES.SECONDS_PER_UNIT, machine.secondsPerUnit())
+                                .set(PRODUCT_MACHINES.SECONDS_PER_PACK, machine.setupPerPack() )
                                 .execute();
                     }
                 }
@@ -979,7 +1023,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(JOB_PART_PARAMS.INPUT, paramData.getInput())
                         .set(JOB_PART_PARAMS.CONFIG, config)
                         .set(JOB_PART_PARAMS.ORDER, paramData.getOrder())
-                        .set(JOB_PART_PARAMS.PACK, 1)
                         .set(JOB_PART_PARAMS.VALUE, param.value())
                         .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
                         .set(JOB_PART_PARAMS.STATUS, ParamStatus.INITIALISED.getCode())
@@ -1016,22 +1059,25 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<SchedulableJobPart>> getUnscheduled() {
-        return TryUtils.tryCatch(() ->
-                getSchedulableQuery()
-                        .where(JOB_PART.STATUS.eq(JobStatus.SAVED.getCode()))
-                        .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
-                        .flatMap(List::stream).toList());
+        return TryUtils.tryCatch(() -> {
+            System.out.println("IN:" + System.currentTimeMillis());
+            var x = getSchedulableQuery()
+                    .where(JOB_PART.STATUS.eq(JobStatus.SAVED.getCode()))
+                    .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
+                    .flatMap(List::stream).toList();
+            System.out.println("OUT:" + System.currentTimeMillis());
+            return x;
+        });
     }
 
     private static List<SchedulableJobPart> getSchedulableJobPart(Record jobPartRecord,
             DSLContext innerDsl) {
 
-        List<Machine> machines = innerDsl.selectFrom(PRODUCT_MACHINES)
+        List<ProductMachinesRecord> machines = innerDsl.selectFrom(PRODUCT_MACHINES)
                 .where(PRODUCT_MACHINES.PRODUCT_ID.eq(
                         jobPartRecord.get(PRODUCT_MACHINES.PRODUCT_ID)))
                 .orderBy(PRODUCT_MACHINES.STEP_NUMBER.asc())
-                .fetch(r -> MACHINES_LIST.stream().filter(m -> m.id() == r.getMachineId()).toList()
-                        .getFirst());
+                .fetch();
 
         return IntStream.range(0, machines.size())
                 .mapToObj(index -> new SchedulableJobPart(
@@ -1040,7 +1086,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         jobPartRecord.get(JOB.NUMBER),
                         jobPartRecord.get(PRODUCTS.NAME),
                         jobPartRecord.get(PRODUCTS.OLD_NAME),
-                        machines.get(index).id(),
+                        machines.get(index).getMachineId(),
                         jobPartRecord.get(JOB_PART.QUANTITY),
                         index + 1,
                         jobPartRecord.get(PRODUCTS.LENGTH),
@@ -1051,8 +1097,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                         jobPartRecord.get(JOB_PART.PART_NUMBER),
                         jobPartRecord.get(JOB.PARTS),
                         jobPartRecord.get(JOB.DUE),
-                        machines.get(index).timePerUnit()
-                                .multiply(BigDecimal.valueOf(jobPartRecord.get(JOB_PART.QUANTITY))),
+                        machines.get(index).getSecondsPerUnit() * jobPartRecord.get(
+                                JOB_PART.QUANTITY),
+                        machines.get(index).getSecondsPerPack() * jobPartRecord.get(
+                                JOB_PART.QUANTITY) /
+                                jobPartRecord.get(PRODUCTS.PACK_SIZE) + 1,
                         machines.size(),
                         jobPartRecord.get(JOB_PART.PRODUCT_ID)
                 )).toList();
@@ -1062,14 +1111,18 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<SchedulableJobPart>> getSchedulable() {
-        return TryUtils.tryCatch(() ->
-                getSchedulableQuery()
-                        .where(JOB_PART.STATUS.in(
-                                JobStatus.SCHEDULABLE.getCode()
-                        ))
-                        .orderBy(JOB.DUE.asc())
-                        .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
-                        .flatMap(List::stream).toList()
+        return TryUtils.tryCatch(() -> {
+                    System.out.println("IN:" + System.currentTimeMillis());
+                    var x = getSchedulableQuery()
+                            .where(JOB_PART.STATUS.in(
+                                    JobStatus.SCHEDULABLE.getCode()
+                            ))
+                            .orderBy(JOB.DUE.asc())
+                            .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
+                            .flatMap(List::stream).toList();
+                    System.out.println("OUT:" + System.currentTimeMillis());
+                    return x;
+                }
         );
     }
 
@@ -1141,6 +1194,7 @@ public class DatabaseServiceImpl implements DatabaseService {
             LocalDate fromDate,
             LocalDate toDate) {
         return TryUtils.tryCatch(() -> {
+            System.out.println("IN:" + System.currentTimeMillis());
             LocalDate effectiveFromDate = fromDate != null
                     ? fromDate
                     : toDate.minusDays(3);
@@ -1153,7 +1207,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 JobStatus.STARTED.getCode()));
             }
 
-            return outerDsl
+            var x = outerDsl
                     .select(
                             JOB.DUE,
                             JOB.NUMBER,
@@ -1194,6 +1248,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB.DUE.asc()
                     )
                     .fetch(DatabaseServiceImpl::getScheduledJobPartView);
+            System.out.println("OUT:" + System.currentTimeMillis());
+            return x;
         });
     }
 
@@ -1219,8 +1275,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.get(JOB_PART_OPERATION.ACTUAL_FINISH_AT),
                 rec.get(JOB_PART_OPERATION.PLANNED_MINUTES),
                 rec.get(JOB_PART_OPERATION.SETUP_MINUTES),
+                rec.get(JOB_PART_OPERATION.BREAK_MINUTES),
+                rec.get(JOB_PART_OPERATION.PACK_MINUTES),
                 rec.get(JOB_PART_OPERATION.STATUS),
                 rec.get(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID),
+                rec.get(JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID),
                 rec.get(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID)
         );
     }
@@ -1417,6 +1476,15 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             for (CreateScheduledJobPart jobPart : jobPartIds) {
                 var product = findProduct(jobPart.productId());
+                if (product.isFaulted()) {
+                    throw new DataAccessException(
+                            "Failed to find product " + jobPart.productId() + ", for part "
+                                    + jobPart.jobPartId()) {
+                    };
+                }
+                List<Integer> productMachines = product.fold(
+                        p -> p.machinery().stream().map(ProductMachine::id).toList(),
+                        _ -> Collections.emptyList(), Collections::emptyList);
                 var phases = innerDsl
                         .select()
                         .from(JOB_PART_PHASES)
@@ -1424,11 +1492,17 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE.ID))
                         .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPart.jobPartId()))
                         .fetch();
+                Map<Integer, MachinePhaseSignoffParams> signoffParams = new HashMap<>();
                 for (var phase : phases) {
-                    boolean scheduleSignOff =
-                            (phase.get(PHASE.USAGE) & ProductServiceImpl.USAGE_SCHEDULE) != 0;
+                    var machineIds = phase.get(PHASE.MACHINE_IDS);
+                    boolean scheduled =
+                            (phase.get(PHASE.USAGE) & ProductServiceImpl.USAGE_PER_MACHINE) != 0
+                                    && (machineIds.length == 0
+                                    || Arrays.stream(machineIds)
+                                    .anyMatch(productMachines::contains));
+
                     List<CreateJobPartParam> phaseRunData = new ArrayList<>();
-                    if (scheduleSignOff) {
+                    if (scheduled) {
                         var paramId = innerDsl.selectFrom(PHASE_PARAM)
                                 .where(PHASE_PARAM.PHASE_ID.eq(phase.get(JOB_PART_PHASES.PHASE_ID)))
                                 .fetchOne(PHASE_PARAM.ID);
@@ -1439,12 +1513,14 @@ public class DatabaseServiceImpl implements DatabaseService {
                             };
                         }
                         product.map(p -> {
-                            for (String machine : p.machinery()) {
-                                if (jobPart.machineId() == getMachine(machine)) {
+                            for (ProductMachine machine : p.machinery()) {
+                                if (jobPart.machineId() == machine.id()) {
                                     phaseRunData.add(new CreateJobPartParam(paramId,
                                             phase.get(JOB_PART_PHASES.PHASE_NUMBER),
-                                            "SIGN(" + machine + ")", null,
+                                            "AWAIT(" + machine.name() + ")", null,
                                             phase.get(JOB_PART_PHASES.ID), true));
+                                    signoffParams.computeIfAbsent(machine.id(),
+                                            _ -> new MachinePhaseSignoffParams()).addParam(paramId);
                                 }
                             }
                             return phaseRunData;
@@ -1473,30 +1549,36 @@ public class DatabaseServiceImpl implements DatabaseService {
                                                     product,
                                                     r.get(PHASE_PARAM.CONFIG),
                                                     r.get(PHASE_PARAM.INPUT))))));
-                    var params = addParams(innerDsl, phase.get(JOB_PART_PHASES.PHASE_ID), 0,
+                    addParams(innerDsl, phase.get(JOB_PART_PHASES.PHASE_ID), 0,
                             phase.get(JOB_PART_PHASES.PHASE_NUMBER),
                             phaseRunData, now);
 
-                    if (scheduleSignOff) {
-                        innerDsl.insertInto(JOB_PART_OPERATION)
-                                .set(JOB_PART_OPERATION.JOB_PART_ID, jobPart.jobPartId())
-                                .set(JOB_PART_OPERATION.MACHINE_ID, jobPart.machineId())
-                                .set(JOB_PART_OPERATION.STEP_NUMBER, jobPart.stepNumber())
-                                .set(JOB_PART_OPERATION.QUANTITY, jobPart.quantity())
-                                .set(JOB_PART_OPERATION.PLANNED_START_AT, jobPart.plannedStartAt())
-                                .set(JOB_PART_OPERATION.PLANNED_FINISH_AT,
-                                        jobPart.plannedFinishAt())
-                                .set(JOB_PART_OPERATION.SETUP_MINUTES, jobPart.setupMinutes())
-                                .set(JOB_PART_OPERATION.PLANNED_MINUTES, jobPart.plannedMinutes())
-                                .set(JOB_PART_OPERATION.SCHEDULED_FOR_DATE, jobPart.scheduledDate())
-                                .set(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION, position)
-                                .set(JOB_PART_OPERATION.STATUS, JobStatus.SCHEDULED.getCode())
-                                .set(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
-                                        params.getFirst().partParamId())
-                                .set(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID,
-                                        params.get(1).partParamId())
-                                .execute();
-                    }
+                }
+
+                for (Entry<Integer, MachinePhaseSignoffParams> entry : signoffParams.entrySet()) {
+                    innerDsl.insertInto(JOB_PART_OPERATION)
+                            .set(JOB_PART_OPERATION.JOB_PART_ID, jobPart.jobPartId())
+                            .set(JOB_PART_OPERATION.MACHINE_ID, entry.getKey())
+                            .set(JOB_PART_OPERATION.STEP_NUMBER, jobPart.stepNumber())
+                            .set(JOB_PART_OPERATION.QUANTITY, jobPart.quantity())
+                            .set(JOB_PART_OPERATION.PLANNED_START_AT, jobPart.plannedStartAt())
+                            .set(JOB_PART_OPERATION.PLANNED_FINISH_AT,
+                                    jobPart.plannedFinishAt())
+                            .set(JOB_PART_OPERATION.SETUP_MINUTES, jobPart.setupMinutes())
+                            .set(JOB_PART_OPERATION.PLANNED_MINUTES, jobPart.plannedMinutes())
+                            .set(JOB_PART_OPERATION.BREAK_MINUTES, jobPart.breakMinutes())
+                            .set(JOB_PART_OPERATION.PACK_MINUTES, jobPart.packMinutes())
+                            .set(JOB_PART_OPERATION.SCHEDULED_FOR_DATE, jobPart.scheduledDate())
+                            .set(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION, position)
+                            .set(JOB_PART_OPERATION.STATUS, JobStatus.SCHEDULED.getCode())
+                            .set(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
+                                    entry.getValue().getStartSignOffParam())
+                            .set(JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID,
+                                    entry.getValue().getFirstOffSignOffParam())
+                            .set(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID,
+                                    entry.getValue().getFinishSignOffParam())
+                            .execute();
+
                 }
 
                 updatedJobs.add(jobPart.jobId());
@@ -1676,7 +1758,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         return outerDsl.select(JOB_PART.fields())
                 .select(JOB.ID, JOB.NUMBER, JOB.STATUS, JOB.PARTS, JOB.DUE)
                 .select(PRODUCTS.NAME, PRODUCTS.OLD_NAME, PRODUCTS.LENGTH, PRODUCTS.WIDTH,
-                        PRODUCTS.THICKNESS)
+                        PRODUCTS.THICKNESS, PRODUCTS.PACK_SIZE)
                 .from(JOB_PART)
                 .join(JOB).on(JOB_PART.JOB_ID.eq(JOB.ID))
                 .join(PRODUCTS).on(JOB_PART.PRODUCT_ID.eq(PRODUCTS.ID));

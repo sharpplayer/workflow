@@ -407,7 +407,6 @@ export class AdminJobsComponent implements OnInit {
             }
         });
 
-        console.log("S:" + cross.paymentConfirmed);
         const paramMap = new Map(
             params.map(p => [p.phaseParamId, p.value])
         );
@@ -445,7 +444,6 @@ export class AdminJobsComponent implements OnInit {
         crossJobParams: CrossJobParameters,
         jobParts: ProductSelectedWithMap[]
     ): CreateJob {
-        console.log("H:" + crossJobParams.paymentConfirmed + ":H");
         return {
             due: new Date(crossJobParams.dueDate).toISOString(),
             customer: Number(crossJobParams.customer),

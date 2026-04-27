@@ -101,7 +101,7 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     }
 
     private String convertToString(Object value) {
-        if(value instanceof List list){
+        if (value instanceof List list) {
             return list.stream().collect(Collectors.joining(" → ")).toString();
         }
         return value.toString();

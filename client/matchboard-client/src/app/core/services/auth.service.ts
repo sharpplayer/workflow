@@ -103,14 +103,11 @@ export class AuthService {
       });
     }
 
-    console.log("WS:" + workstation)
     if (workstation !== 0) {
-      console.log("WS2:" + workstation)
       return this.router.navigate(['/schedule', workstation], {
         state: { username, role, workstation }
       });
     }
-    console.log("WS3:" + workstation)
 
     return this.router.navigate(['/job'], {
       state: { username, role }
@@ -230,7 +227,6 @@ export class AuthService {
       const role = params.role ?? '';
       const mode: 'pin' | 'password' =
         username && this.deviceService.isUserLoggedIn(username) ? 'pin' : 'password';
-      console.log("MODE:" + username + ":" + mode)
       ref.setInput('username', username);
       ref.setInput('role', role);
       ref.setInput('mode', mode);

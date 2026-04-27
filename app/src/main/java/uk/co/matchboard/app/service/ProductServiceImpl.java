@@ -3,6 +3,7 @@ package uk.co.matchboard.app.service;
 import static uk.co.matchboard.app.service.ConfigurationServiceImpl.BOOLEANS;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -24,6 +25,7 @@ import uk.co.matchboard.app.model.product.PhaseParamData;
 import uk.co.matchboard.app.model.product.Phases;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
+import uk.co.matchboard.app.model.product.ProductMachine;
 import uk.co.matchboard.app.model.product.ProductView;
 import uk.co.matchboard.app.model.product.Products;
 import uk.co.matchboard.app.model.sage.SageProduct;
@@ -34,12 +36,16 @@ public class ProductServiceImpl implements ProductService {
     public static final Product EXAMPLE_PRODUCT = new Product(0, "prod", "sage", 1234, 567, 8,
             "pitch", "edge", "finish",
             "profile", "material", "owner", 12,
-            List.of("machine1", "machine2", "machine3"), 80, true);
+            List.of(new ProductMachine(1, "machine1", 60, 10),
+                    new ProductMachine(2, "machine2", 120, 10),
+                    new ProductMachine(3, "machine3", 180, 10)), 80, true);
 
     public static final Integer USAGE_FROM_CALL_OFF = 1;
     public static final Integer USAGE_TO_CALL_OFF = 2;
-    public static final Integer USAGE_PACK = 4;
-    public static final Integer USAGE_SCHEDULE = 8;
+    public static final Integer USAGE_PER_RPI = 4;
+    public static final Integer USAGE_PER_MACHINE = 8;
+    public static final Integer USAGE_PER_PRODUCT_PACK = 16;
+    public static final Integer USAGE_PER_RPI_LEFT_RIGHT = 32;
 
     private record PhaseParamKey(int id, int order) {
 
@@ -194,7 +200,8 @@ public class ProductServiceImpl implements ProductService {
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
                         pp.paramConfig(),
                         pp.input(),
-                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input()).value()))
+                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input())
+                                .value()))
                 .collect(Collectors.toList());
     }
 
@@ -236,11 +243,16 @@ public class ProductServiceImpl implements ProductService {
                             "Integer required"));
         }
 
-        List<String> productMachines = Arrays.stream(product.machinery().split(";"))
-                .map(String::trim)
-                .map(String::toUpperCase)
-                .toList();
-        if (configurationService.hasPossibleTypos(productMachines, machines)) {
+        Result<List<ProductMachine>> productMachinesR =
+                getProductMachines(product);
+        if (productMachinesR.isFaulted()) {
+            return productMachinesR.cast();
+        }
+        List<ProductMachine> productMachines = productMachinesR.fold(i -> i,
+                _ -> Collections.emptyList());
+
+        if (configurationService.hasPossibleTypos(
+                productMachines.stream().map(ProductMachine::name).toList(), machines)) {
             return Result.failure(
                     new BadValueException(product.number(), "Machinery", product.machinery(),
                             "Possible typo in machinery"));
@@ -290,6 +302,59 @@ public class ProductServiceImpl implements ProductService {
                     ));
                 }
         );
+    }
+
+    private static Result<List<ProductMachine>> getProductMachines(SageProduct product) {
+        return Result.sequence(Arrays.stream(product.machinery().split(";"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> {
+                    int open = s.indexOf('(');
+                    int close = s.indexOf(')');
+
+                    if (open < 0 || close < 0 || close < open) {
+                        return Result.<ProductMachine>failure(
+                                new BadValueException(
+                                        product.number(),
+                                        "Machinery",
+                                        product.machinery(),
+                                        "Invalid format. Expected MACHINE(TIME_PER_UNIT|TIME_PER_PACK)"
+                                )
+                        );
+                    }
+
+                    String name = s.substring(0, open).trim();
+                    String inner = s.substring(open + 1, close).trim();
+
+                    String[] parts = inner.split("\\|");
+                    if (parts.length != 2) {
+                        return Result.<ProductMachine>failure(
+                                new BadValueException(
+                                        product.number(),
+                                        "Machinery",
+                                        product.machinery(),
+                                        "Expected TIME_PER_UNIT|TIME_PER_PACK"
+                                )
+                        );
+                    }
+
+                    try {
+                        int timePerUnit = Integer.parseInt(parts[0].trim());
+                        int timePerPack = Integer.parseInt(parts[1].trim());
+
+                        return Result.of(new ProductMachine(0, name, timePerUnit, timePerPack));
+                    } catch (NumberFormatException e) {
+                        return Result.<ProductMachine>failure(
+                                new BadValueException(
+                                        product.number(),
+                                        "Machinery",
+                                        product.machinery(),
+                                        "Invalid numeric values in machinery"
+                                )
+                        );
+                    }
+                })
+                .toList());
     }
 
     private String deriveNameFrom(SageProduct product) {

@@ -1,3 +1,5 @@
+// schedule-list.component.ts
+
 import {
   Component,
   OnInit,
@@ -64,8 +66,6 @@ import { AuthService } from '../../../core/services/auth.service';
   ],
   template: `
     <div class="schedule-list-container">
-      <!-- existing controls -->
-
       <table>
         <thead>
           <tr>
@@ -83,6 +83,11 @@ import { AuthService } from '../../../core/services/auth.service';
             <th>Break</th>
             <th>Planned End</th>
             <th>Actual Start</th>
+
+            @if (showFirstOffColumn()) {
+              <th>First Off</th>
+            }
+            <th>New RPI</th>
             <th>Actual End</th>
             <th>Variance</th>
             <th>Status</th>
@@ -92,11 +97,15 @@ import { AuthService } from '../../../core/services/auth.service';
         <tbody>
           @if (loading()) {
             <tr>
-              <td colspan="17" class="no-data">Loading...</td>
+              <td [attr.colspan]="getColumnCount()" class="no-data">
+                Loading...
+              </td>
             </tr>
           } @else if (jobs().length === 0) {
             <tr>
-              <td colspan="17" class="no-data">No schedule</td>
+              <td [attr.colspan]="getColumnCount()" class="no-data">
+                No schedule
+              </td>
             </tr>
           } @else {
             @for (job of jobs(); track trackJob($index, job)) {
@@ -143,6 +152,28 @@ import { AuthService } from '../../../core/services/auth.service';
                   }
                 </td>
 
+                @if (showFirstOffColumn()) {
+                  <td>
+                    @if (job.firstOffParamId != null) {
+                      <job-phase-param
+                        [param]="buildSignoffParam(job.firstOffParamId)"
+                        [currentValue]="''"
+                        [disabled]="loading()"
+                        (signoffRequested)="onFirstOffSignoff(job, $event)"
+                      />
+                    }
+                  </td>
+                }
+                <td>
+                  <button
+                    type="button"
+                    class="rpi-cell-button"
+                    (click)="openRpiForm(job)"
+                  >
+                    New RPI
+                  </button>
+                </td>
+
                 <td>
                   @if (job.actualFinish) {
                     {{ formatTime(job.actualFinish) }}
@@ -169,11 +200,35 @@ import { AuthService } from '../../../core/services/auth.service';
                 </td>
 
                 <td>{{ getStatus(job.status) }}</td>
+
               </tr>
             }
           }
         </tbody>
       </table>
+
+      @if (rpiDialogJob(); as rpiJob) {
+        <div class="modal-backdrop" (click)="closeRpiForm()">
+          <div class="modal-panel" (click)="$event.stopPropagation()">
+            <h3>New RPI</h3>
+
+            <p>
+              Job {{ getJobRef(rpiJob.jobNumber) }},
+              part {{ rpiJob.partNumber }} of {{ rpiJob.jobParts }}
+            </p>
+
+            <label>
+              Notes
+              <textarea rows="4" placeholder="Dummy RPI notes"></textarea>
+            </label>
+
+            <div class="modal-actions">
+              <button type="button" (click)="closeRpiForm()">Cancel</button>
+              <button type="button" (click)="saveRpiForm()">Save</button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
   styleUrl: './schedule-list.component.css'
@@ -195,6 +250,8 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   loading = signal(false);
   error = signal('');
 
+  rpiDialogJob = signal<ScheduledJobPartView | null>(null);
+
   buildSignoffParam(partParamId: number): JobPartParam {
     return {
       partParamId,
@@ -208,6 +265,26 @@ export class ScheduleListComponent implements OnInit, OnChanges {
       config: 'SIGN(' + this.deviceService.getStatus().users[0].role + ')',
       status: ParamStatus.INITIALISED
     };
+  }
+
+  showFirstOffColumn(): boolean {
+    return this.jobs().some(job => job.firstOffParamId != null);
+  }
+
+  getColumnCount(): number {
+    return 18 + (this.showFirstOffColumn() ? 1 : 0);
+  }
+
+  openRpiForm(job: ScheduledJobPartView): void {
+    this.rpiDialogJob.set(job);
+  }
+
+  closeRpiForm(): void {
+    this.rpiDialogJob.set(null);
+  }
+
+  saveRpiForm(): void {
+    this.rpiDialogJob.set(null);
   }
 
   async onActualStartSignoff(
@@ -233,6 +310,33 @@ export class ScheduleListComponent implements OnInit, OnChanges {
       console.error(err);
       this.error.set(
         err instanceof Error ? err.message : 'Failed to sign off actual start.'
+      );
+    }
+  }
+
+  async onFirstOffSignoff(
+    job: ScheduledJobPartView,
+    event: { param: JobPartParam; username?: string; role?: string }
+  ): Promise<void> {
+    try {
+      const loginResult = await this.authService.open({
+        username: event.username,
+        role: event.role
+      });
+
+      if (!loginResult) {
+        return;
+      }
+
+      await this.jobService.signOff(loginResult, {
+        [event.param.partParamId]: loginResult.username
+      });
+
+      await this.loadSchedule();
+    } catch (err) {
+      console.error(err);
+      this.error.set(
+        err instanceof Error ? err.message : 'Failed to sign off first off.'
       );
     }
   }
@@ -325,10 +429,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
 
     try {
       const date = this.buildDateString();
-      const jobs = await this.jobService.getJobsForMachine(
-        machineId,
-        date
-      );
+      const jobs = await this.jobService.getJobsForMachine(machineId, date);
 
       this.jobs.set(jobs);
     } catch (err) {
@@ -414,20 +515,8 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     return this.jobService.getJobRef(jobNumber);
   }
 
-  getBreakMinutes(job: ScheduledJobPartView): number | null {
-    if (!job.plannedStart || !job.plannedFinish) return null;
-
-    const plannedStart = moment.parseZone(job.plannedStart);
-    const plannedFinish = moment.parseZone(job.plannedFinish);
-
-    if (!plannedStart.isValid() || !plannedFinish.isValid()) return null;
-
-    const totalScheduledMinutes = plannedFinish.diff(plannedStart, 'minutes');
-    return totalScheduledMinutes - job.plannedMinutes;
-  }
-
   formatBreak(job: ScheduledJobPartView): string {
-    const mins = this.getBreakMinutes(job);
+    const mins = job.breakMinutes;
     if (mins == null) return '';
 
     const abs = Math.abs(mins);

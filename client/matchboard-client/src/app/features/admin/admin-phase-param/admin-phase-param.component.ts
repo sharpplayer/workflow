@@ -274,29 +274,6 @@ export class AdminPhaseParamComponent {
         this.filteredParams.set([]);
       }
     });
-
-    effect(() => {
-      console.log(
-        'phaseParams in AdminPhaseParamComponent',
-        this.phaseParams().map(p => ({
-          id: p.phaseParamId,
-          name: p.paramName,
-          input: p.input,
-          type: p.type,
-          value: p.value
-        }))
-      );
-
-      console.log(
-        'selectedParams in AdminPhaseParamComponent',
-        this.selectedParams()?.map(p => ({
-          id: p.phaseParamId,
-          key: p.key,
-          input: p.input,
-          value: p.value
-        }))
-      );
-    });
   }
 
   private async initialize(params: PhaseParam[], selectedParams: PhaseParamSelected[] | null) {
@@ -321,7 +298,6 @@ export class AdminPhaseParamComponent {
             const list = await this.configService.getList(p.paramConfig);
             options = list.value;
             type = list.type;
-            console.log(p.paramConfig + ':' + type);
           } catch (err) {
             console.error(`Failed to load list for ${p.paramConfig}`, err);
           }

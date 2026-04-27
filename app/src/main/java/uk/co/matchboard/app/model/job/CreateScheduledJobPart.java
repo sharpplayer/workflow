@@ -5,7 +5,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 public record CreateScheduledJobPart(int jobId, int jobPartId, int machineId, int stepNumber,
-                                     int quantity, BigDecimal setupMinutes, BigDecimal plannedMinutes,
+                                     int quantity, int setupMinutes, int plannedMinutes,
+                                     int breakMinutes, int packMinutes,
                                      OffsetDateTime plannedStartAt,
                                      OffsetDateTime plannedFinishAt,
                                      LocalDate scheduledDate,

@@ -217,14 +217,6 @@ export class LoginComponent {
       }
     });
 
-    effect(() => {
-      console.log('LOGIN INPUTS', {
-        username: this.username?.(),
-        role: this.role?.(),
-        mode: this.mode?.()
-      });
-    });
-
     toObservable(this.effectiveUsername)
       .pipe(
         map(username => username.trim()),
@@ -309,7 +301,6 @@ export class LoginComponent {
     if (!this.canSubmit()) return;
 
     this.optionsErrorMsg.set('');
-    console.log("SSSSSSSSSSSSSSX");
 
     this.loginSubmit.emit({
       username: this.effectiveUsername(),

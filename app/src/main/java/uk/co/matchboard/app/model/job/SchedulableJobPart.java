@@ -9,6 +9,7 @@ public record SchedulableJobPart(int jobPartId, int jobId, long jobNumber, Strin
                                  int stepNumber, int length, int width, int thickness,
                                  int partStatus, int jobStatus,
                                  int partNo, int jobParts, OffsetDateTime dueDate,
-                                 BigDecimal timeOnMachine, int steps, int productId) {
+                                 int timeOnMachineSeconds, int timeForPacksSeconds,
+                                 int steps, int productId) {
 
 }

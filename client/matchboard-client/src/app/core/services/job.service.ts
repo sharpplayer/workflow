@@ -41,7 +41,8 @@ export interface SchedulableJobPart {
   partNo: number;
   jobParts: number;
   dueDate: Date;
-  timeOnMachine: number;
+  timeOnMachineSeconds: number;
+  timeForPacksSeconds: number;
   steps: number;
   productId: number;
 }
@@ -180,6 +181,8 @@ export interface CreateScheduledJobPart {
   quantity: number;
   setupMinutes: number;
   plannedMinutes: number;
+  breakMinutes: number;
+  packMinutes: number;
   plannedStartAt: string;
   plannedFinishAt: string;
   scheduledDate: string;
@@ -230,8 +233,11 @@ export interface ScheduledJobPartView {
   actualFinish: string | null;
   plannedMinutes: number;
   setupMinutes: number;
+  breakMinutes: number;
+  packMinutes: number;
   status: JobStatus;
   actualStartParamId : number,
+  firstOffParamId: number | null;
   actualFinishParamId : number
 }
 
@@ -325,15 +331,12 @@ export class JobService {
     date?: string | null
   ): Promise<ScheduledJobPartView[]> {
 
-    console.log("GETTING:" + machineId);
     const jobs = await firstValueFrom(
       this.http.get<ScheduledJobPartViews>(`${API_BASE_URL}/api/schedule`, {
         params: date ? { date, machineId: machineId.toString() } : { machineId: machineId.toString() },
         withCredentials: true
       })
     );
-    console.log("GOT" + jobs.jobParts);
-
     return jobs.jobParts;
   }
 

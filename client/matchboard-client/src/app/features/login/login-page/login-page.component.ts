@@ -51,7 +51,6 @@ export class LoginPageComponent {
   async onLoginSubmit(result: LoginResult): Promise<void> {
     this.authError.set('');
 
-    console.log("SSSSSSSSSSSSSS");
     try {
       const status = await this.authService.registerSession(
         result.username,

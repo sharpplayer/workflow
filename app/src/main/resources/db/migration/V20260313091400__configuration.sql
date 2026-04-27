@@ -8,7 +8,7 @@ CREATE TABLE configuration
 INSERT INTO configuration (id,
                            type,
                            value)
-VALUES ('ROLES', 'string[]', 'ADMIN,SETTER,OP,INSPECTOR,STACKING,PALLETISING,WRAPPING,RACKING'),
+VALUES ('ROLES', 'string[]', 'ADMIN,SETTER,OP,INSPECTOR,STACKING,PALLETISING,WRAPPING,RACKING,LOGISTICS'),
        ('FINISH', 'string[]', 'RAW,TRADE,TRADE PLUS,SUPREME'),
        ('SURFACE', 'string[]', 'SINGLE FACE,FRONT AND BACK,ALL 6 SIDES'),
        ('INSERTS', 'string[]', 'TOP BOARD ONLY,EVERY BOARD,NONE'),
