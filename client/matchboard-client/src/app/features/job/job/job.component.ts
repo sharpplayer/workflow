@@ -26,7 +26,7 @@ import {
 import { Product } from '../../../core/services/product.service';
 import { JobPhaseParamComponent } from '../job-phase-param/job-phase-param.component';
 import { DeviceService } from '../../../core/services/device.service';
-import { WastageComponent } from "../wastage/wastage.component";
+import { WastageComponent } from '../wastage/wastage.component';
 
 type PhasePackGroup = {
   pack: string | number | null;
@@ -164,7 +164,6 @@ type PhasePackGroup = {
           </div>
         </div>
 
-
         <div class="job-content">
           <div class="phase-table-scroll">
             @for (phase of getPhases(currentJob); track phase.phaseId) {
@@ -174,88 +173,84 @@ type PhasePackGroup = {
                 [class.phase-active]="isPhaseActive(phase)"
                 [class.phase-inactive]="!isPhaseActive(phase)">
 
-                @for (group of getPackGroupsForPhase(currentJob, phase); track group.pack ?? 'no-pack') {
-                  <table class="phase-table">
-                    <colgroup>
-                      @for (param of getDisplayNonSignParamsForPack(group); track $index) {
-                        <col class="param-col" />
-                      }
+                <table class="phase-table">
+                  <colgroup>
+                    <col class="pack-col" />
 
-                      @for (slot of getSignSlotsForPhasePacks(currentJob, phase); track slot) {
-                        <col class="signoff-col" />
-                      }
-                    </colgroup>
+                    @for (param of getDisplayNonSignParamsForPhase(currentJob, phase); track $index) {
+                      <col class="param-col" />
+                    }
 
-                    <thead>
+                    @for (param of getDisplaySignParamsForPhase(currentJob, phase); track $index) {
+                      <col class="signoff-col" />
+                    }
+                  </colgroup>
+
+                  <thead>
+                    <tr
+                      class="phase-title-row"
+                      [class.phase-active]="isPhaseActive(phase)"
+                      [class.phase-inactive]="!isPhaseActive(phase)">
+                      <th [attr.colspan]="getTotalDisplayColumnsWithPack(currentJob, phase)">
+                        {{ getPhaseTitle(phase) }}
+                      </th>
+                    </tr>
+
+                    @if (phase.specialInstructions?.trim()) {
                       <tr
-                        class="phase-title-row"
+                        class="special-instruction-row"
                         [class.phase-active]="isPhaseActive(phase)"
                         [class.phase-inactive]="!isPhaseActive(phase)">
-                        <th [attr.colspan]="getTotalDisplayColumnsForPack(currentJob, phase, group)">
-                          {{ getPhaseTitle(phase) }}
-                          @if (group.label) {
-                            — {{ group.label }}
-                          }
+                        <th [attr.colspan]="getTotalDisplayColumnsWithPack(currentJob, phase)">
+                          <span>Special instructions: {{ phase.specialInstructions }}</span>
                         </th>
                       </tr>
+                    }
 
-                      @if (phase.specialInstructions?.trim()) {
-                        <tr
-                          class="special-instruction-row"
-                          [class.phase-active]="isPhaseActive(phase)"
-                          [class.phase-inactive]="!isPhaseActive(phase)">
-                          <th [attr.colspan]="getTotalDisplayColumnsForPack(currentJob, phase, group)">
-                            <span>Special instructions: {{ phase.specialInstructions }}</span>
-                          </th>
-                        </tr>
+                    <tr class="phase-param-header-row">
+                      <th class="pack-column">Pack</th>
+
+                      @for (param of getDisplayNonSignParamsForPhase(currentJob, phase); track $index) {
+                        <th class="param-column">
+                          {{ isPlaceholderParam(param) ? '' : param.name }}
+                        </th>
                       }
 
-                      <tr class="phase-param-header-row">
-                        @for (param of getDisplayNonSignParamsForPack(group); track $index) {
-                          <th class="param-column">
-                            {{ isPlaceholderParam(param) ? '' : param.name }}
-                          </th>
-                        }
+                      @for (param of getDisplaySignParamsForPhase(currentJob, phase); track $index) {
+                        <th class="signoff-column signoff-active">
+                          {{ isPlaceholderParam(param) ? '' : param.name }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
 
-                        @if (getSignParamsForPack(group).length > 0) {
-                          @for (param of getSignParamsForPack(group); track param.partParamId; let i = $index) {
-                            <th
-                              class="signoff-column signoff-active"
-                              [attr.colspan]="getSignColSpanForPack(currentJob, phase, group, i)">
-                              {{ param.name }}
-                            </th>
-                          }
-                        } @else {
-                          <th
-                            class="signoff-column signoff-empty"
-                            [attr.colspan]="getMaxSignParamsForPhasePacks(currentJob, phase)">
-                          </th>
-                        }
-                      </tr>
-                    </thead>
-
-                    <tbody>
+                  <tbody>
+                    @for (group of getPackGroupsForPhase(currentJob, phase); track group.pack ?? 'no-pack') {
                       <tr class="phase-param-value-row">
-                        @for (param of getDisplayNonSignParamsForPack(group); track $index) {
+                        <td class="pack-column value">
+                          {{ group.label || '-' }}
+                        </td>
+
+                        @for (param of getDisplayNonSignParamsForPackRow(currentJob, phase, group); track $index) {
                           <td class="param-column value">
-                            <job-phase-param
-                              [param]="param"
-                              [currentValue]="getParamDisplayValue(param)"
-                              [disabled]="!isPhaseActive(phase)"
-                              [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
-                              (valueChanged)="onParamValueChanged($event)"
-                              (checkStatusChanged)="onCheckStatusChanged($event)"
-                              (signoffRequested)="onSignoffRequested($event)"
-                              (wastageRequested)="openWastageDialog($event)">
-                            </job-phase-param>
+                            @if (!isPlaceholderParam(param)) {
+                              <job-phase-param
+                                [param]="param"
+                                [currentValue]="getParamDisplayValue(param)"
+                                [disabled]="!isPhaseActive(phase)"
+                                [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
+                                (valueChanged)="onParamValueChanged($event)"
+                                (checkStatusChanged)="onCheckStatusChanged($event)"
+                                (signoffRequested)="onSignoffRequested($event)"
+                                (wastageRequested)="openWastageDialog($event)">
+                              </job-phase-param>
+                            }
                           </td>
                         }
 
-                        @if (getSignParamsForPack(group).length > 0) {
-                          @for (param of getSignParamsForPack(group); track param.partParamId; let i = $index) {
-                            <td
-                              class="signoff-column signoff-active"
-                              [attr.colspan]="getSignColSpanForPack(currentJob, phase, group, i)">
+                        @for (param of getDisplaySignParamsForPackRow(currentJob, phase, group); track $index) {
+                          <td class="signoff-column signoff-active">
+                            @if (!isPlaceholderParam(param)) {
                               <job-phase-param
                                 [param]="param"
                                 [currentValue]="getParamDisplayValue(param)"
@@ -265,18 +260,13 @@ type PhasePackGroup = {
                                 (checkStatusChanged)="onCheckStatusChanged($event)"
                                 (signoffRequested)="onSignoffRequested($event)">
                               </job-phase-param>
-                            </td>
-                          }
-                        } @else {
-                          <td
-                            class="signoff-column signoff-empty"
-                            [attr.colspan]="getMaxSignParamsForPhasePacks(currentJob, phase)">
+                            }
                           </td>
                         }
                       </tr>
-                    </tbody>
-                  </table>
-                }
+                    }
+                  </tbody>
+                </table>
               </div>
             }
           </div>
@@ -285,6 +275,7 @@ type PhasePackGroup = {
         <p>No job loaded.</p>
       }
     </div>
+
     @if (showWastageDialog() && selectedWastageParam(); as param) {
       <wastage
         [jobPhaseId]="param.partPhaseId"
@@ -292,7 +283,7 @@ type PhasePackGroup = {
         (closed)="closeWastageDialog()"
         (saved)="onWastageSaved($event)">
       </wastage>
-      }
+    }
   `,
   styleUrl: './job.component.css'
 })
@@ -316,7 +307,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
   readonly schedule = output<void>();
 
   jobRef = '-';
-
   zone = '';
 
   private readonly placeholderParam: JobPartParam = {
@@ -465,8 +455,8 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return;
     }
 
-    if (!this.arePhaseParamsFilled(currentJob, phase)) {
-      alert('Please fill in all phase parameters before signoff.');
+    if (!this.arePhaseParamsFilled(currentJob, phase, event.param.pack)) {
+      alert('Please fill in all pack parameters before signoff.');
       return;
     }
 
@@ -496,7 +486,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
         event.param.partParamId
       )
     ) {
-      alert(`${trimmedUsername} has already signed another signoff in this phase.`);
+      alert(`${trimmedUsername} has already signed another signoff in this pack.`);
       return;
     }
 
@@ -557,7 +547,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return result;
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     await this.authService.logoutAll();
   }
 
@@ -586,40 +576,113 @@ export class JobComponent implements OnChanges, AfterViewInit {
       .filter(param => !!param.config?.startsWith('SIGN('));
   }
 
-  getDisplayNonSignParams(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
-    const params = this.getNonSignParamsForPhase(job, phase);
-    console.log("PACKS" + phase.phaseId)
-    console.log(params.map(i => i.pack))
-    return params.length > 0 ? params : [this.placeholderParam];
+  getPackGroupsForPhase(job: JobWithOnePart, phase: JobPartPhase): PhasePackGroup[] {
+    const params = this.getParamsForPhase(job, phase);
+
+    const packs = Array.from(
+      new Set(params.map(param => param.pack))
+    );
+
+
+    return packs.map(pack => ({
+      pack,
+      label: this.formatPackLabel(pack),
+      params: params.filter(param => param.pack === pack)
+    }));
   }
 
-  getMaxSignParams(job: JobWithOnePart): number {
-    return Math.max(
-      ...job.part.phases.map(phase => this.getSignParamsForPhase(job, phase).length),
-      1
+  private formatPackLabel(pack: string | number | null): string {
+    if (pack === null || pack === undefined) {
+      return '';
+    }
+
+    const num = Number(pack);
+
+    if (isNaN(num)) {
+      return String(pack);
+    }
+
+    if (num > 10_000_000) {
+      return `${num % 10_000_000} R`;
+    }
+
+    return `${num} L`;
+  }
+
+  getDisplayNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
+    const params = this.getNonSignParamsForPhase(job, phase);
+
+    if (params.length === 0) {
+      return [this.placeholderParam];
+    }
+
+    const keys = Array.from(new Set(params.map(param => this.getParamColumnKey(param))));
+
+    return keys.map(key =>
+      params.find(param => this.getParamColumnKey(param) === key) ?? this.placeholderParam
     );
   }
 
-  getSignSlots(job: JobWithOnePart): number[] {
-    return Array.from({ length: this.getMaxSignParams(job) }, (_, i) => i);
-  }
+  getDisplaySignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
+    const params = this.getSignParamsForPhase(job, phase);
 
-  getSignColSpan(job: JobWithOnePart, phase: JobPartPhase, index: number): number {
-    const signParams = this.getSignParamsForPhase(job, phase);
-    const max = this.getMaxSignParams(job);
-
-    if (signParams.length === 0) {
-      return max;
+    if (params.length === 0) {
+      return [this.placeholderParam];
     }
 
-    const base = Math.floor(max / signParams.length);
-    const remainder = max % signParams.length;
+    const keys = Array.from(new Set(params.map(param => this.getParamColumnKey(param))));
 
-    return base + (index < remainder ? 1 : 0);
+    return keys.map(key =>
+      params.find(param => this.getParamColumnKey(param) === key) ?? this.placeholderParam
+    );
   }
 
-  getTotalDisplayColumns(job: JobWithOnePart, phase: JobPartPhase): number {
-    return this.getDisplayNonSignParams(job, phase).length + this.getMaxSignParams(job);
+  getDisplayNonSignParamsForPackRow(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    group: PhasePackGroup
+  ): JobPartParam[] {
+    const columns = this.getDisplayNonSignParamsForPhase(job, phase);
+
+    return columns.map(column => {
+      if (this.isPlaceholderParam(column)) {
+        return this.placeholderParam;
+      }
+
+      return group.params.find(param =>
+        !param.config?.startsWith('SIGN(') &&
+        this.getParamColumnKey(param) === this.getParamColumnKey(column)
+      ) ?? this.placeholderParam;
+    });
+  }
+
+  getDisplaySignParamsForPackRow(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    group: PhasePackGroup
+  ): JobPartParam[] {
+    const columns = this.getDisplaySignParamsForPhase(job, phase);
+
+    return columns.map(column => {
+      if (this.isPlaceholderParam(column)) {
+        return this.placeholderParam;
+      }
+
+      return group.params.find(param =>
+        param.config?.startsWith('SIGN(') &&
+        this.getParamColumnKey(param) === this.getParamColumnKey(column)
+      ) ?? this.placeholderParam;
+    });
+  }
+
+  getTotalDisplayColumnsWithPack(job: JobWithOnePart, phase: JobPartPhase): number {
+    return 1 +
+      this.getDisplayNonSignParamsForPhase(job, phase).length +
+      this.getDisplaySignParamsForPhase(job, phase).length;
+  }
+
+  private getParamColumnKey(param: JobPartParam): string {
+    return `${param.name}|${param.config ?? ''}|${param.input ?? ''}`;
   }
 
   isPlaceholderParam(param: JobPartParam): boolean {
@@ -651,25 +714,31 @@ export class JobComponent implements OnChanges, AfterViewInit {
     this.paramStatuses.set(statuses);
   }
 
-  arePhaseParamsFilled(job: JobWithOnePart, phase: JobPartPhase): boolean {
+  arePhaseParamsFilled(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    pack?: string | number | null
+  ): boolean {
     const values = this.paramValues();
     const statuses = this.paramStatuses();
 
-    return this.getEditableParamsForPhase(job, phase).every(param => {
-      const value = values[param.partParamId];
-      const hasValue = value != null && String(value).trim() !== '';
-      const status = statuses[param.partParamId] ?? param.status ?? ParamStatus.INITIALISED;
+    return this.getEditableParamsForPhase(job, phase)
+      .filter(param => param.pack === pack)
+      .every(param => {
+        const value = values[param.partParamId];
+        const hasValue = value != null && String(value).trim() !== '';
+        const status = statuses[param.partParamId] ?? param.status ?? ParamStatus.INITIALISED;
 
-      if (!hasValue) {
-        return false;
-      }
+        if (!hasValue) {
+          return false;
+        }
 
-      if (param.config?.startsWith('CHECK(')) {
-        return status !== ParamStatus.INITIALISED;
-      }
+        if (param.config?.startsWith('CHECK(')) {
+          return status !== ParamStatus.INITIALISED;
+        }
 
-      return true;
-    });
+        return true;
+      });
   }
 
   private isEditableParam(param: JobPartParam, phase: JobPartPhase): boolean {
@@ -694,6 +763,17 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return String(value).trim();
   }
 
+  getExcludedSignoffUsersForPack(
+    group: PhasePackGroup,
+    currentParam: JobPartParam
+  ): string[] {
+    return group.params
+      .filter(param => param.config?.startsWith('SIGN('))
+      .filter(param => param.partParamId !== currentParam.partParamId)
+      .map(param => this.getParamCurrentValue(param))
+      .filter(value => value !== '');
+  }
+
   getExcludedSignoffUsers(
     job: JobWithOnePart,
     phase: JobPartPhase,
@@ -701,6 +781,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   ): string[] {
     return this.getSignParamsForPhase(job, phase)
       .filter(param => param.partParamId !== currentParam.partParamId)
+      .filter(param => param.pack === currentParam.pack)
       .map(param => this.getParamCurrentValue(param))
       .filter(value => value !== '');
   }
@@ -736,92 +817,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
     this.closeWastageDialog();
   }
 
-  onNextJob() {
+  onNextJob(): void {
     this.nextJob.emit();
-  }
-
-  getPackGroupsForPhase(job: JobWithOnePart, phase: JobPartPhase): PhasePackGroup[] {
-    const params = this.getParamsForPhase(job, phase);
-
-    const hasPacks = params.some(param => param.pack !== null && param.pack !== undefined);
-
-    if (!hasPacks) {
-      return [{
-        pack: null,
-        label: '',
-        params
-      }];
-    }
-
-    const packs = Array.from(
-      new Set(
-        params
-          .map(param => param.pack)
-          .filter(pack => pack !== null && pack !== undefined)
-      )
-    );
-
-    return packs.map(pack => ({
-      pack,
-      label: `Pack ${pack}`,
-      params: params.filter(param => param.pack === pack)
-    }));
-  }
-
-  getNonSignParamsForPack(group: PhasePackGroup): JobPartParam[] {
-    return group.params.filter(param => !param.config?.startsWith('SIGN('));
-  }
-
-  getSignParamsForPack(group: PhasePackGroup): JobPartParam[] {
-    return group.params.filter(param => !!param.config?.startsWith('SIGN('));
-  }
-
-  getDisplayNonSignParamsForPack(group: PhasePackGroup): JobPartParam[] {
-    const params = this.getNonSignParamsForPack(group);
-    return params.length > 0 ? params : [this.placeholderParam];
-  }
-
-  getMaxSignParamsForPhasePacks(job: JobWithOnePart, phase: JobPartPhase): number {
-    return Math.max(
-      ...this.getPackGroupsForPhase(job, phase).map(group =>
-        this.getSignParamsForPack(group).length
-      ),
-      1
-    );
-  }
-
-  getSignSlotsForPhasePacks(job: JobWithOnePart, phase: JobPartPhase): number[] {
-    return Array.from(
-      { length: this.getMaxSignParamsForPhasePacks(job, phase) },
-      (_, i) => i
-    );
-  }
-
-  getSignColSpanForPack(job: JobWithOnePart, phase: JobPartPhase, group: PhasePackGroup, index: number): number {
-    const signParams = this.getSignParamsForPack(group);
-    const max = this.getMaxSignParamsForPhasePacks(job, phase);
-
-    if (signParams.length === 0) {
-      return max;
-    }
-
-    const base = Math.floor(max / signParams.length);
-    const remainder = max % signParams.length;
-
-    return base + (index < remainder ? 1 : 0);
-  }
-
-  getTotalDisplayColumnsForPack(job: JobWithOnePart, phase: JobPartPhase, group: PhasePackGroup): number {
-    return this.getDisplayNonSignParamsForPack(group).length +
-      this.getMaxSignParamsForPhasePacks(job, phase);
-  }
-  getExcludedSignoffUsersForPack(
-    group: PhasePackGroup,
-    currentParam: JobPartParam
-  ): string[] {
-    return this.getSignParamsForPack(group)
-      .filter(param => param.partParamId !== currentParam.partParamId)
-      .map(param => this.getParamCurrentValue(param))
-      .filter(value => value !== '');
   }
 }
