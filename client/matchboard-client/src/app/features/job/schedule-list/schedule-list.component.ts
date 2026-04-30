@@ -86,7 +86,9 @@ import { AuthService } from '../../../core/services/auth.service';
               <th>First Off</th>
             }
 
-            <th>New RPI</th>
+            @if (showRpiColumn()) {
+              <th>New RPI</th>
+            }
             <th>Actual End</th>
             <th>Variance</th>
             <th>Status</th>
@@ -146,34 +148,40 @@ import { AuthService } from '../../../core/services/auth.service';
                       [param]="buildSignoffParam(job.actualStartParamId)"
                       [currentValue]="''"
                       [disabled]="getDisabledStatus(job.status, JobStatus.MACHINING_STARTABLE)"
-                      (signoffRequested)="onSignOff(job, true, $event)"
+                      (signoffRequested)="onSignOff(job, job.stepNumber === 1, $event)"
                     />
                   }
                 </td>
 
                 @if (showFirstOffColumn()) {
-                  <td>
-                    @if (job.firstOffParamId != null) {
-                      <job-phase-param
-                        [param]="buildSignoffParam(job.firstOffParamId)"
-                        [currentValue]="''"
-                        [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
-                        (signoffRequested)="onSignOff(job, false, $event)"
-                      />
+                    <td>
+                     @if (job.firstOffAt) {
+                      {{ formatTime(job.firstOffAt) }}
+                    } @else {
+                      @if (job.firstOffParamId != null) {
+                          <job-phase-param
+                            [param]="buildSignoffParam(job.firstOffParamId)"
+                            [currentValue]="''"
+                            [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                            (signoffRequested)="onSignOff(job, false, $event)"
+                          />
+                        }
                     }
-                  </td>
+                    </td>
                 }
 
-                <td>
-                  <button
-                    type="button"
-                    class="rpi-cell-button"
-                    (click)="openRpiForm(job)"
-                    [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
-                  >
-                    New RPI
-                  </button>
-                </td>
+                @if (showRpiColumn()) {
+                  <td>
+                    <button
+                      type="button"
+                      class="rpi-cell-button"
+                      (click)="openRpiForm(job)"
+                      [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                    >
+                      New RPI
+                    </button>
+                  </td>
+                }
 
                 <td>
                   @if (job.actualFinish) {
@@ -276,8 +284,14 @@ export class ScheduleListComponent implements OnInit, OnChanges {
       value: null,
       valuedAt: null,
       config: 'SIGN(' + this.deviceService.getStatus().users[0].role + ')',
-      status: ParamStatus.INITIALISED
+      status: ParamStatus.INITIALISED,
+      pack: null,
+      machineId: null
     };
+  }
+
+  showRpiColumn(): boolean {
+    return this.jobs().some(job => job.stepNumber === 1);
   }
 
   showFirstOffColumn(): boolean {
@@ -285,7 +299,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   }
 
   getColumnCount(): number {
-    return 18 + (this.showFirstOffColumn() ? 1 : 0);
+    return 18 + (this.showFirstOffColumn() ? 1 : 0) + (this.showRpiColumn() ? 1 : 0);
   }
 
   onRpiChange(value: string): void {

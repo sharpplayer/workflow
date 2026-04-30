@@ -13,7 +13,6 @@ import {
   signal,
   computed
 } from '@angular/core';
-import { Router } from '@angular/router';
 import { CommonModule, DatePipe } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import {
@@ -152,30 +151,6 @@ import { WastageComponent } from "../wastage/wastage.component";
             </div>
           </div>
 
-          <div class="special-instructions-panel">
-            <table class="special-instructions-table">
-              <thead>
-                <tr>
-                  <th>Phase</th>
-                  <th>Special Instruction</th>
-                </tr>
-              </thead>
-              <tbody>
-                @if (getSpecialInstructionPhases(currentJob).length > 0) {
-                  @for (phase of getSpecialInstructionPhases(currentJob); track phase.phaseId) {
-                    <tr>
-                      <td>{{ phase.phaseNumber }}</td>
-                      <td>{{ phase.specialInstructions }}</td>
-                    </tr>
-                  }
-                } @else {
-                  <tr>
-                    <td colspan="2" class="no-special-instructions">No special instructions.</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
           <div class="job-top-actions">
             <button type="button" (click)="logout()">Log Out</button>
             <button type="button" (click)="onSchedule()">Schedule</button>
@@ -190,8 +165,8 @@ import { WastageComponent } from "../wastage/wastage.component";
               <div
                 #phaseBlock
                 class="phase-block"
-                [class.phase-active]="isPhaseStarted(phase)"
-                [class.phase-inactive]="!isPhaseStarted(phase)">
+                [class.phase-active]="isPhaseActive(phase)"
+                [class.phase-inactive]="!isPhaseActive(phase)">
                 <table class="phase-table">
                   <colgroup>
                     @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
@@ -204,14 +179,22 @@ import { WastageComponent } from "../wastage/wastage.component";
                   </colgroup>
 
                   <thead>
-                    <tr class="phase-title-row">
+                    <tr class="phase-title-row" 
+                        [class.phase-active]="isPhaseActive(phase)"
+                        [class.phase-inactive]="!isPhaseActive(phase)">
                       <th [attr.colspan]="getTotalDisplayColumns(currentJob, phase)">
                         {{ getPhaseTitle(phase) }}
-                        @if (phase.specialInstructions?.trim()) {
-                          <span class="phase-has-instructions"> • Special instructions</span>
-                        }
                       </th>
                     </tr>
+                      @if (phase.specialInstructions?.trim()) {
+                        <tr  class="special-instruction-row"
+                                        [class.phase-active]="isPhaseActive(phase)"
+                                        [class.phase-inactive]="!isPhaseActive(phase)">
+                      <th [attr.colspan]="getTotalDisplayColumns(currentJob, phase)">
+                          <span>Special instructions: {{ phase.specialInstructions }}</span>
+                      </th>
+                      </tr>
+                      }
 
                     <tr class="phase-param-header-row">
                       @for (param of getDisplayNonSignParams(currentJob, phase); track $index) {
@@ -244,7 +227,7 @@ import { WastageComponent } from "../wastage/wastage.component";
                           <job-phase-param
                             [param]="param"
                             [currentValue]="getParamDisplayValue(param)"
-                            [disabled]="!isPhaseStarted(phase)"
+                            [disabled]="!isPhaseActive(phase)"
                             [excludedUsernames]="getExcludedSignoffUsers(currentJob, phase, param)"
                             (valueChanged)="onParamValueChanged($event)"
                             (checkStatusChanged)="onCheckStatusChanged($event)"
@@ -263,7 +246,7 @@ import { WastageComponent } from "../wastage/wastage.component";
                             <job-phase-param
                               [param]="param"
                               [currentValue]="getParamDisplayValue(param)"
-                              [disabled]="!isPhaseStarted(phase)"
+                              [disabled]="!isPhaseActive(phase)"
                               [excludedUsernames]="getExcludedSignoffUsers(currentJob, phase, param)"
                               (valueChanged)="onParamValueChanged($event)"
                               (checkStatusChanged)="onCheckStatusChanged($event)"
@@ -332,7 +315,9 @@ export class JobComponent implements OnChanges, AfterViewInit {
     value: null,
     valuedAt: null,
     config: '',
-    status: ParamStatus.INITIALISED
+    status: ParamStatus.INITIALISED,
+    machineId: null,
+    pack: null
   };
 
   readonly allStartedPhaseParamsFilled = computed(() => {
@@ -345,7 +330,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
     const statuses = this.paramStatuses();
 
     const startedPhaseIds = (currentJob.part.phases ?? [])
-      .filter(phase => this.isPhaseStarted(phase))
+      .filter(phase => this.isPhaseActive(phase))
       .map(phase => phase.phaseId);
 
     const params = (currentJob.part.params ?? []).filter(
@@ -407,7 +392,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return;
     }
 
-    const activeIndex = this.getPhases(currentJob).findIndex(phase => this.isPhaseStarted(phase));
+    const activeIndex = this.getPhases(currentJob).findIndex(phase => this.isPhaseActive(phase));
 
     if (activeIndex < 0) {
       return;
@@ -472,7 +457,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
     }
 
     const paramValueMap = this.buildParamValueMap(currentJob);
-
     const loginResult = await this.authService.open({
       username: event.username,
       role: event.role
@@ -510,7 +494,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
     try {
       const updatedJob = await this.jobService.signOff(loginResult, fullParamMap);
 
-      console.log(updatedJob);
       if (updatedJob) {
         this.paramValues.update(values => ({
           ...values,
@@ -591,6 +574,8 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   getDisplayNonSignParams(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     const params = this.getNonSignParamsForPhase(job, phase);
+    console.log("PACKS" + phase.phaseId)
+    console.log(params.map(i => i.pack))
     return params.length > 0 ? params : [this.placeholderParam];
   }
 
@@ -627,8 +612,8 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return param.partParamId === -1;
   }
 
-  isPhaseStarted(phase: JobPartPhase): boolean {
-    return phase.status === 10;
+  isPhaseActive(phase: JobPartPhase): boolean {
+    return phase.status === 10 && this.job()?.activePhase === phase.phaseId;
   }
 
   private initialiseParamValues(): void {
@@ -675,7 +660,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   private isEditableParam(param: JobPartParam, phase: JobPartPhase): boolean {
     return (
-      this.isPhaseStarted(phase) &&
+      this.isPhaseActive(phase) &&
       !param.config?.startsWith('SIGN(') &&
       param.input === 3
     );

@@ -36,7 +36,10 @@ public class ProductController {
     @GetMapping("/products/{productId}/phases")
     public ResponseEntity<?> getPhases(@PathVariable int productId) {
         return productService.getPhases(productId)
-                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+                .fold(e -> {
+                    System.out.println(e);
+                    return ResponseEntity.ok(e);
+                }, ExceptionHandler::toResponse);
     }
 
     @GetMapping("/products/{productId}/phases/{phaseId}")

@@ -2,6 +2,10 @@
   display: block;
 }
 
+/* =========================
+   PAGE LAYOUT
+   ========================= */
+
 .job-page {
   min-height: 100vh;
   background: #fff;
@@ -15,23 +19,24 @@
   background: #fff;
 }
 
-.job-top-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 0.75rem 0;
-  background: #fff;
+.job-content {
+  position: fixed;
+  top: 30rem;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 0 1.25rem 1.25rem;
+  overflow: hidden;
 }
 
 /* =========================
-   SUMMARY GRID
+   SUMMARY
    ========================= */
 
 .job-summary-grid {
   display: grid;
   grid-template-columns: 20rem 1fr;
-  gap: 0;
-  padding: 0;
 }
 
 .summary-main {
@@ -42,63 +47,51 @@
 .summary-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
 }
-
-/* =========================
-   FIELD BOXES (NEW)
-   ========================= */
 
 .field {
   display: flex;
   flex-direction: column;
-  text-align: center;
-  gap: 0;
   min-width: 0;
+  text-align: center;
 }
 
-/* Caption (top half of box) */
 .caption {
-  width: 100%;
   box-sizing: border-box;
+  width: 100%;
   padding: 0.2rem 0.4rem;
-  font-size: 0.75em;
-  text-transform: uppercase;
+  border: 1px solid #fff;
+  border-bottom: 0;
   background: #000;
   color: #fff;
-
-  border: 1px solid #fff;
-  border-bottom: none; /* prevent double border */
+  font-size: 0.75em;
+  text-transform: uppercase;
 }
 
-/* Value (bottom half of box) */
 .value {
   padding: 0.5rem 0.6rem;
+  border: 1px solid #fff;
+  border-top: 0;
+  color: #000;
   font-size: 1rem;
   font-weight: 600;
-  text-transform: uppercase;
-  color: #000;
   text-align: center;
+  text-transform: uppercase;
   word-break: break-word;
-
-  border: 1px solid #fff;
-  border-top: none; /* prevent double border */
 }
 
-/* Job ref big box */
 .job-ref-value {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100%;
   padding: 0.5rem 0.6rem;
+  border: 1px solid #fff;
+  color: #ff2b2b;
   font-size: clamp(3rem, 8vw, 6rem);
   font-weight: 400;
   line-height: 1;
-  color: #ff2b2b;
   text-align: center;
-
-  border: 1px solid #fff;
 }
 
 /* =========================
@@ -106,139 +99,68 @@
    ========================= */
 
 .product-details {
-  padding: 1rem 0 0;
-  margin-top: 0;
-  background: transparent;
+  padding-top: 1rem;
 }
 
 .details-top-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
   margin-bottom: 1rem;
 }
 
 .details-top-row .value {
   font-size: 1.5rem;
-  text-align: center;
 }
 
 .details-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0;
 }
 
 .details-full-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0;
-  width: 100%;
-  margin-top: 0;
-}
-
-.details-full-row .field {
-  width: 100%;
 }
 
 /* =========================
-   BUTTONS
+   ACTIONS / BUTTONS
    ========================= */
+
+.job-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  background: #fff;
+}
 
 button {
   padding: 4px 8px;
-  border: none;
+  border: 0;
   border-radius: 4px;
-  background-color: #4a90e2;
+  background: #4a90e2;
   color: #fff;
   cursor: pointer;
-  margin: 0;
-  float: none;
 }
 
 button:hover {
-  background-color: #357ab8;
+  background: #357ab8;
 }
 
 button:disabled {
-  background-color: #959698;
+  background: #959698;
   cursor: default;
 }
 
 /* =========================
-   SPECIAL INSTRUCTIONS
+   PHASE TABLES
    ========================= */
-
-.special-instructions-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  table-layout: fixed;
-}
-
-.special-instructions-table td:first-child,
-.special-instructions-table th:first-child {
-  width: 140px;
-}
-
-.special-instructions-table thead {
-  background-color: #4a90e2;
-  color: #fff;
-}
-
-.special-instructions-table thead th {
-  padding: 12px 15px;
-  text-align: left;
-  font-size: 1rem;
-}
-
-.special-instructions-table tbody td {
-  padding: 10px 15px;
-  border-bottom: 1px solid #ddd;
-}
-
-.special-instructions-table th,
-.special-instructions-table td {
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: top;
-}
-
-.special-instructions-table tbody tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-.special-instructions-table tbody tr:nth-child(odd) {
-  background-color: #ffffff;
-}
-
-.no-special-instructions {
-  font-size: 14px;
-  color: #5e6b7a;
-}
-
-/* =========================
-   JOB CONTENT
-   ========================= */
-
-.job-content {
-  position: fixed;
-  top: 30rem;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0 1.25rem 1.25rem;
-  box-sizing: border-box;
-  overflow: hidden;
-}
 
 .phase-table-scroll {
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding-right: 0.25rem;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .phase-block {
@@ -259,67 +181,61 @@ button:disabled {
   width: 110px;
 }
 
-/* =========================
-   TABLE HEADERS (WHITE BOX)
-   ========================= */
-
 .phase-title-row th {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: #18336e;
-  color: #fff;
-  text-align: left;
   padding: 0.5rem 0.75rem;
   border: 1px solid #fff;
+  background: #18336e;
+  color: #fff;
   font-size: 1rem;
   font-weight: 700;
+  text-align: left;
+}
+
+.special-instruction-row th {
+  position: sticky;
+  top: 2.4rem;
+  z-index: 29;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #fff;
+  background: #f00;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
 }
 
 .phase-param-header-row th {
-  top: 2.5rem;
-  z-index: 29;
-  background: #000;
-  color: #fff;
-  text-align: center;
   padding: 0.35rem 0.5rem;
   border: 1px solid #fff;
+  background: #000;
+  color: #fff;
   font-size: 0.8rem;
   font-weight: 700;
+  text-align: center;
   text-transform: uppercase;
 }
 
 .phase-param-header-row th.signoff-column {
   background: #1b5e20;
   color: #fff;
-  border: 1px solid #fff;
 }
 
 .phase-param-header-row th.signoff-empty {
   background: #000;
-  color: #fff;
-  border: 1px solid #fff;
 }
-
-/* =========================
-   TABLE BODY
-   ========================= */
 
 .phase-table tbody td {
-  background: #fff;
-  color: #000;
-  text-align: center;
   padding: 0.6rem 0.5rem;
   border: 1px solid #d9dfe7;
+  background: #fff;
+  color: #000;
   font-size: 0.95rem;
+  text-align: center;
   vertical-align: top;
   word-break: break-word;
-}
-
-.phase-has-instructions {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #c62828;
 }
 
 .param-column {
@@ -328,10 +244,10 @@ button:disabled {
 }
 
 .signoff-column {
-  text-align: center;
-  white-space: nowrap;
   overflow: hidden;
+  text-align: center;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .phase-table tbody td.signoff-column {
@@ -339,8 +255,9 @@ button:disabled {
   color: #000;
 }
 
-.phase-table tbody td.signoff-column:not(:last-child) {
-  border-right: 1px solid rgba(255, 255, 255, 0.3);
+.phase-table tbody td.signoff-empty {
+  background: #fff;
+  color: #000;
 }
 
 .phase-param-header-row th.signoff-column:first-of-type,
@@ -348,25 +265,18 @@ button:disabled {
   border-left: 2px solid #7a7a7a;
 }
 
-.phase-table tbody td.signoff-empty {
-  background: #fff;
-  color: #000;
-}
-
 /* =========================
-   INACTIVE PHASE
+   INACTIVE PHASES
    ========================= */
 
-.phase-block.phase-inactive .phase-title-row th {
+.phase-block.phase-inactive .phase-title-row th,
+.phase-title-row.phase-inactive th,
+.special-instruction-row.phase-inactive th {
   background: #e6e6e6;
   color: #888;
 }
 
-.phase-block.phase-inactive .phase-param-header-row th {
-  background: #efefef;
-  color: #888;
-}
-
+.phase-block.phase-inactive .phase-param-header-row th,
 .phase-block.phase-inactive .phase-param-header-row th.signoff-column,
 .phase-block.phase-inactive .phase-param-header-row th.signoff-empty {
   background: #efefef;
@@ -384,10 +294,6 @@ button:disabled {
   color: #888;
 }
 
-.phase-block.phase-inactive .phase-has-instructions {
-  color: #888;
-}
-
 .phase-block.phase-inactive .param-column job-phase-param,
 .phase-block.phase-inactive .signoff-column job-phase-param {
   opacity: 0.6;
@@ -395,15 +301,15 @@ button:disabled {
 }
 
 /* =========================
-   ORIENTATION COLORS
+   ORIENTATION STATES
    ========================= */
 
 .value.landscape {
-  background-color: orange;
-  color: white;
+  background: orange;
+  color: #fff;
 }
 
 .value.portrait {
-  background-color: green;
-  color: white;
+  background: green;
+  color: #fff;
 }

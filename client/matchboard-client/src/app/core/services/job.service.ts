@@ -71,6 +71,8 @@ export interface JobPartParam {
   valuedAt: Date | null;
   config: string;
   status: ParamStatus;
+  machineId: number | null;
+  pack: number | null;
 };
 
 export interface JobPart {
@@ -129,6 +131,7 @@ export interface JobWithOnePart {
   partNumber: number;
   parts: number;
   product: Product;
+  activePhase: number | null;
 }
 
 export interface CreateJobPartParam {
@@ -244,6 +247,8 @@ export interface ScheduledJobPartView {
   actualFinishParamId: number,
   jobId : number;
   jobPartId : number;
+  stepNumber: number;
+  firstOffAt: string | null;
 }
 
 export interface ScheduledJobPartViews {

@@ -295,9 +295,26 @@ export class AdminJobComponent {
     }
 
     paramsSelected(params: PhaseParamSelected[]) {
-        this.lastParamsSelected.set(params);
+        const existing = this.lastParamsSelected() ?? [];
 
-        const errors = this.getValidationErrors(params);
+        const mergedMap = new Map<number, PhaseParamSelected>(
+            existing.map(p => [p.phaseParamId, p])
+        );
+
+        for (const p of params) {
+            const existingParam = mergedMap.get(p.phaseParamId);
+
+            mergedMap.set(
+                p.phaseParamId,
+                existingParam ? { ...existingParam, ...p } : p
+            );
+        }
+
+        const merged = Array.from(mergedMap.values());
+
+        this.lastParamsSelected.set(merged);
+
+        const errors = this.getValidationErrors(merged);
         if (errors.length > 0) {
             console.error('Invalid params detected:', errors);
             return;
@@ -382,27 +399,29 @@ export class AdminJobComponent {
 
         const result: PhaseParamSelected[] = [];
 
-        for (const p of params.filter(p => this.isWrappedEvaluation(p))) {
-            let def = '';
+        for (const p of params) {
+            let def = p.evaluation;
+            if (this.isWrappedEvaluation(p)) {
+                def = '';
+                if (p.paramConfig) {
+                    if (p.paramConfig.startsWith('CHECK(')) {
+                        def = p.paramConfig.substring(6, p.paramConfig.length - 1);
+                    } else {
+                        try {
+                            const list = await this.configService.getList(p.paramConfig);
 
-            if (p.paramConfig) {
-                if (p.paramConfig.startsWith('CHECK(')) {
-                    def = p.paramConfig.substring(6, p.paramConfig.length - 1);
-                } else {
-                    try {
-                        const list = await this.configService.getList(p.paramConfig);
-
-                        if (p.input === 1 && list.value.length > 0 && !p.optional) {
-                            def = list.value[0].key;
+                            if (p.input === 1 && list.value.length > 0 && !p.optional) {
+                                def = list.value[0].key;
+                            }
+                        } catch (err) {
+                            console.error(`Failed to load list for ${p.paramConfig}`, err);
                         }
-                    } catch (err) {
-                        console.error(`Failed to load list for ${p.paramConfig}`, err);
                     }
                 }
-            }
 
-            if (p.input === 2 && !p.optional) {
-                def = p.evaluation ?? '(Input At Job Start)';
+                if (p.input === 2 && !p.optional) {
+                    def = p.evaluation ?? '(Input At Job Start)';
+                }
             }
 
             result.push({

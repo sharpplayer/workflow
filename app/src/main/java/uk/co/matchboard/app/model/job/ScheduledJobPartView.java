@@ -32,7 +32,9 @@ public record ScheduledJobPartView(
         Integer firstOffParamId,
         int actualFinishParamId,
         int jobId,
-        int jobPartId
+        int jobPartId,
+        int stepNumber,
+        OffsetDateTime firstOffAt
 ) {
 
 }

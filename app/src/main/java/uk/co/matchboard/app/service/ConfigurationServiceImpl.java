@@ -100,6 +100,7 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         return new ConfigValuePair(config, getDefaultInput(input));
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private String convertToString(Object value) {
         if (value instanceof List list) {
             return list.stream().collect(Collectors.joining(" → ")).toString();

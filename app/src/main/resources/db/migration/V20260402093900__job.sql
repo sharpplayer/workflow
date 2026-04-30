@@ -66,7 +66,7 @@ CREATE TABLE job_part_params
     value             TEXT,
     status            INTEGER     NOT NULL,
     machine_id        INTEGER,
-    pack              INTEGER,
+    pack              BIGINT,
     "order"           INTEGER     NOT NULL,
     valued_at         TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -101,6 +101,7 @@ CREATE TABLE job_part_operation
 
     actual_start_at             TIMESTAMPTZ,
     actual_finish_at            TIMESTAMPTZ,
+    first_off_at                TIMESTAMPTZ,
     start_job_part_param_id     INTEGER,
     first_off_job_part_param_id INTEGER,
     finish_job_part_param_id    INTEGER,

@@ -62,8 +62,6 @@ export class JobPageComponent {
   }
 
   onJobUpdated(job: JobWithOnePart): void {
-    console.log("IN UPDATE");
-    console.log(job)
     this.currentJob.set(job);
   }
 }

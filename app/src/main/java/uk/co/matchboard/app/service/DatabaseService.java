@@ -95,9 +95,10 @@ public interface DatabaseService {
             LocalDate toDate);
 
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
-            int jobId, int jobPhaseId, Integer lastJobPhaseUpdated);
+            int jobId, int jobPhaseId, Integer lastJobPhaseUpdated, Integer activePhaseId);
 
-    OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId, Integer completedPhase);
+    OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId,
+            Integer completedPhase, Integer activePhaseId);
 
     OptionalResult<Customer> findCustomer(int customerId);
 

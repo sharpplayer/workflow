@@ -277,9 +277,14 @@ public class JobServiceImpl implements JobService {
                 }
             }
 
+            Integer nextPhaseId = null;
+            if (nextJobKey != null) {
+                nextPhaseId = nextJobKey.jobPartPhaseId();
+            }
             if (startPhaseKey != null) {
                 var job = databaseService.completePhasesAndStart(phasesToMarkDone,
-                        startPhaseKey.jobId(), startPhaseKey.jobPartPhaseId(), lastJobPhaseUpdated);
+                        startPhaseKey.jobId(), startPhaseKey.jobPartPhaseId(), lastJobPhaseUpdated,
+                        nextPhaseId);
                 if (nextJobKey != null && startPhaseKey.jobId() == nextJobKey.jobId()) {
                     return job;
                 }
@@ -289,10 +294,11 @@ public class JobServiceImpl implements JobService {
             }
             if (!jobStarted) {
                 return databaseService.completePhasesAndStart(phasesToMarkDone,
-                        nextJobKey.jobId(), nextJobKey.jobPartPhaseId(), lastJobPhaseUpdated);
+                        nextJobKey.jobId(), nextJobKey.jobPartPhaseId(), lastJobPhaseUpdated,
+                        nextPhaseId);
             }
             return databaseService.getJobWithOnePart(nextJobKey.jobId(),
-                    nextJobKey.jobPartId(), null);
+                    nextJobKey.jobPartId(), null, nextPhaseId);
         });
 
     }
@@ -330,7 +336,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi) {
-        return databaseService.getJobWithOnePart(jobId, jobPartId, null)
+        return databaseService.getJobWithOnePart(jobId, jobPartId, null, null)
                 .flatMap(j -> addRpi(j, rpi).toOptional());
     }
 
