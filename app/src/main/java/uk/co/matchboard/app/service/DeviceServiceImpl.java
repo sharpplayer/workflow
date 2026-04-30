@@ -7,12 +7,17 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.session.SessionUsers;
+import uk.co.matchboard.app.model.user.CredentialsProvider;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
+import uk.co.matchboard.app.model.wastage.CreateWastage;
+import uk.co.matchboard.app.model.wastage.WastageView;
+import uk.co.matchboard.app.model.wastage.Wastages;
 
 @Service
 public class DeviceServiceImpl implements DeviceService {
@@ -23,11 +28,14 @@ public class DeviceServiceImpl implements DeviceService {
 
     private final JobService jobService;
 
+    private final WastageService wastageService;
+
     public DeviceServiceImpl(SessionService sessionService, UserService userService,
-            JobService jobService) {
+            JobService jobService, WastageService wastageService) {
         this.sessionService = sessionService;
         this.userService = userService;
         this.jobService = jobService;
+        this.wastageService = wastageService;
     }
 
     @Override
@@ -80,6 +88,18 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
+    public Result<WastageView> createWastage(String deviceId, CreateWastage wastage) {
+        getDevice(deviceId, false);
+        return wastageService.createWastage(wastage);
+    }
+
+    @Override
+    public Result<Wastages> getWastage(String deviceId, int jobPhaseId) {
+        getDevice(deviceId, false);
+        return wastageService.getWastage(jobPhaseId);
+    }
+
+    @Override
     public OptionalResult<Device> updatePassword(String deviceId, LoginUser loginUser) {
         if (loginUser.pin()) {
             return toOptionalResult(
@@ -94,6 +114,17 @@ public class DeviceServiceImpl implements DeviceService {
     @Override
     public OptionalResult<JobWithOnePart> signOff(String deviceId, PhaseSignOff completion) {
         getDevice(deviceId, false);
-        return jobService.signOff(completion);
+        return validateUser(completion).flatMapOptional(_ -> jobService.signOff(completion));
+    }
+
+    private Result<Boolean> validateUser(CredentialsProvider userCredentials) {
+        if (userCredentials.pin()) {
+            return userService.validatePin(userCredentials.user(), userCredentials.password());
+        } else {
+            return userService.login(userCredentials.user(), userCredentials.password(),
+                            userCredentials.role())
+                    .map(_ -> true);
+        }
+
     }
 }

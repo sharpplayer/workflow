@@ -26,9 +26,11 @@ public interface JobService {
 
     Result<Boolean> createSchedule(CreateSchedule schedule);
 
-    OptionalResult<JobWithOnePart> nextJob(String role);
+    OptionalResult<JobWithOnePart> nextJob(String role, Integer lastJobPhaseUpdated);
 
     OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion);
 
     Result<JobViews> getJobs(Long toNumber, int count);
+
+    OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi);
 }

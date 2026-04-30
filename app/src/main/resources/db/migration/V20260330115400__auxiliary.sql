@@ -16,11 +16,13 @@ CREATE UNIQUE INDEX idx_customer_code
 
 CREATE TABLE carrier
 (
-    id         SERIAL PRIMARY KEY,
-    code       TEXT        NOT NULL,
-    name       TEXT        NOT NULL,
-    enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id             SERIAL PRIMARY KEY,
+    code           TEXT        NOT NULL,
+    name           TEXT        NOT NULL,
+    contact_name   TEXT        NOT NULL,
+    contact_number TEXT        NOT NULL,
+    enabled        BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_carrier_code

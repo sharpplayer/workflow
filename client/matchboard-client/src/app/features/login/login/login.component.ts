@@ -35,6 +35,7 @@ export interface LoginResult {
   pin: boolean;
   pinReset: boolean;
   passwordReset: boolean;
+  rpiNumber?: string;
 }
 
 @Component({
@@ -74,7 +75,25 @@ export interface LoginResult {
           />
           <span class="hint">{{ isPinAvailable() ? '4-digit PIN' : 'Password' }}</span>
         </div>
-
+        @if(rpi()) {
+          <div class="field">
+            <label>RPI</label>
+            <input
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              name="rpi"
+              class="rpi-input"
+              [ngModel]="rpiNumber()"
+              (ngModelChange)="onRpiNumberChange($event)"
+              (blur)="onRpiNumberBlur()"
+            />
+          </div>
+        }
         @if (roleProvided()) {
           <div class="field">
             <label>Role</label>
@@ -129,6 +148,7 @@ export class LoginComponent {
   readonly mode = input<LoginMode>('password');
   readonly authError = input('');
   readonly showCancel = input.required<boolean>();
+  readonly rpi = input(false);
 
   readonly loginSubmit = output<LoginResult>();
   readonly cancelled = output<void>();
@@ -143,6 +163,7 @@ export class LoginComponent {
     roles: [],
   });
   readonly loadingOptions = signal(false);
+  readonly rpiNumber = signal('');
   readonly optionsErrorMsg = signal('');
 
   readonly presetUsername = computed(() => (this.username() ?? '').trim());
@@ -201,10 +222,18 @@ export class LoginComponent {
     return '';
   });
 
+  readonly validRpiNumber = computed(() => {
+    if (!this.rpi()) return true;
+
+    const value = this.rpiNumber().trim();
+    return /^\d+$/.test(value);
+  });
+
   readonly canSubmit = computed(() => {
     if (!this.effectiveUsername()) return false;
     if (!this.credential().trim()) return false;
     if (this.isPinAvailable() && this.credential().length !== 4) return false;
+    if (this.rpi() && !this.validRpiNumber()) return false;
     if (!this.selectedRole()) return false;
     if (this.roleProvided() && !this.roleAvailableForUser()) return false;
     return true;
@@ -309,6 +338,7 @@ export class LoginComponent {
       pin: this.isPinAvailable(),
       pinReset: this.loginOptions().options.includes('pinreset'),
       passwordReset: this.loginOptions().options.includes('reset'),
+      rpiNumber: this.rpi() ? this.rpiNumber().trim() : undefined,
     });
   }
 
@@ -323,5 +353,14 @@ export class LoginComponent {
     };
 
     return e?.error?.message || e?.message || fallback;
+  }
+
+  onRpiNumberChange(value: string): void {
+    this.optionsErrorMsg.set('');
+    this.rpiNumber.set(value.replace(/\D/g, ''));
+  }
+
+  onRpiNumberBlur(): void {
+    this.rpiNumber.set(this.rpiNumber().trim());
   }
 }

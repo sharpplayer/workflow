@@ -148,7 +148,7 @@ public class ProductServiceImpl implements ProductService {
     public Result<Phase> getResolvedPhase(int productId, int phaseId) {
         return databaseService.findProduct(productId)
                 .fold(p -> databaseService.getPhaseName(phaseId)
-                                .flatMap(name -> databaseService.getPhaseParams(phaseId, name))
+                                .flatMap(name -> databaseService.getPhaseParamsForResolving(phaseId, name))
                                 .map(phaseParams -> buildPhases(p, phaseParams, true))
                                 .flatMap(phases -> {
                                     if (phases.size() != 1) {
@@ -196,6 +196,7 @@ public class ProductServiceImpl implements ProductService {
     @NonNull
     private List<PhaseParamData> getPhaseParamData(Product product, List<PhaseParam> params) {
         return params.stream()
+                .filter(pp -> pp.paramConfig() != null)
                 .sorted(Comparator.comparingInt(PhaseParam::paramOrder))
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
                         pp.paramConfig(),

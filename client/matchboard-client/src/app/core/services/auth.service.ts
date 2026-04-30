@@ -152,6 +152,7 @@ export class AuthService {
   async open(params: {
     username?: string;
     role?: string;
+    rpi?: boolean;
   }): Promise<LoginResult | null> {
     const result$ = new Subject<LoginResult | null>();
 
@@ -231,6 +232,7 @@ export class AuthService {
       ref.setInput('role', role);
       ref.setInput('mode', mode);
       ref.setInput('showCancel', true);
+      ref.setInput('rpi', params.rpi ?? false)
 
       ref.instance.loginSubmit.subscribe((loginResult: LoginResult) => {
         result$.next(loginResult);

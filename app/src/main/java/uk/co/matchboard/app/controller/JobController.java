@@ -36,7 +36,7 @@ public class JobController {
 
     @GetMapping("/jobs/next")
     public ResponseEntity<?> nextJob(@RequestParam String role) {
-        return jobService.nextJob(role)
+        return jobService.nextJob(role, null)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
                         () -> ResponseEntity.noContent().build());
     }
@@ -69,4 +69,13 @@ public class JobController {
         return jobService.createSchedule(schedule)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
+
+    @PostMapping("/jobs/{jobId}/part/{jobPartId}/rpi/{rpi}")
+    public ResponseEntity<?> createRpi(@PathVariable int jobId, @PathVariable int jobPartId,
+            @PathVariable int rpi) {
+        return jobService.createRpi(jobId, jobPartId, rpi)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
+                        () -> ResponseEntity.noContent().build());
+    }
+
 }

@@ -3,7 +3,6 @@ import {
   Component,
   ElementRef,
   HostListener,
-  NgZone,
   computed,
   inject,
   input,
@@ -189,10 +188,7 @@ interface MachineEntry {
 
           @for (period of restVisuals; track period.id) {
             @if (period.collapsed) {
-              <div
-                class="rest-marker"
-                [style.top.px]="period.markerTopPx"
-              >
+              <div class="rest-marker" [style.top.px]="period.markerTopPx">
                 <button
                   type="button"
                   class="rest-toggle"
@@ -253,10 +249,7 @@ interface MachineEntry {
                   <span>{{ period.name }} · {{ period.timeLabel }}</span>
                 </div>
               } @else {
-                <div
-                  class="rest-line"
-                  [style.top.px]="period.topPx"
-                ></div>
+                <div class="rest-line" [style.top.px]="period.topPx"></div>
               }
             }
 
@@ -287,16 +280,17 @@ interface MachineEntry {
                     <span class="job-dims">
                       {{ job.length }}x{{ job.width }}x{{ job.thickness }}
                     </span>
+                    Quantity {{ job.quantity }}
                   </div>
 
                   <div class="job-copy one-line">
+                    Setup {{ job.setupMinutes }} min
+                    <span class="job-sep">·</span>
                     Job {{ job.plannedMinutes }} min
                     <span class="job-sep">·</span>
-                    Pack {{ job.packMinutes }} min
+                    QC {{ job.packMinutes }} min
                     <span class="job-sep">·</span>
                     Break {{ job.breakMinutes }} min
-                    <span class="job-sep">·</span>
-                    Setup {{ job.setupMinutes }} min
                   </div>
 
                   <div class="job-copy subtle one-line">
@@ -341,7 +335,7 @@ interface MachineEntry {
     </div>
   `,
 })
-export class AdminScheduleComponent  {
+export class AdminScheduleComponent {
   readonly machines = input.required<MachineInput[]>();
   readonly jobs = input.required<SchedulableJobPart[]>();
   readonly restTimes = input.required<RestTimesInput>();
@@ -423,20 +417,6 @@ export class AdminScheduleComponent  {
   });
 
   private readonly elementRef = inject(ElementRef<HTMLElement>);
-  private readonly ngZone = inject(NgZone);
-
-  private debugViewCheckedCount = 0;
-  private debugLastViewCheckedLogAt = 0;
-
-  ngAfterViewChecked(): void {
-    this.debugViewCheckedCount++;
-
-    const now = performance.now();
-
-    if (now - this.debugLastViewCheckedLogAt > 500) {
-      this.debugLastViewCheckedLogAt = now;
-    }
-  }
 
   private readonly parsedRestPeriods = computed(() => {
     const value = this.restTimes()?.times ?? '';
@@ -529,7 +509,6 @@ export class AdminScheduleComponent  {
     );
   });
 
-
   readonly machineEntries = computed<MachineEntry[]>(() => {
     const visibleMachines = this.visibleMachines();
     const jobsByMachine = this.jobsByMachine();
@@ -539,7 +518,6 @@ export class AdminScheduleComponent  {
       jobs: jobsByMachine[machine.id] ?? [],
     }));
   });
-
 
   onMachineColumnDragStart(event: DragEvent, machineId: number): void {
     this.machineColumnDragIdSig.set(machineId);
@@ -598,7 +576,6 @@ export class AdminScheduleComponent  {
       .filter(id => id !== draggedMachineId);
 
     const visibleWithoutDragged = visibleBeforeMove.filter(id => id !== draggedMachineId);
-
     const boundedDropIndex = Math.max(0, Math.min(dropIndex, visibleWithoutDragged.length));
 
     let nextOrder: number[];
@@ -888,12 +865,9 @@ export class AdminScheduleComponent  {
     const firstStart = logicalRanges.length ? logicalRanges[0].end : 0;
     const cursor = new Map<number, number>();
 
-    for (const m of machines) {
-      const setupMinutes = Number.isFinite(m.setupTime) ? m.setupTime : 0;
-      const start = Math.max(firstStart, setupMinutes);
-
-      cursor.set(m.id, this.adjustStart(this.clampMinute(start), logicalRanges));
-      map[m.id] = [];
+    for (const machine of machines) {
+      cursor.set(machine.id, this.adjustStart(this.clampMinute(firstStart), logicalRanges));
+      map[machine.id] = [];
     }
 
     jobs.forEach((job, i) => {
@@ -1059,7 +1033,7 @@ export class AdminScheduleComponent  {
 
   private getMachineSetupTime(machineId: number): number {
     const machine = this.machines().find(m => m.id === machineId);
-    return machine?.setupTime ?? 0;
+    return machine?.setupTimeSeconds ?? 0;
   }
 
   private hasDimensionChange(
@@ -1105,14 +1079,18 @@ export class AdminScheduleComponent  {
     const packMinutes = this.getPackMinutes(job);
 
     if (!previousJobOnMachine) {
+      const setupMinutes = this.secondsToWholeMinutes(this.getMachineSetupTime(machineId));
+
       return {
-        effectiveDuration: plannedMinutes + packMinutes,
-        setupMinutes: 0,
+        effectiveDuration: setupMinutes + plannedMinutes + packMinutes,
+        setupMinutes,
       };
     }
 
     const needsSetup = this.hasDimensionChange(previousJobOnMachine, job);
-    const setupMinutes = needsSetup ? this.getMachineSetupTime(machineId) : 0;
+    const setupMinutes = needsSetup
+      ? this.secondsToWholeMinutes(this.getMachineSetupTime(machineId))
+      : 0;
 
     return {
       effectiveDuration: setupMinutes + plannedMinutes + packMinutes,

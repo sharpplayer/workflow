@@ -16,12 +16,14 @@ import { AuthService } from '../../../core/services/auth.service';
           <phase-list [role]="role()"></phase-list>
           <div>
             <button type="button" (click)="logout()">Log Out</button>
-            <button (click)="nextJob()">Next</button>
+            <button type="button" (click)="nextJob()">Next</button>
           </div>
         } @else {
           <job
             [job]="currentJob()"
-            (schedule)="showPhaseList()">
+            (schedule)="showPhaseList()"
+            (jobUpdated)="onJobUpdated($event)"
+            (nextJob)="nextJob()">
           </job>
         }
       </div>
@@ -46,7 +48,7 @@ export class JobPageComponent {
     }
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     await this.authService.logoutAll();
   }
 
@@ -57,5 +59,11 @@ export class JobPageComponent {
 
   showPhaseList(): void {
     this.currentJob.set(null);
+  }
+
+  onJobUpdated(job: JobWithOnePart): void {
+    console.log("IN UPDATE");
+    console.log(job)
+    this.currentJob.set(job);
   }
 }

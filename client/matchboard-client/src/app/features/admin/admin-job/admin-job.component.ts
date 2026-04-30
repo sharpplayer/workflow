@@ -1,6 +1,7 @@
-import { Component, computed, effect, input, output, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam, ProductView } from '../../../core/services/product.service';
+import { ConfigService } from '../../../core/services/config.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
 import { AdminPhasesListComponent, JobPhase, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
 import { AdminPhaseParamComponent, PhaseParamSelected, PhaseParamValidationError } from '../admin-phase-param/admin-phase-param.component';
@@ -142,7 +143,7 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
     standalone: true,
     imports: [CommonModule, AdminProductListComponent, AdminPhasesListComponent, AdminPhaseParamComponent],
     template: `
-            <div class="jobs-container">
+        <div class="jobs-container">
             <admin-products-list
                 #productsList
                 [selectedProductInput]="selectedPart()?.product ?? null"
@@ -150,29 +151,33 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
                 (productSelected)="onProductSelected($event)"
                 (hasResults)="hasResults = $event"
                 (selectionCleared)="manualSelectedProduct.set(null)"
-                />
+            />
 
-                @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
+            @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
                 <admin-phases-list
                     [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
                     (phasesSelected)="phaseSelected($event)"
                 />
+
                 <admin-phase-param
                     [phaseParams]="phaseParamsToShow()"
-                    [selectedParams]="lastParamsSelected() ?? selectedPart()?.params ?? []"
+                    [selectedParams]="lastParamsSelected()"
                     [validationErrors]="validationErrors()"
                     (paramsSelected)="paramsSelected($event)"
                 />
+
                 <div class="actions">
                     <button (click)="cancelAdd()">Cancel</button>
                     <button [disabled]="!canAddProduct()" (click)="addProduct()">{{ buttonText() }}</button>
                 </div>
-                }
-            </div>
+            }
+        </div>
     `,
     styleUrls: ['./admin-job.component.css']
 })
 export class AdminJobComponent {
+    private configService = inject(ConfigService);
+
     manualSelectedProduct = signal<ProductView | null>(null);
     phaseParamsToShow = signal<PhaseParam[]>([]);
     productSave = output<ProductSave>();
@@ -239,7 +244,7 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(null);
     }
 
-    phaseSelected(phases: PhasesSelected) {
+    async phaseSelected(phases: PhasesSelected) {
         this.selectedPhases.set(phases.phases);
 
         const cross = this.crossJobParams();
@@ -274,22 +279,17 @@ export class AdminJobComponent {
                 [callOffParam.phaseParamId, callOffParam.value ?? '']
             ]);
 
+            const selectedParams = selected.params.map(p => ({
+                ...p,
+                value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
+            }));
+
             this.lastParamsSelected.set(
-                selected.params.map(p => ({
-                    ...p,
-                    value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
-                }))
+                await this.initializeSelectedParams(params, selectedParams)
             );
         } else {
             this.lastParamsSelected.set(
-                params.map(p => ({
-                    phaseId: p.phaseId,
-                    phaseParamId: p.phaseParamId,
-                    phaseNumber: p.phaseNumber,
-                    key: p.paramName,
-                    value: p.value /*?? p.evaluation */ || '',
-                    input: p.input
-                }))
+                await this.initializeSelectedParams(params, null)
             );
         }
     }
@@ -311,8 +311,6 @@ export class AdminJobComponent {
         const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CARRIER)?.value ?? '';
         const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CALLOFF)?.value === 'true';
 
-        // Keep schedule in shared state as the default for the next new part,
-        // but parent will not push it back into existing parts.
         const newValue: CrossJobParameters = {
             jobId: current.jobId,
             jobNumber: current.jobNumber,
@@ -325,11 +323,11 @@ export class AdminJobComponent {
         };
 
         const hasChanged =
-            (newValue.paymentConfirmed !== current.paymentConfirmed) ||
-            (newValue.dueDate !== current.dueDate) ||
-            (newValue.customer !== current.customer) ||
-            (newValue.carrier !== current.carrier) ||
-            (newValue.callOff !== current.callOff)
+            newValue.paymentConfirmed !== current.paymentConfirmed ||
+            newValue.dueDate !== current.dueDate ||
+            newValue.customer !== current.customer ||
+            newValue.carrier !== current.carrier ||
+            newValue.callOff !== current.callOff;
 
         if (hasChanged) {
             this.crossJobParamsChanged.emit(newValue);
@@ -354,9 +352,9 @@ export class AdminJobComponent {
 
         this.productSave.emit({
             mode: this.isEditing() ? 'update' : 'add',
-            product: product,
+            product,
             phases: this.selectedPhases(),
-            params: params
+            params
         });
 
         this.productsList.clearFilter();
@@ -372,6 +370,58 @@ export class AdminJobComponent {
     private loadJob(job: ProductSave) {
         this.selectedPhases.set([...job.phases]);
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
+    }
+
+    private async initializeSelectedParams(
+        params: PhaseParam[],
+        selectedParams: PhaseParamSelected[] | null
+    ): Promise<PhaseParamSelected[]> {
+        const selectedMap = new Map(
+            (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
+        );
+
+        const result: PhaseParamSelected[] = [];
+
+        for (const p of params.filter(p => this.isWrappedEvaluation(p))) {
+            let def = '';
+
+            if (p.paramConfig) {
+                if (p.paramConfig.startsWith('CHECK(')) {
+                    def = p.paramConfig.substring(6, p.paramConfig.length - 1);
+                } else {
+                    try {
+                        const list = await this.configService.getList(p.paramConfig);
+
+                        if (p.input === 1 && list.value.length > 0 && !p.optional) {
+                            def = list.value[0].key;
+                        }
+                    } catch (err) {
+                        console.error(`Failed to load list for ${p.paramConfig}`, err);
+                    }
+                }
+            }
+
+            if (p.input === 2 && !p.optional) {
+                def = p.evaluation ?? '(Input At Job Start)';
+            }
+
+            result.push({
+                phaseId: p.phaseId,
+                phaseParamId: p.phaseParamId,
+                phaseNumber: p.phaseNumber,
+                key: p.paramName,
+                value: selectedMap.get(p.phaseParamId) ?? p.value ?? def,
+                input: p.input
+            });
+        }
+
+        return result;
+    }
+
+    private isWrappedEvaluation(evaluation: PhaseParam): boolean {
+        return !!evaluation.evaluation &&
+            evaluation.evaluation.trim().startsWith('(') &&
+            evaluation.evaluation.trim().endsWith(')');
     }
 
     private getValidationErrors(params: PhaseParamSelected[]): PhaseParamValidationError[] {
@@ -430,7 +480,7 @@ export class AdminJobComponent {
         const paidParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_PAYMENT);
         const hasPaymentDate = !!paidParam?.value;
 
-        if (isCallOff && hasPaymentDate) {
+        if (isCallOff && hasPaymentDate && paidParam) {
             errors.push({
                 phaseParamId: paidParam.phaseParamId,
                 message: 'Payment should not be received for call off jobs.'
@@ -457,17 +507,18 @@ export class AdminJobComponent {
             }
         }
 
+        const emptyParams = params.filter(
+            p => p.phaseParamId > 0 && p.input === 1 && !p.value
+        );
+
+        emptyParams.forEach(emptyParam => {
+            errors.push({
+                phaseParamId: emptyParam.phaseParamId,
+                message: 'Please specify.'
+            });
+        });
+
         return errors;
-    }
-
-    private invalidDate(p: PhaseParamSelected): boolean {
-        if (p.phaseParamId !== PHASE_PARAM_DUE_DATE.phaseParamId) return false;
-
-        const selected = new Date(p.value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        return isNaN(selected.getTime()) || selected < today;
     }
 
     reset(): void {

@@ -12,6 +12,7 @@ import uk.co.matchboard.app.exception.DuplicateUserException;
 import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.app.model.user.UserView;
@@ -21,6 +22,7 @@ import uk.co.matchboard.app.model.user.Users;
 public class UserServiceImpl implements UserService {
 
     public static final String LOGIN_ADMIN = "ADMIN";
+    public static final String CONFIG_OPERATOR = "OPERATOR";
 
     private static final String LOGIN_OPT_PASSWORD = "password";
     private static final String LOGIN_OPT_PIN = "pin";
@@ -133,6 +135,17 @@ public class UserServiceImpl implements UserService {
                 Result::failure,
                 () -> Result.failure(new InvalidUserException())
         );
+    }
+
+    @Override
+    public Result<ConfigResponse> getOperators() {
+        return getUsers().map(userList -> new ConfigResponse("OPERATOR",
+                userList.users(), "user[]"));
+    }
+
+    @Override
+    public OptionalResult<User> findUser(String user) {
+        return databaseService.findUser(user);
     }
 
     @Override

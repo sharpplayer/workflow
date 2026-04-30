@@ -11,7 +11,8 @@ import uk.co.matchboard.app.model.config.CreateCarrier;
 import uk.co.matchboard.app.service.AuxiliaryService;
 import uk.co.matchboard.app.service.AuxiliaryServiceImpl;
 import uk.co.matchboard.app.service.ConfigurationService;
-import uk.co.matchboard.app.service.JobService;
+import uk.co.matchboard.app.service.UserService;
+import uk.co.matchboard.app.service.UserServiceImpl;
 
 @RestController
 public class ConfigurationController {
@@ -20,13 +21,13 @@ public class ConfigurationController {
 
     private final AuxiliaryService auxiliaryService;
 
-    private final JobService jobService;
+    private final UserService userService;
 
     public ConfigurationController(ConfigurationService configurationService,
-            AuxiliaryService auxiliaryService, JobService jobService) {
+            AuxiliaryService auxiliaryService, UserService userService) {
         this.configurationService = configurationService;
         this.auxiliaryService = auxiliaryService;
-        this.jobService = jobService;
+        this.userService = userService;
     }
 
     @GetMapping("config/{name}")
@@ -37,6 +38,7 @@ public class ConfigurationController {
             case AuxiliaryServiceImpl.CONFIG_MACHINE -> auxiliaryService.getMachines();
             case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
             case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
+            case UserServiceImpl.CONFIG_OPERATOR -> userService.getOperators();
             default -> configurationService.getConfig(configName);
         };
         return result.fold(d -> ResponseEntity.ok().body(d),

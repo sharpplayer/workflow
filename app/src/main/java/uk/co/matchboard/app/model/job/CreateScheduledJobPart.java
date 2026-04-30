@@ -1,6 +1,5 @@
 package uk.co.matchboard.app.model.job;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 

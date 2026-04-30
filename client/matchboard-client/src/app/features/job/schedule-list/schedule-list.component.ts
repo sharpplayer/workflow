@@ -1,5 +1,3 @@
-// schedule-list.component.ts
-
 import {
   Component,
   OnInit,
@@ -87,6 +85,7 @@ import { AuthService } from '../../../core/services/auth.service';
             @if (showFirstOffColumn()) {
               <th>First Off</th>
             }
+
             <th>New RPI</th>
             <th>Actual End</th>
             <th>Variance</th>
@@ -108,7 +107,7 @@ import { AuthService } from '../../../core/services/auth.service';
               </td>
             </tr>
           } @else {
-            @for (job of jobs(); track trackJob($index, job)) {
+            @for (job of jobs(); track job.operationId) {
               <tr>
                 <td>
                   <span class="due-date-badge" [ngClass]="getDueClass(job.dueDate)">
@@ -146,8 +145,8 @@ import { AuthService } from '../../../core/services/auth.service';
                     <job-phase-param
                       [param]="buildSignoffParam(job.actualStartParamId)"
                       [currentValue]="''"
-                      [disabled]="loading()"
-                      (signoffRequested)="onActualStartSignoff(job, $event)"
+                      [disabled]="getDisabledStatus(job.status, JobStatus.MACHINING_STARTABLE)"
+                      (signoffRequested)="onSignOff(job, true, $event)"
                     />
                   }
                 </td>
@@ -158,17 +157,19 @@ import { AuthService } from '../../../core/services/auth.service';
                       <job-phase-param
                         [param]="buildSignoffParam(job.firstOffParamId)"
                         [currentValue]="''"
-                        [disabled]="loading()"
-                        (signoffRequested)="onFirstOffSignoff(job, $event)"
+                        [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                        (signoffRequested)="onSignOff(job, false, $event)"
                       />
                     }
                   </td>
                 }
+
                 <td>
                   <button
                     type="button"
                     class="rpi-cell-button"
                     (click)="openRpiForm(job)"
+                    [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
                   >
                     New RPI
                   </button>
@@ -181,8 +182,8 @@ import { AuthService } from '../../../core/services/auth.service';
                     <job-phase-param
                       [param]="buildSignoffParam(job.actualFinishParamId)"
                       [currentValue]="''"
-                      [disabled]="loading()"
-                      (signoffRequested)="onActualFinishSignoff(job, $event)"
+                      [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                      (signoffRequested)="onSignOff(job, false, $event)"
                     />
                   }
                 </td>
@@ -200,7 +201,6 @@ import { AuthService } from '../../../core/services/auth.service';
                 </td>
 
                 <td>{{ getStatus(job.status) }}</td>
-
               </tr>
             }
           }
@@ -210,21 +210,31 @@ import { AuthService } from '../../../core/services/auth.service';
       @if (rpiDialogJob(); as rpiJob) {
         <div class="modal-backdrop" (click)="closeRpiForm()">
           <div class="modal-panel" (click)="$event.stopPropagation()">
-            <h3>New RPI</h3>
-
-            <p>
-              Job {{ getJobRef(rpiJob.jobNumber) }},
-              part {{ rpiJob.partNumber }} of {{ rpiJob.jobParts }}
-            </p>
-
-            <label>
-              Notes
-              <textarea rows="4" placeholder="Dummy RPI notes"></textarea>
+            <label class="modal-field">
+              RPI
+              <input
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                class="rpi-input"
+                [ngModel]="rpiNumber() ?? ''"
+                (ngModelChange)="onRpiChange($event)"
+              />
             </label>
 
             <div class="modal-actions">
               <button type="button" (click)="closeRpiForm()">Cancel</button>
-              <button type="button" (click)="saveRpiForm()">Save</button>
+              <button
+                type="button"
+                [disabled]="rpiNumber() == null"
+                (click)="saveRpiForm(rpiJob)"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -234,6 +244,8 @@ import { AuthService } from '../../../core/services/auth.service';
   styleUrl: './schedule-list.component.css'
 })
 export class ScheduleListComponent implements OnInit, OnChanges {
+  JobStatus = JobStatus;
+
   machineId = input<number | null>(null);
 
   private deviceService = inject(DeviceService);
@@ -251,6 +263,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   error = signal('');
 
   rpiDialogJob = signal<ScheduledJobPartView | null>(null);
+  rpiNumber = signal<number | null>(null);
 
   buildSignoffParam(partParamId: number): JobPartParam {
     return {
@@ -275,53 +288,52 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     return 18 + (this.showFirstOffColumn() ? 1 : 0);
   }
 
+  onRpiChange(value: string): void {
+    const cleaned = value.replace(/\D/g, '');
+    this.rpiNumber.set(cleaned ? Number(cleaned) : null);
+  }
+
   openRpiForm(job: ScheduledJobPartView): void {
+    this.error.set('');
+    this.rpiNumber.set(null);
     this.rpiDialogJob.set(job);
   }
 
   closeRpiForm(): void {
+    this.rpiNumber.set(null);
     this.rpiDialogJob.set(null);
   }
 
-  saveRpiForm(): void {
-    this.rpiDialogJob.set(null);
-  }
+  async saveRpiForm(job: ScheduledJobPartView): Promise<void> {
+    const rpi = this.rpiNumber();
 
-  async onActualStartSignoff(
-    job: ScheduledJobPartView,
-    event: { param: JobPartParam; username?: string; role?: string }
-  ): Promise<void> {
+    if (rpi == null) {
+      this.error.set('RPI is required.');
+      return;
+    }
+
     try {
-      const loginResult = await this.authService.open({
-        username: event.username,
-        role: event.role
-      });
-
-      if (!loginResult) {
-        return;
-      }
-
-      await this.jobService.signOff(loginResult, {
-        [event.param.partParamId]: loginResult.username
-      });
-
+      await this.jobService.createRpi(job.jobId, job.jobPartId, rpi);
+      this.closeRpiForm();
       await this.loadSchedule();
     } catch (err) {
       console.error(err);
       this.error.set(
-        err instanceof Error ? err.message : 'Failed to sign off actual start.'
+        err instanceof Error ? err.message : 'Failed to create RPI.'
       );
     }
   }
 
-  async onFirstOffSignoff(
+  async onSignOff(
     job: ScheduledJobPartView,
+    rpi: boolean,
     event: { param: JobPartParam; username?: string; role?: string }
   ): Promise<void> {
     try {
       const loginResult = await this.authService.open({
         username: event.username,
-        role: event.role
+        role: event.role,
+        rpi: rpi
       });
 
       if (!loginResult) {
@@ -330,40 +342,13 @@ export class ScheduleListComponent implements OnInit, OnChanges {
 
       await this.jobService.signOff(loginResult, {
         [event.param.partParamId]: loginResult.username
-      });
+      }, job.operationId);
 
       await this.loadSchedule();
     } catch (err) {
       console.error(err);
       this.error.set(
-        err instanceof Error ? err.message : 'Failed to sign off first off.'
-      );
-    }
-  }
-
-  async onActualFinishSignoff(
-    job: ScheduledJobPartView,
-    event: { param: JobPartParam; username?: string; role?: string }
-  ): Promise<void> {
-    try {
-      const loginResult = await this.authService.open({
-        username: event.username,
-        role: event.role
-      });
-
-      if (!loginResult) {
-        return;
-      }
-
-      await this.jobService.signOff(loginResult, {
-        [event.param.partParamId]: loginResult.username
-      });
-
-      await this.loadSchedule();
-    } catch (err) {
-      console.error(err);
-      this.error.set(
-        err instanceof Error ? err.message : 'Failed to sign off actual finish.'
+        err instanceof Error ? err.message : 'Failed to sign off.'
       );
     }
   }
@@ -503,10 +488,6 @@ export class ScheduleListComponent implements OnInit, OnChanges {
       .padStart(2, '0')}`;
   }
 
-  trackJob(index: number, job: ScheduledJobPartView): string {
-    return `${job.jobNumber}-${job.partNumber}-${index}`;
-  }
-
   getStatus(status: JobStatus): string {
     return JobStatusLabel[status];
   }
@@ -548,5 +529,9 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     }
 
     return time;
+  }
+
+  getDisabledStatus(status: JobStatus, enabledStatus: JobStatus): boolean {
+    return this.loading() || status !== enabledStatus;
   }
 }

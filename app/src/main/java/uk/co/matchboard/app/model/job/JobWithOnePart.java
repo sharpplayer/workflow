@@ -8,6 +8,6 @@ import uk.co.matchboard.app.model.product.Product;
 public record JobWithOnePart(int id, long number, OffsetDateTime due,
                              boolean callOff, JobPart part, int status, OffsetDateTime paymentConfirmed,
                              int partNumber, int parts, Product product, Customer customer,
-                             Carrier carrier) {
+                             Carrier carrier, Integer completedPhase) {
 
 }

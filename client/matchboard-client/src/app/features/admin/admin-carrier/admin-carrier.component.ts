@@ -5,6 +5,8 @@ import { FormsModule } from '@angular/forms';
 export interface CarrierFormModel {
   code: string;
   name: string;
+  contactName: string;
+  contactNumber: string;
 }
 
 @Component({
@@ -26,6 +28,14 @@ export interface CarrierFormModel {
             <label>
               Name
               <input type="text" [(ngModel)]="localModel.name" />
+            </label>
+            <label>
+              Contact
+              <input type="text" [(ngModel)]="localModel.contactName" />
+            </label>
+            <label>
+              Contact Number
+              <input type="text" [(ngModel)]="localModel.contactNumber" />
             </label>
           </div>
 
@@ -65,7 +75,9 @@ export class AdminCarrierComponent {
   private emptyModel(): CarrierFormModel {
     return {
       code: '',
-      name: ''
+      name: '',
+      contactName: '',
+      contactNumber: ''
     };
   }
 

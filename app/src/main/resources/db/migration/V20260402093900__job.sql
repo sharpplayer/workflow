@@ -43,7 +43,6 @@ CREATE TABLE job_part_phases
     job_part_id         INTEGER     NOT NULL,
     phase_id            INTEGER     NOT NULL,
     phase_number        INTEGER     NOT NULL,
-    machine_id          INTEGER,
     special_instruction TEXT,
     status              INTEGER     NOT NULL,
     started_at          TIMESTAMPTZ,
@@ -60,6 +59,7 @@ CREATE TABLE job_part_params
 (
     id                SERIAL PRIMARY KEY,
     job_part_phase_id INTEGER     NOT NULL,
+    original_param_id INTEGER     NOT NULL,
     name              TEXT        NOT NULL,
     config            TEXT        NOT NULL,
     input             INTEGER     NOT NULL,

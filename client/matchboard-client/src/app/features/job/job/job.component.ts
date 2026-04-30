@@ -27,30 +27,22 @@ import {
 import { Product } from '../../../core/services/product.service';
 import { JobPhaseParamComponent } from '../job-phase-param/job-phase-param.component';
 import { DeviceService } from '../../../core/services/device.service';
+import { WastageComponent } from "../wastage/wastage.component";
 
 @Component({
   selector: 'job',
   standalone: true,
-  imports: [DatePipe, JobPhaseParamComponent, CommonModule],
+  imports: [DatePipe, JobPhaseParamComponent, CommonModule, WastageComponent],
   template: `
     <div class="job-page">
       @if (job(); as currentJob) {
         <div class="job-top-panel">
-          <div class="job-top-actions">
-            <button type="button" (click)="logout()">Log Out</button>
-            <button type="button" (click)="onSchedule()">Schedule</button>
-          </div>
-
           <div class="job-summary-grid">
             <div class="job-ref-block">
               <div class="field">
                 <div class="caption">Job Ref</div>
                 <div class="job-ref-value">
-                  {{ jobRefLine1 }}
-                  @if (jobRefLine2) {
-                    <br />
-                    {{ jobRefLine2 }}
-                  }
+                  {{ jobRef }}
                 </div>
               </div>
             </div>
@@ -155,7 +147,7 @@ import { DeviceService } from '../../../core/services/device.service';
 
               <div class="field">
                 <div class="caption">Workstations</div>
-                <div class="value">{{ currentJob.product.machinery.join(' → ') }}</div>
+                <div class="value">{{ currentJob.product.machinery.map(i => i.name).join(' → ') }}</div>
               </div>
             </div>
           </div>
@@ -184,7 +176,13 @@ import { DeviceService } from '../../../core/services/device.service';
               </tbody>
             </table>
           </div>
+          <div class="job-top-actions">
+            <button type="button" (click)="logout()">Log Out</button>
+            <button type="button" (click)="onSchedule()">Schedule</button>
+            <button type="button" (click)="onNextJob()">Next Job</button>
+          </div>
         </div>
+
 
         <div class="job-content">
           <div class="phase-table-scroll">
@@ -250,7 +248,9 @@ import { DeviceService } from '../../../core/services/device.service';
                             [excludedUsernames]="getExcludedSignoffUsers(currentJob, phase, param)"
                             (valueChanged)="onParamValueChanged($event)"
                             (checkStatusChanged)="onCheckStatusChanged($event)"
-                            (signoffRequested)="onSignoffRequested($event)">
+                            (signoffRequested)="onSignoffRequested($event)"
+                            (wastageRequested)="openWastageDialog($event)">
+                            >
                           </job-phase-param>
                         </td>
                       }
@@ -288,6 +288,14 @@ import { DeviceService } from '../../../core/services/device.service';
         <p>No job loaded.</p>
       }
     </div>
+    @if (showWastageDialog() && selectedWastageParam(); as param) {
+      <wastage
+        [jobPhaseId]="param.partPhaseId"
+        [param]="param"
+        (closed)="closeWastageDialog()"
+        (saved)="onWastageSaved($event)">
+      </wastage>
+      }
   `,
   styleUrl: './job.component.css'
 })
@@ -299,6 +307,10 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   readonly paramValues = signal<Record<number, string>>({});
   readonly paramStatuses = signal<Record<number, ParamStatus>>({});
+  readonly selectedWastageParam = signal<JobPartParam | null>(null);
+  readonly showWastageDialog = signal(false);
+  readonly jobUpdated = output<JobWithOnePart>();
+  readonly nextJob = output<void>();
 
   @ViewChildren('phaseBlock')
   phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
@@ -306,8 +318,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   readonly job = input<JobWithOnePart | null>(null);
   readonly schedule = output<void>();
 
-  jobRefLine1 = '-';
-  jobRefLine2 = '-';
+  jobRef = '-';
 
   zone = '';
 
@@ -382,27 +393,11 @@ export class JobComponent implements OnChanges, AfterViewInit {
   private async loadJobRef(): Promise<void> {
     const currentJob = this.job();
     if (!currentJob) {
-      this.jobRefLine1 = '-';
-      this.jobRefLine2 = '-';
+      this.jobRef = '-';
       return;
     }
 
-    try {
-      const result = await this.jobService.getJobRef(currentJob.number);
-
-      if (typeof result === 'string') {
-        const lines = result.split(/\r?\n/).filter(Boolean);
-        this.jobRefLine1 = lines[0] ?? result;
-        this.jobRefLine2 = lines[1] ?? '';
-      } else {
-        this.jobRefLine1 = String(result ?? '-');
-        this.jobRefLine2 = '';
-      }
-    } catch {
-      this.jobRefLine1 = '-';
-      this.jobRefLine2 = '';
-    }
-
+    this.jobRef = this.jobService.getJobRef(currentJob.number);
     this.cdr.detectChanges();
   }
 
@@ -463,7 +458,10 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return;
     }
 
-    const phase = this.getPhases(currentJob).find(p => p.phaseId === event.param.partPhaseId);
+    const phase = this.getPhases(currentJob).find(
+      p => p.phaseId === event.param.partPhaseId
+    );
+
     if (!phase) {
       return;
     }
@@ -492,7 +490,14 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return;
     }
 
-    if (this.isUsernameAlreadyUsedInPhase(currentJob, phase, trimmedUsername, event.param.partParamId)) {
+    if (
+      this.isUsernameAlreadyUsedInPhase(
+        currentJob,
+        phase,
+        trimmedUsername,
+        event.param.partParamId
+      )
+    ) {
       alert(`${trimmedUsername} has already signed another signoff in this phase.`);
       return;
     }
@@ -503,19 +508,20 @@ export class JobComponent implements OnChanges, AfterViewInit {
     };
 
     try {
-      const success = await this.jobService.signOff(loginResult, fullParamMap);
+      const updatedJob = await this.jobService.signOff(loginResult, fullParamMap);
 
-      if (success) {
+      console.log(updatedJob);
+      if (updatedJob) {
         this.paramValues.update(values => ({
           ...values,
           [event.param.partParamId]: trimmedUsername
         }));
 
+        this.jobUpdated.emit(updatedJob);
         this.cdr.detectChanges();
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'An unexpected error occurred';
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
       alert(message);
     }
   }
@@ -711,5 +717,23 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return this.getSignParamsForPhase(job, phase)
       .filter(param => param.partParamId !== currentParamId)
       .some(param => this.getParamCurrentValue(param).toLowerCase() === normalized);
+  }
+
+  openWastageDialog(event: { param: JobPartParam }): void {
+    this.selectedWastageParam.set(event.param);
+    this.showWastageDialog.set(true);
+  }
+
+  closeWastageDialog(): void {
+    this.showWastageDialog.set(false);
+    this.selectedWastageParam.set(null);
+  }
+
+  onWastageSaved(event: unknown): void {
+    this.closeWastageDialog();
+  }
+
+  onNextJob() {
+    this.nextJob.emit();
   }
 }

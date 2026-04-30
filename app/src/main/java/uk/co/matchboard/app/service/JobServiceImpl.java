@@ -4,8 +4,10 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -26,13 +28,13 @@ import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
+import uk.co.matchboard.app.model.job.ScheduleSummary;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
-import uk.co.matchboard.app.service.DatabaseService.SignStatus;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -43,7 +45,8 @@ public class JobServiceImpl implements JobService {
         NONE
     }
 
-    private record PartPhaseKey(int partNumber, int phaseNumber, int jobPartPhaseId) {
+    private record PartPhaseKey(int jobId, int partNumber, int phaseNumber, int jobPartId,
+                                int jobPartPhaseId) {
 
     }
 
@@ -51,13 +54,10 @@ public class JobServiceImpl implements JobService {
 
     private final ConfigurationService configurationService;
 
-    private final UserService userService;
-
     public JobServiceImpl(DatabaseService databaseService,
-            ConfigurationService configurationService, UserService userService) {
+            ConfigurationService configurationService) {
         this.databaseService = databaseService;
         this.configurationService = configurationService;
-        this.userService = userService;
     }
 
     @Override
@@ -69,6 +69,8 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<Job> createJob(CreateJob job) {
         // Validate job
+
+        // Check to/from call off matches phases provided
 
         // Check the phases are relevant for at least one machine
         // If all don't match -> saved
@@ -164,30 +166,49 @@ public class JobServiceImpl implements JobService {
 
     private Result<LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>>> getScheduleParamsFor(
             String date) {
-        OffsetDateTime fromDate = null;
-        OffsetDateTime toDate;
+        LocalDate fromDate = null;
+        LocalDate toDate;
         if (date == null) {
-            toDate = LocalDate.now(ZoneOffset.UTC).atStartOfDay()
-                    .atOffset(ZoneOffset.UTC);
+            toDate = LocalDate.now(ZoneOffset.UTC);
         } else {
-            toDate = LocalDate.parse(date)
-                    .atStartOfDay()
-                    .atOffset(ZoneOffset.UTC);
+            toDate = LocalDate.parse(date);
             fromDate = toDate;
         }
 
-        return databaseService.getScheduleForRole(fromDate, toDate).map(params ->
-                params.stream()
-                        .collect(Collectors.groupingBy(
-                                r -> new PartPhaseKey(r.partNumber(), r.phaseNumber(),
-                                        r.jobPartPhaseId()),
-                                LinkedHashMap::new,
-                                Collectors.toList()
-                        )));
+        return databaseService.getScheduleForRole(fromDate, toDate)
+                .map(schedule -> {
+
+                    Map<Integer, ScheduleSummary> summary = schedule.scheduleSummary();
+
+                    return schedule.params().stream()
+                            .sorted(Comparator.comparing(r -> {
+                                ScheduleSummary s = summary.get(r.jobPartId());
+
+                                if (s == null) {
+                                    return OffsetDateTime.MAX;
+                                }
+
+                                return r.status() == JobStatus.MACHINING_COMPLETED.getCode()
+                                        ? s.minPlannedTime()
+                                        : s.maxPlannedTime();
+                            }))
+                            .collect(Collectors.groupingBy(
+                                    r -> new PartPhaseKey(
+                                            r.jobId(),
+                                            r.partNumber(),
+                                            r.phaseNumber(),
+                                            r.jobPartId(),
+                                            r.jobPartPhaseId()
+                                    ),
+                                    LinkedHashMap::new,
+                                    Collectors.toList()
+                            ));
+                });
     }
 
-    private boolean isPhaseRunInput(int input) {
-        return input == ConfigurationServiceImpl.INPUT_PHASE_RUN;
+    private boolean isPhaseRunInput(Integer input) {
+        // Input can be null if the phase does have any params (yet)
+        return input != null && input == ConfigurationServiceImpl.INPUT_PHASE_RUN;
     }
 
     private boolean isForRole(String config, String role) {
@@ -216,57 +237,90 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public OptionalResult<JobWithOnePart> nextJob(String role) {
+    public OptionalResult<JobWithOnePart> nextJob(String role, Integer lastJobPhaseUpdated) {
         return getScheduleParamsFor(null).flatMapOptional(params -> {
             List<Integer> phasesToMarkDone = new ArrayList<>();
-            PartPhaseKey foundPhaseKey = null;
+            PartPhaseKey startPhaseKey = null;
+            PartPhaseKey nextJobKey = null;
 
+            Integer lastJobId = null;
+            boolean phaseRequiredSignOff = false;
+            boolean jobStarted = false;
             for (Entry<PartPhaseKey, List<ScheduledJobPartParam>> entry : params.entrySet()) {
-                if (!entry.getValue().isEmpty() && isNotCompleted(
-                        JobStatus.fromCode(entry.getValue().getFirst().status()))) {
-
-                    RoleMatch groupMatch = classifyGroup(entry.getValue(), role);
-
-                    if (groupMatch == RoleMatch.NONE) {
+                if (lastJobId == null || lastJobId != entry.getKey().jobId()) {
+                    lastJobId = entry.getKey().jobId();
+                    phaseRequiredSignOff = false;
+                    jobStarted = false;
+                }
+                if (!entry.getValue().isEmpty() && isPhaseNotCompleted(
+                        JobStatus.fromCode(entry.getValue().getFirst().phaseStatus()))) {
+                    RoleMatch groupMatch = classifyPhase(entry.getValue(), role);
+                    if (groupMatch == RoleMatch.NONE && !phaseRequiredSignOff) {
                         phasesToMarkDone.add(entry.getValue().getFirst().jobPhaseId());
                         continue;
                     }
+                    phaseRequiredSignOff = true;
+                    if (!isPhaseStarted(
+                            JobStatus.fromCode(entry.getValue().getFirst().phaseStatus()))
+                    ) {
+                        if (!jobStarted && startPhaseKey == null) {
+                            startPhaseKey = entry.getKey();
+                        }
+                    } else {
+                        jobStarted = true;
+                    }
 
                     if (groupMatch == RoleMatch.YES) {
-                        foundPhaseKey = entry.getKey();
+                        nextJobKey = entry.getKey();
                         break;
                     }
                 }
             }
 
-            PartPhaseKey phaseKey = foundPhaseKey;
-            return databaseService.completePhasesAndStart(phasesToMarkDone,
-                    phaseKey == null ? null : phaseKey.jobPartPhaseId());
+            if (startPhaseKey != null) {
+                var job = databaseService.completePhasesAndStart(phasesToMarkDone,
+                        startPhaseKey.jobId(), startPhaseKey.jobPartPhaseId(), lastJobPhaseUpdated);
+                if (nextJobKey != null && startPhaseKey.jobId() == nextJobKey.jobId()) {
+                    return job;
+                }
+            }
+            if (nextJobKey == null) {
+                return OptionalResult.empty();
+            }
+            if (!jobStarted) {
+                return databaseService.completePhasesAndStart(phasesToMarkDone,
+                        nextJobKey.jobId(), nextJobKey.jobPartPhaseId(), lastJobPhaseUpdated);
+            }
+            return databaseService.getJobWithOnePart(nextJobKey.jobId(),
+                    nextJobKey.jobPartId(), null);
         });
 
     }
 
-    private boolean isNotCompleted(JobStatus jobStatus) {
-        return jobStatus != JobStatus.COMPLETED;
+    private boolean isPhaseStarted(JobStatus phaseStatus) {
+        return phaseStatus == JobStatus.STARTED;
+    }
+
+    private boolean isPhaseNotCompleted(JobStatus phaseStatus) {
+        return phaseStatus != JobStatus.COMPLETED;
     }
 
     @Override
     public OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion) {
-        Result<Boolean> loginSuccess;
-        if (completion.pin()) {
-            loginSuccess = userService.validatePin(completion.user(), completion.password());
-        } else {
-            loginSuccess = userService.login(completion.user(), completion.password(),
-                            completion.role())
-                    .map(_ -> true);
-        }
 
-        return loginSuccess.flatMap(_ ->
-                        databaseService.getJobPartParams(
-                                completion.paramData().keySet().stream().toList()
-                                        .getFirst()).flatMap(ps -> validateCanSign(ps, completion.role()))
-                ).flatMap(status -> databaseService.signOff(completion.paramData(), status))
-                .flatMapOptional(_ -> nextJob(completion.role()));
+        return databaseService.getJobPartParams(
+                        completion.paramData().keySet().stream().toList()
+                                .getFirst()).flatMap(ps -> validateCanSign(ps, completion.role()))
+                .flatMapOptional(_ -> databaseService.signOff(completion.paramData(),
+                        completion.operationId()))
+                .fold(j -> {
+                    if (completion.rpi() != null) {
+                        return addRpi(j, completion.rpi()).map(_ -> j).toOptional();
+                    }
+                    return OptionalResult.of(j);
+                }, OptionalResult::<JobWithOnePart>failure, OptionalResult::<JobWithOnePart>empty)
+                // Next job here bumps all the states up
+                .flatMap(j -> nextJob(completion.role(), j.completedPhase()).map(_ -> j));
     }
 
     @Override
@@ -274,45 +328,41 @@ public class JobServiceImpl implements JobService {
         return databaseService.getJobs(toNumber, count).map(JobViews::new);
     }
 
-    private RoleMatch roleMatch(String config, String role) {
-        if (config == null) {
-            return RoleMatch.NONE;
-        }
+    @Override
+    public OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi) {
+        return databaseService.getJobWithOnePart(jobId, jobPartId, null)
+                .flatMap(j -> addRpi(j, rpi).toOptional());
+    }
 
-        if (config.contains("(" + role + ")")) {
-            return RoleMatch.YES;
-        }
+    private Result<JobWithOnePart> addRpi(JobWithOnePart jobWithOnePart, int rpi) {
+        // Phases with RPI usage need params duplicated per rpi
+        return databaseService.createRpi(jobWithOnePart, rpi).map(_ -> jobWithOnePart);
+    }
 
-        if (config.startsWith("SIGN(")) {
-            return RoleMatch.NOT_THIS_ROLE;
+    private RoleMatch classifyPhase(List<ScheduledJobPartParam> phaseParams, String role) {
+        for (ScheduledJobPartParam r : phaseParams) {
+            if (!isPhaseRunInput(r.paramInput())) {
+                continue;
+            }
+            boolean myRole = r.paramConfig().endsWith("(" + role + ")");
+            if (r.paramConfig().startsWith("SIGN(")) {
+                if (myRole) {
+                    return RoleMatch.YES;
+                }
+                return RoleMatch.NOT_THIS_ROLE;
+            }
+            if (r.paramConfig().startsWith("AWAIT(")) {
+                if (myRole) {
+                    return RoleMatch.YES;
+                }
+                return RoleMatch.NOT_THIS_ROLE;
+            }
         }
 
         return RoleMatch.NONE;
     }
 
-    private RoleMatch classifyGroup(List<ScheduledJobPartParam> group, String role) {
-        boolean sawNotThisRole = false;
-
-        for (ScheduledJobPartParam r : group) {
-            if (!isPhaseRunInput(r.paramInput())) {
-                continue;
-            }
-
-            RoleMatch match = roleMatch(r.paramConfig(), role);
-
-            if (match == RoleMatch.YES) {
-                return RoleMatch.YES;
-            }
-
-            if (match == RoleMatch.NOT_THIS_ROLE) {
-                sawNotThisRole = true;
-            }
-        }
-
-        return sawNotThisRole ? RoleMatch.NOT_THIS_ROLE : RoleMatch.NONE;
-    }
-
-    public Result<SignStatus> validateCanSign(List<JobPartParam> params, String role) {
+    public Result<Boolean> validateCanSign(List<JobPartParam> params, String role) {
         if (params == null || params.isEmpty()) {
             throw new IllegalStateException("No params found");
         }
@@ -335,7 +385,8 @@ public class JobServiceImpl implements JobService {
 
         if (firstEmptyRoleIndex < 0) {
             return Result.failure(
-                    new IllegalStateException("No unsigned SIGN(" + role + ") slot available"));
+                    new IllegalStateException(
+                            "No unsigned AWAIT/SIGN(" + role + ") slot available"));
         }
 
         for (int i = 0; i < firstEmptyRoleIndex; i++) {
@@ -352,14 +403,18 @@ public class JobServiceImpl implements JobService {
             }
         }
 
-        return Result.of(SignStatus.SIGN_PHASE);
+        return Result.of(true);
     }
 
     private boolean isNonSignConfig(String config) {
-        return config == null || !config.startsWith("SIGN(") || !config.endsWith(")");
+        return config == null || !(config.startsWith("AWAIT(") || config.startsWith("SIGN("))
+                || !config.endsWith(")");
     }
 
     private String extractSignRole(String config) {
+        if (config.startsWith("AWAIT(")) {
+            return config.substring("AWAIT(".length(), config.length() - 1).trim();
+        }
         return config.substring("SIGN(".length(), config.length() - 1).trim();
     }
 

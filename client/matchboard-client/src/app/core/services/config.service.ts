@@ -17,7 +17,7 @@ interface ConfigResponse {
 export interface MachineInput {
     id: number;
     name: string;
-    setupTime: number;
+    setupTimeSeconds: number;
 }
 
 interface MachineConfigResponse {

@@ -47,7 +47,8 @@ export interface UserForm {
             [ngModel]="form().password"
             name="password"
             (ngModelChange)="update('password', $event)"
-            placeholder="Enter password"
+            placeholder="Enter password",
+            autocomplete="one-time-code"
           />
         </div>
 

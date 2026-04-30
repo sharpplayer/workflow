@@ -1,42 +1,14 @@
 package uk.co.matchboard.app.service;
 
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import org.springframework.stereotype.Service;
-import uk.co.matchboard.app.functional.OptionalResult;
-import uk.co.matchboard.app.functional.Result;
-import uk.co.matchboard.app.model.config.Carrier;
-import uk.co.matchboard.app.model.config.Config;
-import uk.co.matchboard.app.model.config.ConfigValuePair;
-import uk.co.matchboard.app.model.config.CreateCarrier;
-import uk.co.matchboard.app.model.config.Customer;
-import uk.co.matchboard.app.model.job.CreateJob;
-import uk.co.matchboard.app.model.job.CreateJobPart;
-import uk.co.matchboard.app.model.job.CreateJobPartPhase;
-import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
-import uk.co.matchboard.app.model.job.Job;
-import uk.co.matchboard.app.model.job.JobPartParam;
-import uk.co.matchboard.app.model.job.JobView;
-import uk.co.matchboard.app.model.job.JobWithOnePart;
-import uk.co.matchboard.app.model.job.SchedulableJobPart;
-import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
-import uk.co.matchboard.app.model.job.ScheduledJobPartView;
-import uk.co.matchboard.app.model.product.CreatePhase;
-import uk.co.matchboard.app.model.product.Machine;
-import uk.co.matchboard.app.model.product.Phase;
-import uk.co.matchboard.app.model.product.PhaseParam;
-import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
-import uk.co.matchboard.app.model.product.PhasesUpdate;
-import uk.co.matchboard.app.model.product.Product;
-import uk.co.matchboard.app.model.user.User;
-
-
+import static org.jooq.impl.DSL.condition;
+import static org.jooq.impl.DSL.field;
+import static org.jooq.impl.DSL.inline;
+import static org.jooq.impl.DSL.max;
+import static org.jooq.impl.DSL.min;
+import static org.jooq.impl.DSL.name;
+import static org.jooq.impl.DSL.row;
+import static org.jooq.impl.DSL.val;
+import static org.jooq.impl.DSL.values;
 import static uk.co.matchboard.generated.Sequences.JOB_NUMBER_SEQ;
 import static uk.co.matchboard.generated.Tables.CARRIER;
 import static uk.co.matchboard.generated.Tables.CONFIGURATION;
@@ -53,42 +25,90 @@ import static uk.co.matchboard.generated.Tables.PRODUCTS;
 import static uk.co.matchboard.generated.Tables.PRODUCT_MACHINES;
 import static uk.co.matchboard.generated.Tables.PRODUCT_PHASE;
 import static uk.co.matchboard.generated.Tables.USERS;
+import static uk.co.matchboard.generated.Tables.WASTAGE;
 
 import jakarta.annotation.Nonnull;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.Record1;
 import org.jooq.Record2;
+import org.jooq.Row1;
 import org.jooq.SelectOnConditionStep;
+import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.InvalidJobException;
+import uk.co.matchboard.app.exception.InvalidSignOffException;
+import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
+import uk.co.matchboard.app.model.config.Carrier;
+import uk.co.matchboard.app.model.config.Config;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
+import uk.co.matchboard.app.model.config.CreateCarrier;
+import uk.co.matchboard.app.model.config.Customer;
+import uk.co.matchboard.app.model.job.CreateJob;
+import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartParam;
+import uk.co.matchboard.app.model.job.CreateJobPartPhase;
+import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
+import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobPart;
+import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobPartPhase;
 import uk.co.matchboard.app.model.job.JobStatus;
+import uk.co.matchboard.app.model.job.JobView;
+import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.ParamStatus;
+import uk.co.matchboard.app.model.job.SchedulableJobPart;
+import uk.co.matchboard.app.model.job.ScheduleForRole;
+import uk.co.matchboard.app.model.job.ScheduleSummary;
+import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduledJobPartView;
+import uk.co.matchboard.app.model.product.CreatePhase;
+import uk.co.matchboard.app.model.product.Machine;
+import uk.co.matchboard.app.model.product.Phase;
+import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
+import uk.co.matchboard.app.model.product.PhasesUpdate;
+import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.product.ProductMachine;
+import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.wastage.CreateWastage;
+import uk.co.matchboard.app.model.wastage.Wastage;
+import uk.co.matchboard.app.model.wastage.WastageView;
 import uk.co.matchboard.generated.tables.records.CarrierRecord;
 import uk.co.matchboard.generated.tables.records.CustomerRecord;
 import uk.co.matchboard.generated.tables.records.JobPartParamsRecord;
 import uk.co.matchboard.generated.tables.records.JobPartRecord;
 import uk.co.matchboard.generated.tables.records.JobRecord;
+import uk.co.matchboard.generated.tables.records.PhaseRecord;
 import uk.co.matchboard.generated.tables.records.ProductMachinesRecord;
 import uk.co.matchboard.generated.tables.records.ProductsRecord;
 import uk.co.matchboard.generated.tables.records.UsersRecord;
@@ -96,46 +116,49 @@ import uk.co.matchboard.generated.tables.records.UsersRecord;
 @Service
 public class DatabaseServiceImpl implements DatabaseService {
 
+    private static final int GENERATED_PARAM_ID = -1;
+
     private static List<Machine> MACHINES_LIST;
 
     private static LinkedHashMap<Integer, Customer> CUSTOMERS_MAP;
 
-    private record JobWithOnePartSelection(int jobId, int jobPartId) {
-
-    }
-
-    private record PartWithIndex(JobPart part, int index) {
+    private record JobWithOnePartSelection(int jobId, int jobPartId, Integer completedJobPhase) {
 
     }
 
     private static class MachinePhaseSignoffParams {
 
-        private final List<Integer> params = new ArrayList<>();
+        private final List<UUID> params = new ArrayList<>();
 
-        public void addParam(Integer id) {
-            params.add(id);
+        public void addParam(CreateJobPartParam param) {
+            params.add(param.tempKey());
         }
 
-        public Integer getStartSignOffParam() {
-            if (!params.isEmpty()) {
-                return params.getFirst();
+        public Integer getStartSignOffParam(Map<UUID, JobPartParam> newParams) {
+            if (!params.isEmpty() && newParams.containsKey(params.getFirst())) {
+                return newParams.get(params.getFirst()).partParamId();
             }
             return null;
         }
 
-        public Integer getFinishSignOffParam() {
-            if (params.size() >= 2) {
-                return params.getLast();
+        public Integer getFinishSignOffParam(Map<UUID, JobPartParam> newParams) {
+            if (params.size() >= 2 && newParams.containsKey(params.getLast())) {
+                return newParams.get(params.getLast()).partParamId();
             }
             return null;
         }
 
-        public Integer getFirstOffSignOffParam() {
-            if (params.size() == 3) {
-                return params.get(1);
+        public Integer getFirstOffSignOffParam(Map<UUID, JobPartParam> newParams) {
+            if (params.size() == 3 && newParams.containsKey(params.get(1))) {
+                return newParams.get(params.get(1)).partParamId();
             }
             return null;
         }
+
+        public boolean isSignOffRequired() {
+            return !params.isEmpty();
+        }
+
     }
 
     private final DSLContext outerDsl;
@@ -387,6 +410,179 @@ public class DatabaseServiceImpl implements DatabaseService {
         );
     }
 
+    @Override
+    public Result<Wastage> createWastage(int userId, CreateWastage wastage) {
+        return TryUtils.tryCatch(() ->
+                outerDsl.insertInto(WASTAGE)
+                        .set(WASTAGE.QUANTITY, wastage.quantity())
+                        .set(WASTAGE.REASON, wastage.reason())
+                        .set(WASTAGE.JOB_PHASE_ID, wastage.jobPhaseId())
+                        .set(WASTAGE.RPI, wastage.rpi())
+                        .set(WASTAGE.REPORTED_BY, userId)
+                        .returning(WASTAGE.ID, WASTAGE.CREATED_AT)
+                        .fetchSingle()
+        ).map(r -> new Wastage(
+                r.get(WASTAGE.ID),
+                wastage.jobPhaseId(),
+                wastage.rpi(),
+                wastage.quantity(),
+                userId,
+                wastage.reason(),
+                r.get(WASTAGE.CREATED_AT)
+        ));
+    }
+
+    @Override
+    public Result<List<WastageView>> getWastage(int jobPhaseId) {
+        return TryUtils.tryCatch(() ->
+                outerDsl
+                        .select(WASTAGE.fields())
+                        .select(USERS.USERNAME)
+                        .from(WASTAGE)
+                        .join(USERS).on(USERS.ID.eq(WASTAGE.REPORTED_BY))
+                        .where(WASTAGE.JOB_PHASE_ID.eq(jobPhaseId))
+                        .fetch(this::getWastage)
+        );
+    }
+
+    @Override
+    public Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, int rpi) {
+        return TryUtils.tryCatch(() ->
+                outerDsl.transactionResult(configuration -> {
+                    DSLContext dsl = DSL.using(configuration);
+
+                    int jobPartId = jobWithOnePart.part().jobPartId();
+
+                    List<Integer> machineIds = jobWithOnePart
+                            .product()
+                            .machinery()
+                            .stream()
+                            .map(ProductMachine::id)
+                            .distinct()
+                            .toList();
+
+                    var existing = JOB_PART_PARAMS.as("existing");
+
+                    // Non-machine-specific params: usage has 4, but not 8
+                    dsl.insertInto(JOB_PART_PARAMS,
+                                    JOB_PART_PARAMS.JOB_PART_PHASE_ID,
+                                    JOB_PART_PARAMS.ORIGINAL_PARAM_ID,
+                                    JOB_PART_PARAMS.NAME,
+                                    JOB_PART_PARAMS.CONFIG,
+                                    JOB_PART_PARAMS.INPUT,
+                                    JOB_PART_PARAMS.VALUE,
+                                    JOB_PART_PARAMS.STATUS,
+                                    JOB_PART_PARAMS.MACHINE_ID,
+                                    JOB_PART_PARAMS.PACK,
+                                    JOB_PART_PARAMS.ORDER
+                            )
+                            .select(dsl.select(
+                                                    JOB_PART_PHASES.ID,
+                                                    PHASE_PARAM.ID,
+                                                    PHASE_PARAM.NAME,
+                                                    PHASE_PARAM.CONFIG,
+                                                    PHASE_PARAM.INPUT,
+                                                    inline((String) null),
+                                                    inline(ParamStatus.INITIALISED.getCode()),
+                                                    inline((Integer) null),
+                                                    inline(rpi),
+                                                    PHASE_PARAM.ORDER
+                                            )
+                                            .from(JOB_PART_PHASES)
+                                            .join(PHASE)
+                                            .on(PHASE.ID.eq(JOB_PART_PHASES.PHASE_ID))
+                                            .join(PHASE_PARAM)
+                                            .on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                                            .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
+                                            .and(PHASE.ENABLED.isTrue())
+                                            .and(PHASE.USAGE.bitAnd(4).gt(0))
+                                            .and(PHASE.USAGE.bitAnd(8).eq(0))
+                                            .andNotExists(
+                                                    dsl.selectOne()
+                                                            .from(existing)
+                                                            .where(existing.JOB_PART_PHASE_ID.eq(
+                                                                    JOB_PART_PHASES.ID))
+                                                            .and(existing.ORIGINAL_PARAM_ID.eq(
+                                                                    PHASE_PARAM.ID))
+                                                            .and(existing.PACK.eq(rpi))
+                                                            .and(existing.MACHINE_ID.isNull())
+                                            )
+                            )
+                            .execute();
+
+                    // Machine-specific params: usage has both 4 and 8
+                    if (!machineIds.isEmpty()) {
+                        @SuppressWarnings({"unchecked"})
+                        Row1<Integer>[] rows = machineIds.stream()
+                                .map(id -> row(val(id, Integer.class)))
+                                .toArray(Row1[]::new);
+
+                        Table<Record1<Integer>> machines =
+                                values(rows).as("m", "machine_id");
+
+                        Field<Integer> machineId =
+                                field(name("m", "machine_id"), Integer.class);
+
+                        dsl.insertInto(JOB_PART_PARAMS,
+                                        JOB_PART_PARAMS.JOB_PART_PHASE_ID,
+                                        JOB_PART_PARAMS.ORIGINAL_PARAM_ID,
+                                        JOB_PART_PARAMS.NAME,
+                                        JOB_PART_PARAMS.CONFIG,
+                                        JOB_PART_PARAMS.INPUT,
+                                        JOB_PART_PARAMS.VALUE,
+                                        JOB_PART_PARAMS.STATUS,
+                                        JOB_PART_PARAMS.MACHINE_ID,
+                                        JOB_PART_PARAMS.PACK,
+                                        JOB_PART_PARAMS.ORDER
+                                )
+                                .select(dsl.select(
+                                                        JOB_PART_PHASES.ID,
+                                                        PHASE_PARAM.ID,
+                                                        PHASE_PARAM.NAME,
+                                                        PHASE_PARAM.CONFIG,
+                                                        PHASE_PARAM.INPUT,
+                                                        inline((String) null),
+                                                        inline(ParamStatus.INITIALISED.getCode()),
+                                                        machineId,
+                                                        inline(rpi),
+                                                        PHASE_PARAM.ORDER
+                                                )
+                                                .from(JOB_PART_PHASES)
+                                                .join(PHASE)
+                                                .on(PHASE.ID.eq(JOB_PART_PHASES.PHASE_ID))
+                                                .join(PHASE_PARAM)
+                                                .on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                                                .join(machines)
+                                                .on(condition("{0} = ANY({1})", machineId,
+                                                        PHASE.MACHINE_IDS))
+                                                .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
+                                                .and(PHASE.ENABLED.isTrue())
+                                                .and(PHASE.USAGE.bitAnd(4).gt(0))
+                                                .and(PHASE.USAGE.bitAnd(8).gt(0))
+                                                .andNotExists(
+                                                        dsl.selectOne()
+                                                                .from(existing)
+                                                                .where(existing.JOB_PART_PHASE_ID.eq(
+                                                                        JOB_PART_PHASES.ID))
+                                                                .and(existing.ORIGINAL_PARAM_ID.eq(
+                                                                        PHASE_PARAM.ID))
+                                                                .and(existing.PACK.eq(rpi))
+                                                                .and(existing.MACHINE_ID.eq(machineId))
+                                                )
+                                )
+                                .execute();
+                    }
+
+                    return true;
+                })
+        );
+    }
+
+    private WastageView getWastage(Record w) {
+        return new WastageView(w.get(WASTAGE.RPI), w.get(WASTAGE.QUANTITY), w.get(USERS.USERNAME),
+                w.get(WASTAGE.REASON), w.get(WASTAGE.CREATED_AT));
+    }
+
     private static JobView getJobView(JobRecord jobRecord, DSLContext dsl) {
         String customer = "(None)";
         if (jobRecord.getCustomerId() != null) {
@@ -397,25 +593,6 @@ public class DatabaseServiceImpl implements DatabaseService {
         }
         return new JobView(jobRecord.getId(), jobRecord.getNumber(), jobRecord.getParts(),
                 jobRecord.getDue(), customer, jobRecord.getStatus());
-//
-//            CREATE TABLE job
-//                    (
-//                            id                SERIAL PRIMARY KEY,
-//                            number            BIGINT      NOT NULL UNIQUE,
-//                            parts             INTEGER     NOT NULL,
-//                            due               TIMESTAMPTZ NOT NULL,
-//                            customer_id       INTEGER,
-//                            carrier_id        INTEGER,
-//                            call_off          BOOLEAN     NOT NULL DEFAULT FALSE,
-//                            payment_confirmed TIMESTAMPTZ,
-//                            status            INTEGER     NOT NULL,
-//                            started_at        TIMESTAMPTZ,
-//                            completed_at      TIMESTAMPTZ,
-//                            created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-//                    );
-//
-//        });
-//    }
     }
 
     private List<Machine> getMachineList() {
@@ -522,7 +699,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .set(PRODUCT_MACHINES.STEP_NUMBER, i + 1)
                                 .set(PRODUCT_MACHINES.MACHINE_ID, machineId)
                                 .set(PRODUCT_MACHINES.SECONDS_PER_UNIT, machine.secondsPerUnit())
-                                .set(PRODUCT_MACHINES.SECONDS_PER_PACK, machine.setupPerPack() )
+                                .set(PRODUCT_MACHINES.SECONDS_PER_PACK, machine.setupPerPack())
                                 .execute();
                     }
                 }
@@ -545,7 +722,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .select(PHASE_PARAM.fields())
                         .from(PRODUCT_PHASE)
                         .join(PHASE).on(PHASE.ID.eq(PRODUCT_PHASE.PHASE_ID))
-                        .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                        .leftJoin(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
                         .where(PRODUCT_PHASE.PRODUCT_ID.eq(productId)
                                 .and(PHASE.ENABLED.eq(true)))
                         .orderBy(PRODUCT_PHASE.ORDER.asc())
@@ -560,7 +737,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 outerDsl.select(PHASE.fields())
                         .select(PHASE_PARAM.fields())
                         .from(PHASE)
-                        .join(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
+                        .leftJoin(PHASE_PARAM).on(PHASE_PARAM.PHASE_ID.eq(PHASE.ID))
                         .where(PHASE.ENABLED.eq(true))
                         .orderBy(PHASE.DESCRIPTION.asc())
                         .fetch(r -> getPhaseParamWithPhase(r, 0)));
@@ -596,22 +773,24 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<Boolean> signOff(Map<Integer, String> signOffParams, SignStatus status) {
+    public OptionalResult<JobWithOnePart> signOff(Map<Integer, String> signOffParams,
+            Integer operationId) {
         return TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
-            DSLContext dsl = configuration.dsl();
+            DSLContext innerDsl = configuration.dsl();
+                final OffsetDateTime now = OffsetDateTime.now();
 
             if (signOffParams == null || signOffParams.isEmpty()) {
-                return false;
+                throw new IllegalArgumentException("signOffParams must not be empty");
             }
 
-            OffsetDateTime now = OffsetDateTime.now();
             List<Integer> paramIds = signOffParams.keySet().stream().toList();
 
-            var rows = dsl
+            var rows = innerDsl
                     .select(
                             JOB_PART_PARAMS.ID,
                             JOB_PART_PARAMS.JOB_PART_PHASE_ID,
                             JOB_PART_PHASES.JOB_PART_ID,
+                            JOB_PART_PHASES.STATUS,
                             JOB_PART.JOB_ID
                     )
                     .from(JOB_PART_PARAMS)
@@ -633,8 +812,71 @@ public class DatabaseServiceImpl implements DatabaseService {
                 throw new IllegalArgumentException(
                         "All signOffParams keys must belong to the same job_part_phase_id");
             }
-
             Integer jobPartPhaseId = phaseIds.iterator().next();
+
+            boolean updatedStatus = false;
+            if (operationId != null) {
+                if (signOffParams.size() > 1) {
+                    throw new IllegalArgumentException(
+                            "Error? " + operationId);
+
+                }
+                var signOffParamId = signOffParams.entrySet().iterator().next().getKey();
+                var scheduleDetails = innerDsl.selectFrom(JOB_PART_OPERATION)
+                        .where(JOB_PART_OPERATION.ID.eq(operationId)).fetchOne();
+                if (scheduleDetails == null) {
+                    throw new IllegalArgumentException(
+                            "Illegal argument operationId " + operationId);
+                }
+                if (Objects.equals(scheduleDetails.getStartJobPartParamId(), signOffParamId)) {
+                    innerDsl.update(JOB_PART_OPERATION)
+                            .set(JOB_PART_OPERATION.STATUS, JobStatus.STARTED.getCode())
+                            .set(JOB_PART_OPERATION.ACTUAL_START_AT, now)
+                            .where(JOB_PART_OPERATION.ID.eq(operationId)).execute();
+                } else if (Objects.equals(scheduleDetails.getFinishJobPartParamId(),
+                        signOffParamId)) {
+                    innerDsl.update(JOB_PART_OPERATION)
+                            .set(JOB_PART_OPERATION.STATUS, JobStatus.COMPLETED.getCode())
+                            .set(JOB_PART_OPERATION.ACTUAL_FINISH_AT, now)
+                            .where(JOB_PART_OPERATION.ID.eq(operationId)).execute();
+                    updatedStatus = innerDsl.update(JOB_PART_PHASES)
+                            .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
+                            .set(JOB_PART_PHASES.STARTED_AT, now)
+                            .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
+                            .and(JOB_PART_PHASES.STATUS.eq(JobStatus.AWAITING.getCode()))
+                            .execute() > 0;
+                    var current = JOB_PART_OPERATION.as("current");
+                    var next = JOB_PART_OPERATION.as("next");
+
+                    int rowsUpdated =
+                            innerDsl.update(next)
+                                    .set(next.STATUS, JobStatus.MACHINING_STARTABLE.getCode())
+                                    .from(current)
+                                    .where(current.ID.eq(operationId))
+                                    .and(next.JOB_PART_ID.eq(current.JOB_PART_ID))
+                                    .and(next.STEP_NUMBER.eq(current.STEP_NUMBER.plus(1)))
+                                    .and(next.STATUS.eq(JobStatus.AWAITING.getCode()))
+                                    .execute();
+
+                    boolean updated = rowsUpdated > 0;
+
+                } else if (Objects.equals(scheduleDetails.getFirstOffJobPartParamId(),
+                        signOffParamId)) {
+                    // Not sure yet! Should start next machine specific phase????
+                } else {
+                    throw new IllegalArgumentException(
+                            "Unmatching param Id? " + operationId + "," + signOffParamId);
+                }
+            }
+
+            if (!updatedStatus && !rows.getFirst().get(JOB_PART_PHASES.STATUS)
+                    .equals(JobStatus.STARTED.getCode())) {
+                throw new InvalidSignOffException("Phase " + rows.getFirst()
+                        .get(JOB_PART_PARAMS.JOB_PART_PHASE_ID) + " is not STARTED ("
+                        + rows.getFirst()
+                        .get(JOB_PART_PHASES.STATUS) + ")");
+            }
+
             Integer jobPartId = rows.getFirst().get(JOB_PART_PHASES.JOB_PART_ID);
 
             for (Map.Entry<Integer, String> entry : signOffParams.entrySet()) {
@@ -642,7 +884,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 String rawValue = entry.getValue();
                 String value = normalize(rawValue);
 
-                dsl.update(JOB_PART_PARAMS)
+                innerDsl.update(JOB_PART_PARAMS)
                         .set(JOB_PART_PARAMS.VALUE, value)
                         .set(JOB_PART_PARAMS.VALUED_AT, value == null ? null : now)
                         .where(JOB_PART_PARAMS.ID.eq(paramId))
@@ -651,8 +893,8 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             int completedStatus = JobStatus.COMPLETED.getCode();
 
-            boolean phaseComplete = !dsl.fetchExists(
-                    dsl.selectOne()
+            boolean phaseComplete = !innerDsl.fetchExists(
+                    innerDsl.selectOne()
                             .from(JOB_PART_PARAMS)
                             .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(jobPartPhaseId))
                             .and(
@@ -662,22 +904,22 @@ public class DatabaseServiceImpl implements DatabaseService {
             );
 
             if (phaseComplete) {
-                dsl.update(JOB_PART_PHASES)
+                innerDsl.update(JOB_PART_PHASES)
                         .set(JOB_PART_PHASES.STATUS, completedStatus)
                         .set(JOB_PART_PHASES.COMPLETED_AT, now)
                         .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
                         .execute();
             }
 
-            boolean jobPartComplete = !dsl.fetchExists(
-                    dsl.selectOne()
+            boolean jobPartComplete = !innerDsl.fetchExists(
+                    innerDsl.selectOne()
                             .from(JOB_PART_PHASES)
                             .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
                             .and(JOB_PART_PHASES.STATUS.ne(completedStatus))
             );
 
             if (jobPartComplete) {
-                dsl.update(JOB_PART)
+                innerDsl.update(JOB_PART)
                         .set(JOB_PART.STATUS, completedStatus)
                         .set(JOB_PART.COMPLETED_AT, now)
                         .where(JOB_PART.ID.eq(jobPartId))
@@ -685,23 +927,25 @@ public class DatabaseServiceImpl implements DatabaseService {
             }
 
             Integer jobId = rows.getFirst().get(JOB_PART.JOB_ID);
-            boolean jobComplete = !dsl.fetchExists(
-                    dsl.selectOne()
+            boolean jobComplete = !innerDsl.fetchExists(
+                    innerDsl.selectOne()
                             .from(JOB_PART)
                             .where(JOB_PART.JOB_ID.eq(jobId))
                             .and(JOB_PART.STATUS.ne(completedStatus))
             );
 
             if (jobComplete) {
-                dsl.update(JOB)
+                innerDsl.update(JOB)
                         .set(JOB.STATUS, completedStatus)
                         .set(JOB.COMPLETED_AT, now)
                         .where(JOB.ID.eq(jobId))
                         .execute();
             }
 
-            return true;
-        }));
+            return new JobWithOnePartSelection(jobId, jobPartId, jobPartPhaseId);
+        })).flatMapOptional(
+                selection -> getJobWithOnePart(selection.jobId(), selection.jobPartId(),
+                        selection.completedJobPhase()));
     }
 
     private String normalize(String value) {
@@ -780,10 +1024,17 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName) {
-        return TryUtils.tryCatch(() -> outerDsl.selectFrom(PHASE_PARAM)
-                .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
-                .orderBy(PHASE_PARAM.ORDER).fetch(r -> getPhaseParam(phaseName, r)));
+    public Result<List<PhaseParam>> getPhaseParamsForResolving(int phaseId, String phaseName) {
+        return TryUtils.tryCatch(() -> {
+            var phaseParams = outerDsl.selectFrom(PHASE_PARAM)
+                    .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
+                    .orderBy(PHASE_PARAM.ORDER).fetch(r -> getPhaseParam(phaseName, r));
+            if (phaseParams.isEmpty()) {
+                return List.of(new PhaseParam(phaseId, phaseName, null, null, null, null, 1,
+                        null));
+            }
+            return phaseParams;
+        });
 
     }
 
@@ -843,10 +1094,10 @@ public class DatabaseServiceImpl implements DatabaseService {
             CUSTOMERS_MAP = dsl.selectFrom(CUSTOMER)
                     .orderBy(CUSTOMER.NAME.asc())
                     .fetch(DatabaseServiceImpl::getCustomer).stream().collect(Collectors.toMap(
-                            Customer::id,                 // key mapper
-                            Function.identity(),          // value mapper
-                            (a, _) -> a,                  // merge function (in case of duplicates)
-                            LinkedHashMap::new            // map supplier (preserves order)
+                            Customer::id,
+                            Function.identity(),
+                            (a, _) -> a,
+                            LinkedHashMap::new
                     ));
         }
         return CUSTOMERS_MAP;
@@ -900,6 +1151,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         return TryUtils.tryCatch(() -> outerDsl.insertInto(CARRIER)
                         .set(CARRIER.CODE, carrier.code())
                         .set(CARRIER.NAME, carrier.name())
+                        .set(CARRIER.CONTACT_NAME, carrier.contactName())
+                        .set(CARRIER.CONTACT_NUMBER, carrier.contactNumber())
                         .set(CARRIER.ENABLED, true)
                         .returning(CARRIER.ID)
                         .fetchOne(CARRIER.ID))
@@ -980,7 +1233,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             partParams.addAll(
                                     addParams(innerDsl, phase.phaseId(), partPhaseId, phaseNo,
                                             part.params(),
-                                            now));
+                                            now).values());
                             phaseNo++;
                         }
                         partNo++;
@@ -989,40 +1242,82 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         part.fromCallOff(), part.materialAvailable(),
                                         jobPartPhases,
                                         partParams,
-                                        partStatus));
+                                        partStatus, partNo));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
                             job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
                 }));
     }
 
-    private List<JobPartParam> addParams(DSLContext innerDsl, int phaseId, int jobPartPhaseId,
+    private List<Integer> getMachineIdsForPhase(CreateJobPart part, PhaseRecord originalPhase) {
+        List<Integer> machines = new ArrayList<>();
+        if ((originalPhase.getUsage() & ProductServiceImpl.USAGE_PER_MACHINE)
+                > 0) {
+            machines = findProduct(part.productId()).fold(
+                    p -> {
+                        if (originalPhase.getMachineIds().length == 0) {
+                            var m = new ArrayList<Integer>();
+                            m.add(null);
+                            return m;
+                        }
+                        return p.machinery().stream().map(ProductMachine::id)
+                                .filter(id -> Arrays.asList(
+                                                originalPhase.getMachineIds())
+                                        .contains(id)).toList();
+                    },
+                    _ -> Collections.emptyList(),
+                    Collections::emptyList);
+        } else {
+            machines.add(null);
+        }
+        return machines;
+    }
+
+    private Map<UUID, JobPartParam> addParams(DSLContext innerDsl, int phaseId, int jobPartPhaseId,
             int phaseNo,
             List<CreateJobPartParam> params,
             OffsetDateTime now) {
-        List<JobPartParam> partParams = new ArrayList<>();
+        Map<UUID, JobPartParam> partParams = new LinkedHashMap<>();
         for (CreateJobPartParam param : params) {
+            // This check is here because in create we pass in a list of cross phase params.
+            // For scheduling this should always be true.
             if (param.phaseNumber() == phaseNo) {
 
-                var paramData = innerDsl.selectFrom(PHASE_PARAM)
-                        .where(PHASE_PARAM.ID.eq(param.paramId())).fetchOne();
-                if (paramData == null) {
-                    throw new DataAccessException(
-                            "Failed to find Param, for id " + param.paramId()) {
-                    };
+                String config;
+                String name;
+                int order;
+                int input;
+                if (param.paramId() == GENERATED_PARAM_ID) {
+                    config = param.config();
+                    name = param.name();
+                    order = param.orderOffset();
+                    input = ConfigurationServiceImpl.INPUT_PHASE_RUN;
+                } else {
+                    var paramData = innerDsl.selectFrom(PHASE_PARAM)
+                            .where(PHASE_PARAM.ID.eq(param.paramId())).fetchOne();
+                    if (paramData == null) {
+                        throw new DataAccessException(
+                                "Failed to find Param, for id " + param.paramId()) {
+                        };
+                    }
+                    config = param.config() == null ? paramData.getConfig() : param.config();
+                    name = paramData.getName();
+                    order = paramData.getOrder() + param.orderOffset();
+                    input = paramData.getInput();
                 }
 
                 OffsetDateTime valueTime = param.value() == null ? null : now;
-                String config = param.config() == null ? paramData.getConfig() : param.config();
                 int partPhaseId = param.jobPartPhaseId() == 0 ? jobPartPhaseId
                         : param.jobPartPhaseId();
                 Integer paramId = innerDsl.insertInto(JOB_PART_PARAMS)
                         .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId
                         )
-                        .set(JOB_PART_PARAMS.NAME, paramData.getName())
-                        .set(JOB_PART_PARAMS.INPUT, paramData.getInput())
+                        .set(JOB_PART_PARAMS.NAME, name)
+                        .set(JOB_PART_PARAMS.ORIGINAL_PARAM_ID, param.paramId())
+                        .set(JOB_PART_PARAMS.INPUT, input)
                         .set(JOB_PART_PARAMS.CONFIG, config)
-                        .set(JOB_PART_PARAMS.ORDER, paramData.getOrder())
+                        .set(JOB_PART_PARAMS.MACHINE_ID, param.machineId())
+                        .set(JOB_PART_PARAMS.ORDER, order)
                         .set(JOB_PART_PARAMS.VALUE, param.value())
                         .set(JOB_PART_PARAMS.VALUED_AT, valueTime)
                         .set(JOB_PART_PARAMS.STATUS, ParamStatus.INITIALISED.getCode())
@@ -1033,12 +1328,12 @@ public class DatabaseServiceImpl implements DatabaseService {
                             "Failed to insert Job Part Param, no ID returned") {
                     };
                 }
-                partParams.add(
+                partParams.put(param.tempKey(),
                         new JobPartParam(paramId,
-                                param.phaseNumber(), paramData.getInput(),
+                                param.phaseNumber(), input,
                                 phaseId,
-                                partPhaseId, 1, paramData.getName(),
-                                param.value(), valueTime, paramData.getConfig(),
+                                partPhaseId, 1, name,
+                                param.value(), valueTime, config,
                                 ParamStatus.INITIALISED.getCode()));
 
             }
@@ -1052,7 +1347,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         return new CreateJobPartParam(phaseParamRecord.get(PHASE_PARAM.ID), phaseNumber,
                 configAndValue.config() == null ? phaseParamRecord.get(PHASE_PARAM.CONFIG)
                         : configAndValue.config(), configAndValue.value(),
-                phaseParamRecord.get(JOB_PART_PHASES.ID), false);
+                phaseParamRecord.get(JOB_PART_PHASES.ID), UUID.randomUUID(), 0, null, null);
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -1099,9 +1394,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                         jobPartRecord.get(JOB.DUE),
                         machines.get(index).getSecondsPerUnit() * jobPartRecord.get(
                                 JOB_PART.QUANTITY),
-                        machines.get(index).getSecondsPerPack() * jobPartRecord.get(
-                                JOB_PART.QUANTITY) /
-                                jobPartRecord.get(PRODUCTS.PACK_SIZE) + 1,
+                        machines.get(index).getSecondsPerPack() * (jobPartRecord.get(
+                                JOB_PART.QUANTITY)
+                                / jobPartRecord.get(PRODUCTS.PACK_SIZE) + 1),
                         machines.size(),
                         jobPartRecord.get(JOB_PART.PRODUCT_ID)
                 )).toList();
@@ -1129,18 +1424,35 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
-    public Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from,
-            OffsetDateTime to) {
+    public Result<ScheduleForRole> getScheduleForRole(LocalDate from,
+            LocalDate to) {
         return TryUtils.tryCatch(() -> {
             Condition condition = DSL.trueCondition();
             if (from != null) {
-//                condition = condition.and(JOB_PART.RUN_ON.ge(from));
+                condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.ge(from));
             }
             if (to != null) {
-//                condition = condition.and(JOB_PART.RUN_ON.le(to));
+                condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.le(to));
             }
 
-            return outerDsl.select(
+            Map<Integer, ScheduleSummary> summary =
+                    outerDsl.select(
+                                    JOB_PART_OPERATION.JOB_PART_ID,
+                                    min(JOB_PART_OPERATION.PLANNED_START_AT),
+                                    max(JOB_PART_OPERATION.PLANNED_FINISH_AT)
+                            )
+                            .from(JOB_PART_OPERATION)
+                            .where(condition)
+                            .groupBy(JOB_PART_OPERATION.JOB_PART_ID)
+                            .fetchMap(
+                                    JOB_PART_OPERATION.JOB_PART_ID,
+                                    r -> new ScheduleSummary(
+                                            r.value2(),
+                                            r.value3()
+                                    )
+                            );
+
+            var paramList = outerDsl.select(
                             JOB.ID,
                             JOB.NUMBER,
                             JOB.PARTS,
@@ -1175,15 +1487,14 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JobStatus.SCHEDULED.getCode(),
                             JobStatus.STARTED.getCode()
                     ))
-                    .and(condition)
+                    .and(JOB_PART.ID.in(summary.keySet()))
                     .orderBy(
-//                            JOB_PART.RUN_ON,
-//                            JOB_PART.RUN_ORDER,
                             JOB_PART_PHASES.PHASE_NUMBER,
                             JOB_PART_PARAMS.ORDER.nullsLast(),
                             JOB_PART_PARAMS.ID
                     )
                     .fetch(DatabaseServiceImpl::getScheduledJobPartParam);
+            return new ScheduleForRole(paramList, summary);
         });
     }
 
@@ -1209,6 +1520,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             var x = outerDsl
                     .select(
+                            JOB.ID,
                             JOB.DUE,
                             JOB.NUMBER,
                             JOB_PART.PART_NUMBER,
@@ -1224,14 +1536,19 @@ public class DatabaseServiceImpl implements DatabaseService {
                             PRODUCTS.PITCH,
                             PRODUCTS.EDGE,
                             PRODUCTS.FINISH,
+                            JOB_PART_OPERATION.ID,
+                            JOB_PART_OPERATION.JOB_PART_ID,
                             JOB_PART_OPERATION.PLANNED_START_AT,
                             JOB_PART_OPERATION.PLANNED_FINISH_AT,
                             JOB_PART_OPERATION.PLANNED_MINUTES,
                             JOB_PART_OPERATION.SETUP_MINUTES,
+                            JOB_PART_OPERATION.BREAK_MINUTES,
+                            JOB_PART_OPERATION.PACK_MINUTES,
                             JOB_PART_OPERATION.ACTUAL_START_AT,
                             JOB_PART_OPERATION.ACTUAL_FINISH_AT,
                             JOB_PART_OPERATION.STATUS,
                             JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
+                            JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID,
                             JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID
                     )
                     .from(JOB_PART_OPERATION)
@@ -1243,7 +1560,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .on(JOB_PART.PRODUCT_ID.eq(PRODUCTS.ID))
                     .where(condition)
                     .orderBy(
-                            JOB_PART_OPERATION.SCHEDULED_FOR_DATE.asc(),   // carry-over first
+                            JOB_PART_OPERATION.SCHEDULED_FOR_DATE.asc(),
                             JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.asc(),
                             JOB.DUE.asc()
                     )
@@ -1255,7 +1572,9 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     private static ScheduledJobPartView getScheduledJobPartView(
             Record rec) {
-        return new ScheduledJobPartView(rec.get(JOB.DUE), rec.get(JOB.NUMBER),
+        return new ScheduledJobPartView(
+                rec.get(JOB_PART_OPERATION.ID),
+                rec.get(JOB.DUE), rec.get(JOB.NUMBER),
                 rec.get(JOB_PART.PART_NUMBER),
                 rec.get(JOB.PARTS),
                 rec.get(PRODUCTS.NAME),
@@ -1280,7 +1599,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.get(JOB_PART_OPERATION.STATUS),
                 rec.get(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID),
                 rec.get(JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID),
-                rec.get(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID)
+                rec.get(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID),
+                rec.get(JOB.ID),
+                rec.get(JOB_PART_OPERATION.JOB_PART_ID)
         );
     }
 
@@ -1289,7 +1610,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Override
     public OptionalResult<JobWithOnePart> completePhasesAndStart(
             List<Integer> phasesToMarkDone,
-            Integer jobPartPhaseId) {
+            int jobId, int jobPartPhaseId, Integer lastJobPhaseUpdated) {
 
         return Result.toOptionalResult(
                         TryUtils.tryCatch(() -> outerDsl.transactionResult(configuration -> {
@@ -1360,79 +1681,101 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 }
                             }
 
-                            if (jobPartPhaseId != null) {
-                                Integer jobPartId =
-                                        innerDsl.update(JOB_PART_PHASES)
-                                                .set(JOB_PART_PHASES.STARTED_AT,
-                                                        DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
-                                                .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
-                                                .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
-                                                .and(JOB_PART_PHASES.STATUS.ne(
-                                                        JobStatus.COMPLETED.getCode()))
-                                                .returningResult(JOB_PART_PHASES.JOB_PART_ID)
-                                                .fetchOne(JOB_PART_PHASES.JOB_PART_ID);
+                            Integer jobPartId =
+                                    innerDsl.update(JOB_PART_PHASES)
+                                            .set(JOB_PART_PHASES.STARTED_AT,
+                                                    DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
+                                            .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
+                                            .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
+                                            .and(JOB_PART_PHASES.STATUS.ne(
+                                                    JobStatus.COMPLETED.getCode()))
+                                            .returningResult(JOB_PART_PHASES.JOB_PART_ID)
+                                            .fetchOne(JOB_PART_PHASES.JOB_PART_ID);
 
-                                if (jobPartId != null) {
-                                    Integer jobId = innerDsl
-                                            .select(JOB_PART.JOB_ID)
-                                            .from(JOB_PART)
-                                            .where(JOB_PART.ID.eq(jobPartId))
-                                            .fetchOne(JOB_PART.JOB_ID);
-
-                                    if (jobId == null) {
-                                        throw new DataAccessException(
-                                                "Failed to find Job with part id " + jobPartId) {
-                                        };
-                                    }
-
-                                    innerDsl.update(JOB_PART)
-                                            .set(JOB_PART.STARTED_AT,
-                                                    DSL.coalesce(JOB_PART.STARTED_AT, now))
-                                            .set(JOB_PART.STATUS, JobStatus.STARTED.getCode())
-                                            .where(JOB_PART.ID.eq(jobPartId))
-                                            .and(JOB_PART.STATUS.ne(JobStatus.COMPLETED.getCode()))
+                            if (jobPartId != null) {
+                                boolean lastPhaseMachine = isMachinePhase(lastJobPhaseUpdated, innerDsl);
+                                boolean nextPhaseMachine = isMachinePhase(jobPartPhaseId, innerDsl);
+                                if (!lastPhaseMachine && nextPhaseMachine) {
+                                    innerDsl
+                                            .update(JOB_PART_OPERATION)
+                                            .set(JOB_PART_OPERATION.STATUS,
+                                                    JobStatus.MACHINING_STARTABLE.getCode())
+                                            .where(JOB_PART_OPERATION.JOB_PART_ID.eq(jobPartId))
+                                            .and(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.eq(
+                                                    DSL.select(
+                                                                    DSL.min(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION))
+                                                            .from(JOB_PART_OPERATION)
+                                                            .where(JOB_PART_OPERATION.JOB_PART_ID.eq(
+                                                                    jobPartId))
+                                            ))
                                             .execute();
-
-                                    innerDsl.update(JOB)
-                                            .set(JOB.STARTED_AT,
-                                                    DSL.coalesce(JOB.STARTED_AT, now))
-                                            .set(JOB.STATUS, JobStatus.STARTED.getCode())
-                                            .where(JOB.ID.eq(jobId))
-                                            .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
-                                            .execute();
-
-                                    return Optional.of(new JobWithOnePartSelection(jobId, jobPartId));
                                 }
+                                if (lastPhaseMachine && !nextPhaseMachine) {
+
+                                }
+
+                                innerDsl.update(JOB_PART)
+                                        .set(JOB_PART.STARTED_AT,
+                                                DSL.coalesce(JOB_PART.STARTED_AT, now))
+                                        .set(JOB_PART.STATUS, JobStatus.STARTED.getCode())
+                                        .where(JOB_PART.ID.eq(jobPartId))
+                                        .and(JOB_PART.STATUS.ne(JobStatus.COMPLETED.getCode()))
+                                        .execute();
+
+                                innerDsl.update(JOB)
+                                        .set(JOB.STARTED_AT,
+                                                DSL.coalesce(JOB.STARTED_AT, now))
+                                        .set(JOB.STATUS, JobStatus.STARTED.getCode())
+                                        .where(JOB.ID.eq(jobId))
+                                        .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
+                                        .execute();
+
+                                return Optional.of(
+                                        new JobWithOnePartSelection(jobId, jobPartId, jobPartPhaseId));
                             }
 
                             return Optional.empty();
                         })))
-                .flatMap(selected ->
-                        findJob(selected.jobId()).fold(j -> {
-                                    PartWithIndex part = IntStream.range(0, j.parts().size())
-                                            .filter(i -> Objects.equals(
-                                                    j.parts().get(i).jobPartId(),
-                                                    selected.jobPartId()
-                                            ))
-                                            .mapToObj(i -> new PartWithIndex(j.parts().get(i), i))
-                                            .findFirst().orElse(new PartWithIndex(null, -1));
+                .flatMap(selected -> getJobWithOnePart(selected.jobId(), selected.jobPartId(),
+                        selected.completedJobPhase()));
+    }
 
-                                    return OptionalResult.combine(findProduct(part.part.productId()),
-                                            findCustomer(j.customer()), findCarrier(j.carrier()),
-                                            (product, customer, carrier) -> new JobWithOnePart(
-                                                    j.id(),
-                                                    j.number(),
-                                                    j.due(),
-                                                    j.callOff(),
-                                                    part.part(),
-                                                    j.status(),
-                                                    j.paymentConfirmed(), part.index + 1, j.parts().size(),
-                                                    product, customer, carrier
-                                            )).toOptional();
-                                },
-                                OptionalResult::failure,
-                                OptionalResult::<JobWithOnePart>empty
-                        ));
+    private static boolean isMachinePhase(Integer lastJobPhaseUpdated, DSLContext dsl) {
+        if (lastJobPhaseUpdated == null) {
+            return false;
+        }
+        Integer phaseUsage = dsl.select(PHASE.USAGE).from(PHASE).join(JOB_PART_PHASES)
+                .on(PHASE.ID.eq(JOB_PART_PHASES.PHASE_ID))
+                .where(JOB_PART_PHASES.ID.eq(lastJobPhaseUpdated)).fetchOne(PHASE.USAGE);
+
+        return (phaseUsage != null) && (phaseUsage & ProductServiceImpl.USAGE_PER_MACHINE) > 0;
+    }
+
+    @Override
+    public OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId,
+            Integer completedPhase) {
+        return findJob(jobId, jobPartId).fold(j -> {
+                    if (j.parts().size() != 1) {
+                        return OptionalResult.failure(new InvalidJobException(jobId
+                                , "Unexpected number of parts for one job part" + jobPartId));
+                    }
+                    var part = j.parts().getFirst();
+                    return OptionalResult.combine(findProduct(part.productId()),
+                            findCustomer(j.customer()), findCarrier(j.carrier()),
+                            (product, customer, carrier) -> new JobWithOnePart(
+                                    j.id(),
+                                    j.number(),
+                                    j.due(),
+                                    j.callOff(),
+                                    part,
+                                    j.status(),
+                                    j.paymentConfirmed(), part.partNumber(), j.parts().size(),
+                                    product, customer, carrier, completedPhase
+                            )).toOptional();
+                },
+                OptionalResult::failure,
+                OptionalResult::empty
+        );
     }
 
     private static ScheduledJobPartParam getScheduledJobPartParam(Record record) {
@@ -1473,8 +1816,10 @@ public class DatabaseServiceImpl implements DatabaseService {
             OffsetDateTime now = OffsetDateTime.now();
             int position = 100;
             Set<Integer> updatedJobs = new HashSet<>();
+            Set<Integer> updatedJobParts = new HashSet<>();
 
             for (CreateScheduledJobPart jobPart : jobPartIds) {
+                MachinePhaseSignoffParams signOffParams = new MachinePhaseSignoffParams();
                 var product = findProduct(jobPart.productId());
                 if (product.isFaulted()) {
                     throw new DataAccessException(
@@ -1482,9 +1827,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     + jobPart.jobPartId()) {
                     };
                 }
-                List<Integer> productMachines = product.fold(
-                        p -> p.machinery().stream().map(ProductMachine::id).toList(),
-                        _ -> Collections.emptyList(), Collections::emptyList);
+                Map<UUID, JobPartParam> newParams = new HashMap<>();
                 var phases = innerDsl
                         .select()
                         .from(JOB_PART_PHASES)
@@ -1492,95 +1835,66 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE.ID))
                         .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPart.jobPartId()))
                         .fetch();
-                Map<Integer, MachinePhaseSignoffParams> signoffParams = new HashMap<>();
+
                 for (var phase : phases) {
+                    int usage = phase.get(PHASE.USAGE);
+                    if ((usage & ProductServiceImpl.USAGE_PER_RPI) > 0) {
+                        continue;
+                    }
                     var machineIds = phase.get(PHASE.MACHINE_IDS);
                     boolean scheduled =
-                            (phase.get(PHASE.USAGE) & ProductServiceImpl.USAGE_PER_MACHINE) != 0
+                            (usage & ProductServiceImpl.USAGE_PER_MACHINE) != 0
                                     && (machineIds.length == 0
                                     || Arrays.stream(machineIds)
-                                    .anyMatch(productMachines::contains));
+                                    .anyMatch(m -> m.equals(jobPart.machineId())));
 
                     List<CreateJobPartParam> phaseRunData = new ArrayList<>();
                     if (scheduled) {
-                        var paramId = innerDsl.selectFrom(PHASE_PARAM)
-                                .where(PHASE_PARAM.PHASE_ID.eq(phase.get(JOB_PART_PHASES.PHASE_ID)))
-                                .fetchOne(PHASE_PARAM.ID);
-                        if (paramId == null) {
-                            throw new DataAccessException(
-                                    "Failed to find param, for phase "
-                                            + phase.get(JOB_PART_PHASES.PHASE_ID)) {
-                            };
-                        }
                         product.map(p -> {
-                            for (ProductMachine machine : p.machinery()) {
+                            for (int i = 0; i < p.machinery().size(); i++) {
+                                ProductMachine machine = p.machinery().get(i);
                                 if (jobPart.machineId() == machine.id()) {
-                                    phaseRunData.add(new CreateJobPartParam(paramId,
+                                    var param = new CreateJobPartParam(GENERATED_PARAM_ID,
                                             phase.get(JOB_PART_PHASES.PHASE_NUMBER),
                                             "AWAIT(" + machine.name() + ")", null,
-                                            phase.get(JOB_PART_PHASES.ID), true));
-                                    signoffParams.computeIfAbsent(machine.id(),
-                                            _ -> new MachinePhaseSignoffParams()).addParam(paramId);
+                                            phase.get(JOB_PART_PHASES.ID), UUID.randomUUID(),
+                                            100 + i, machine.id(), "Machine");
+                                    phaseRunData.add(param);
+                                    signOffParams.addParam(param);
                                 }
                             }
                             return phaseRunData;
                         });
-
                     }
-                    phaseRunData.addAll(innerDsl.select(
-                                    PHASE_PARAM.fields())
-                            .select(JOB_PART_PHASES.ID)
-                            .from(PHASE_PARAM)
-                            .join(JOB_PART_PHASES)
-                            .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE_PARAM.PHASE_ID))
-                            .and(JOB_PART_PHASES.JOB_PART_ID.eq(jobPart.jobPartId()))
-                            .and(JOB_PART_PHASES.PHASE_ID.eq(
-                                    phase.get(JOB_PART_PHASES.PHASE_ID)))
-                            .where(PHASE_PARAM.PHASE_ID.eq(
-                                    phase.get(JOB_PART_PHASES.PHASE_ID)))
-                            .and(PHASE_PARAM.INPUT.in(
-                                    ConfigurationServiceImpl.INPUT_PHASE_RUN,
-                                    ConfigurationServiceImpl.INPUT_JOB_CREATE))
-                            .orderBy(PHASE_PARAM.ORDER.asc())
-                            .fetch(r -> getCreateJobPartParam(r,
-                                    phase.get(JOB_PART_PHASES.PHASE_NUMBER),
-                                    paramConfigEvaluator.apply(
-                                            new PhaseParamEvaluatorInput(
-                                                    product,
-                                                    r.get(PHASE_PARAM.CONFIG),
-                                                    r.get(PHASE_PARAM.INPUT))))));
-                    addParams(innerDsl, phase.get(JOB_PART_PHASES.PHASE_ID), 0,
+                    if (!updatedJobParts.contains(jobPart.jobPartId())) {
+                        phaseRunData.addAll(innerDsl.select(
+                                        PHASE_PARAM.fields())
+                                .select(JOB_PART_PHASES.ID)
+                                .from(PHASE_PARAM)
+                                .join(JOB_PART_PHASES)
+                                .on(JOB_PART_PHASES.PHASE_ID.eq(PHASE_PARAM.PHASE_ID))
+                                .and(JOB_PART_PHASES.JOB_PART_ID.eq(jobPart.jobPartId()))
+                                .and(JOB_PART_PHASES.PHASE_ID.eq(
+                                        phase.get(JOB_PART_PHASES.PHASE_ID)))
+                                .where(PHASE_PARAM.PHASE_ID.eq(
+                                        phase.get(JOB_PART_PHASES.PHASE_ID)))
+                                .and(PHASE_PARAM.INPUT.in(
+                                        ConfigurationServiceImpl.INPUT_PHASE_RUN))
+                                .orderBy(PHASE_PARAM.ORDER.asc())
+                                .fetch(r -> getCreateJobPartParam(r,
+                                        phase.get(JOB_PART_PHASES.PHASE_NUMBER),
+                                        paramConfigEvaluator.apply(
+                                                new PhaseParamEvaluatorInput(
+                                                        product,
+                                                        r.get(PHASE_PARAM.CONFIG),
+                                                        r.get(PHASE_PARAM.INPUT))))));
+                    }
+                    newParams.putAll(addParams(innerDsl, phase.get(JOB_PART_PHASES.PHASE_ID), 0,
                             phase.get(JOB_PART_PHASES.PHASE_NUMBER),
-                            phaseRunData, now);
+                            phaseRunData, now));
 
                 }
-
-                for (Entry<Integer, MachinePhaseSignoffParams> entry : signoffParams.entrySet()) {
-                    innerDsl.insertInto(JOB_PART_OPERATION)
-                            .set(JOB_PART_OPERATION.JOB_PART_ID, jobPart.jobPartId())
-                            .set(JOB_PART_OPERATION.MACHINE_ID, entry.getKey())
-                            .set(JOB_PART_OPERATION.STEP_NUMBER, jobPart.stepNumber())
-                            .set(JOB_PART_OPERATION.QUANTITY, jobPart.quantity())
-                            .set(JOB_PART_OPERATION.PLANNED_START_AT, jobPart.plannedStartAt())
-                            .set(JOB_PART_OPERATION.PLANNED_FINISH_AT,
-                                    jobPart.plannedFinishAt())
-                            .set(JOB_PART_OPERATION.SETUP_MINUTES, jobPart.setupMinutes())
-                            .set(JOB_PART_OPERATION.PLANNED_MINUTES, jobPart.plannedMinutes())
-                            .set(JOB_PART_OPERATION.BREAK_MINUTES, jobPart.breakMinutes())
-                            .set(JOB_PART_OPERATION.PACK_MINUTES, jobPart.packMinutes())
-                            .set(JOB_PART_OPERATION.SCHEDULED_FOR_DATE, jobPart.scheduledDate())
-                            .set(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION, position)
-                            .set(JOB_PART_OPERATION.STATUS, JobStatus.SCHEDULED.getCode())
-                            .set(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
-                                    entry.getValue().getStartSignOffParam())
-                            .set(JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID,
-                                    entry.getValue().getFirstOffSignOffParam())
-                            .set(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID,
-                                    entry.getValue().getFinishSignOffParam())
-                            .execute();
-
-                }
-
+                updatedJobParts.add(jobPart.jobPartId());
                 updatedJobs.add(jobPart.jobId());
                 position += 100;
 
@@ -1588,50 +1902,89 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(JOB_PART.STATUS, JobStatus.SCHEDULED.getCode())
                         .where(JOB_PART.ID.eq(jobPart.jobPartId()))
                         .execute();
+
+                if (signOffParams.isSignOffRequired()) {
+                    createScheduleItem(jobPart, innerDsl, position, signOffParams, newParams);
+                }
             }
 
             for (Integer jobId : updatedJobs) {
-                Record2<Integer, Integer> counts = innerDsl
-                        .select(
-                                DSL.count(),
-                                DSL.count().filterWhere(
-                                        JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode())
-                                )
-                        )
-                        .from(JOB_PART)
-                        .where(JOB_PART.JOB_ID.eq(jobId))
-                        .fetchOne();
-
-                if (counts == null) {
-                    throw new DataAccessException(
-                            "Failed to count job part statuses ") {
-                    };
-                }
-
-                int totalParts = counts.value1();
-                int scheduledParts = counts.value2();
-
-                Integer newStatus =
-                        scheduledParts == totalParts
-                                ? JobStatus.SCHEDULED.getCode()
-                                : scheduledParts > 0
-                                        ? JobStatus.PARTIALLY_SCHEDULED.getCode()
-                                        : JobStatus.SCHEDULABLE.getCode();
-
-                innerDsl.update(JOB)
-                        .set(JOB.STATUS, newStatus)
-                        .where(JOB.ID.eq(jobId))
-                        .execute();
+                updateJobStatus(jobId, innerDsl);
             }
 
             return true;
         }));
     }
 
+    private static void updateJobStatus(Integer jobId, DSLContext innerDsl) {
+        Record2<Integer, Integer> counts = innerDsl
+                .select(
+                        DSL.count(),
+                        DSL.count().filterWhere(
+                                JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode())
+                        )
+                )
+                .from(JOB_PART)
+                .where(JOB_PART.JOB_ID.eq(jobId))
+                .fetchOne();
+
+        if (counts == null) {
+            throw new DataAccessException(
+                    "Failed to count job part statuses ") {
+            };
+        }
+
+        int totalParts = counts.value1();
+        int scheduledParts = counts.value2();
+
+        Integer newStatus =
+                scheduledParts == totalParts
+                        ? JobStatus.SCHEDULED.getCode()
+                        : scheduledParts > 0
+                                ? JobStatus.PARTIALLY_SCHEDULED.getCode()
+                                : JobStatus.SCHEDULABLE.getCode();
+
+        innerDsl.update(JOB)
+                .set(JOB.STATUS, newStatus)
+                .where(JOB.ID.eq(jobId))
+                .execute();
+    }
+
+    private static void createScheduleItem(CreateScheduledJobPart jobPart, DSLContext innerDsl,
+            int position,
+            MachinePhaseSignoffParams signOffParams, Map<UUID, JobPartParam> newParams) {
+        innerDsl.insertInto(JOB_PART_OPERATION)
+                .set(JOB_PART_OPERATION.JOB_PART_ID, jobPart.jobPartId())
+                .set(JOB_PART_OPERATION.MACHINE_ID, jobPart.machineId())
+                .set(JOB_PART_OPERATION.STEP_NUMBER, jobPart.stepNumber())
+                .set(JOB_PART_OPERATION.QUANTITY, jobPart.quantity())
+                .set(JOB_PART_OPERATION.PLANNED_START_AT, jobPart.plannedStartAt())
+                .set(JOB_PART_OPERATION.PLANNED_FINISH_AT,
+                        jobPart.plannedFinishAt())
+                .set(JOB_PART_OPERATION.SETUP_MINUTES, jobPart.setupMinutes())
+                .set(JOB_PART_OPERATION.PLANNED_MINUTES, jobPart.plannedMinutes())
+                .set(JOB_PART_OPERATION.BREAK_MINUTES, jobPart.breakMinutes())
+                .set(JOB_PART_OPERATION.PACK_MINUTES, jobPart.packMinutes())
+                .set(JOB_PART_OPERATION.SCHEDULED_FOR_DATE, jobPart.scheduledDate())
+                .set(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION, position)
+                .set(JOB_PART_OPERATION.STATUS, JobStatus.AWAITING.getCode())
+                .set(JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
+                        signOffParams.getStartSignOffParam(newParams))
+                .set(JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID,
+                        signOffParams.getFirstOffSignOffParam(newParams))
+                .set(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID,
+                        signOffParams.getFinishSignOffParam(newParams))
+                .execute();
+    }
+
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public OptionalResult<Job> findJob(int jobId) {
+        return findJob(jobId, null);
+    }
+
+    public OptionalResult<Job> findJob(int jobId, Integer jobPartId) {
         return Result.toOptionalResult(TryUtils.tryCatch(() ->
                 outerDsl.transactionResult(connection -> {
                     DSLContext innerDsl = connection.dsl();
@@ -1646,8 +1999,14 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                     List<JobPart> jobParts = new ArrayList<>();
 
-                    var partRecords = innerDsl.selectFrom(JOB_PART)
-                            .where(JOB_PART.JOB_ID.eq(jobId))
+                    var query = innerDsl.selectFrom(JOB_PART)
+                            .where(JOB_PART.JOB_ID.eq(jobId));
+
+                    if (jobPartId != null) {
+                        query = query.and(JOB_PART.ID.eq(jobPartId));
+                    }
+
+                    var partRecords = query
                             .orderBy(JOB_PART.PART_NUMBER.asc())
                             .fetch();
 
@@ -1749,7 +2108,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 partRecord.getMaterialAvailable(),
                 jobPartPhases,
                 partParams,
-                partRecord.getStatus()
+                partRecord.getStatus(),
+                partRecord.getPartNumber()
         );
     }
 
@@ -1762,8 +2122,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .from(JOB_PART)
                 .join(JOB).on(JOB_PART.JOB_ID.eq(JOB.ID))
                 .join(PRODUCTS).on(JOB_PART.PRODUCT_ID.eq(PRODUCTS.ID));
-
-//        outerDsl.select(PRODUCT_MACHINES).where()
     }
 
     private static Carrier getCarrier(CarrierRecord carrierRecord) {

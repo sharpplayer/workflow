@@ -1,6 +1,5 @@
 package uk.co.matchboard.app.model.job;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record SchedulableJobPart(int jobPartId, int jobId, long jobNumber, String product,

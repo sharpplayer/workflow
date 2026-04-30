@@ -1,7 +1,9 @@
 package uk.co.matchboard.app.service;
 
 import java.util.List;
+import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.app.model.user.Users;
@@ -24,4 +26,8 @@ public interface UserService {
 
     Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset,
             boolean enabled);
+
+    Result<ConfigResponse> getOperators();
+
+    OptionalResult<User> findUser(String user);
 }

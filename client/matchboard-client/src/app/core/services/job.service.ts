@@ -203,6 +203,8 @@ export enum JobStatus {
   AWAITING = 9,
   STARTED = 10,
   AWAITING_PAYMENT = 11,
+  MACHINING_STARTABLE = 12,
+  MACHINING_COMPLETED = 13,
 }
 
 export enum ParamStatus {
@@ -212,6 +214,7 @@ export enum ParamStatus {
 }
 
 export interface ScheduledJobPartView {
+  operationId: number;
   dueDate: string;          // ISO datetime (OffsetDateTime)
   jobNumber: number;
   partNumber: number;
@@ -236,9 +239,11 @@ export interface ScheduledJobPartView {
   breakMinutes: number;
   packMinutes: number;
   status: JobStatus;
-  actualStartParamId : number,
+  actualStartParamId: number,
   firstOffParamId: number | null;
-  actualFinishParamId : number
+  actualFinishParamId: number,
+  jobId : number;
+  jobPartId : number;
 }
 
 export interface ScheduledJobPartViews {
@@ -258,7 +263,29 @@ export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.AWAITING]: "Awaiting",
   [JobStatus.STARTED]: "Started",
   [JobStatus.AWAITING_PAYMENT]: "Awaiting Payment",
+  [JobStatus.MACHINING_STARTABLE]: "Startable",
+  [JobStatus.MACHINING_COMPLETED]: "Completed",
 };
+
+export interface WastageView {
+  rpi: number;
+  quantity: number;
+  reportedBy: string;
+  reason: string;
+  date: string;
+}
+
+export interface Wastages {
+  wastages: WastageView[];
+}
+
+export interface CreateWastage {
+  jobPhaseId: number;
+  rpi: number;
+  quantity: number;
+  reportedBy: string;
+  reason: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class JobService {
@@ -304,9 +331,9 @@ export class JobService {
     return jobs.jobs;
   }
 
-  async nextJob(role: string): Promise<JobWithOnePart> {
+  async nextJob(role: string): Promise<JobWithOnePart | null> {
     return await firstValueFrom(
-      this.http.get<JobWithOnePart>(
+      this.http.get<JobWithOnePart | null>(
         `${API_BASE_URL}/api/jobs/next`,
         {
           params: { role },
@@ -362,12 +389,27 @@ export class JobService {
     return (jobNumber % 1000).toString().padStart(3, '0');
   }
 
-  async signOff(loginResult: LoginResult, paramData: Record<number, string>): Promise<JobWithOnePart> {
+  async createRpi(jobId: number, jobPartId: number, rpi: number) {
     try {
       let job = await firstValueFrom(
-        this.http.patch<JobWithOnePart>(
+        this.http.post<JobWithOnePart | null>(
+          `${API_BASE_URL}/api/jobs/${jobId}/part/${jobPartId}/rpi/${rpi}`,
+          {},
+          { withCredentials: true }
+        )
+      );
+      return job; // success
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Signoff failed.'));
+    }
+  }
+
+  async signOff(loginResult: LoginResult, paramData: Record<number, string>, operationId?: number): Promise<JobWithOnePart | null> {
+    try {
+      let job = await firstValueFrom(
+        this.http.patch<JobWithOnePart | null>(
           `${API_BASE_URL}/api/phase`,
-          { user: loginResult.username, password: loginResult.credential, pin: loginResult.pin, role: loginResult.role, paramData },
+          { user: loginResult.username, password: loginResult.credential, pin: loginResult.pin, role: loginResult.role, paramData, ...(operationId !== undefined && { operationId }), ...(loginResult.rpiNumber !== undefined && { rpi: loginResult.rpiNumber }) },
           { withCredentials: true }
         )
       );
@@ -387,5 +429,39 @@ export class JobService {
     }
 
     return fallback;
+  }
+
+  async getWastageForJobPhase(jobPhaseId: number): Promise<WastageView[]> {
+    try {
+      let wastage = await firstValueFrom(
+        this.http.get<Wastages>(
+          `${API_BASE_URL}/api/wastage`,
+          {
+            params: { jobPhaseId },
+            withCredentials: true
+          }
+        )
+      );
+      return wastage.wastages; // success
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Get wastage failed.'));
+    }
+  }
+
+  async createWastage(wastage: CreateWastage): Promise<WastageView> {
+    try {
+      let res = await firstValueFrom(
+        this.http.post<WastageView>(
+          `${API_BASE_URL}/api/wastage`,
+          wastage,
+          {
+            withCredentials: true
+          }
+        )
+      );
+      return res; // success
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Get wastage failed.'));
+    }
   }
 }

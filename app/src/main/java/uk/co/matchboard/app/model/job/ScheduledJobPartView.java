@@ -3,6 +3,7 @@ package uk.co.matchboard.app.model.job;
 import java.time.OffsetDateTime;
 
 public record ScheduledJobPartView(
+        int operationId,
         OffsetDateTime dueDate,
         long jobNumber,
         int partNumber,
@@ -29,7 +30,9 @@ public record ScheduledJobPartView(
         int status,
         int actualStartParamId,
         Integer firstOffParamId,
-        int actualFinishParamId
+        int actualFinishParamId,
+        int jobId,
+        int jobPartId
 ) {
 
 }

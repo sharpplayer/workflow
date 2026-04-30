@@ -305,9 +305,6 @@ export class AdminPhaseParamComponent {
       }
 
       const defaults: ConfigItem[] = [];
-      if (p.input === 1 && options.length > 0 && !p.optional) {
-        def = options[0].key;
-      }
       if (p.input === 2 && !p.optional) {
         def = p.evaluation ?? '(Input At Job Start)';
         defaults.push({
@@ -316,7 +313,7 @@ export class AdminPhaseParamComponent {
         });
       }
 
-      const value = selectedMap.get(p.phaseParamId) || p.value || def;
+      const value = selectedMap.get(p.phaseParamId) ?? '';
 
       let finalOptions = [...options];
       if (
@@ -408,7 +405,9 @@ export class AdminPhaseParamComponent {
       this.selectedParamForAdd.set(param);
       this.carrierFormData.set({
         code: '',
-        name: ''
+        name: '',
+        contactName: '',
+        contactNumber: ''
       });
       this.showCarrierModal.set(true);
       return;
@@ -432,7 +431,9 @@ export class AdminPhaseParamComponent {
 
       const newItem = await this.configService.addItem(param.paramConfig, {
         code: form.code,
-        name: form.name
+        name: form.name,
+        contactName: form.contactName,
+        contactNumber: form.contactNumber
       });
 
       this.filteredParams.update(params =>

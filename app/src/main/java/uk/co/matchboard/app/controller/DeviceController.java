@@ -17,6 +17,7 @@ import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
+import uk.co.matchboard.app.model.wastage.CreateWastage;
 import uk.co.matchboard.app.service.DeviceService;
 
 @RestController
@@ -104,4 +105,23 @@ public class DeviceController {
                 .fold(ResponseEntity::ok,
                         ExceptionHandler::toResponse, () -> ResponseEntity.noContent().build());
     }
+
+    @PostMapping("/wastage")
+    public ResponseEntity<?> createWastage(
+            @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
+            @RequestBody CreateWastage wastage) {
+        return deviceService.createWastage(deviceId, wastage)
+                .fold(ResponseEntity::ok,
+                        ExceptionHandler::toResponse);
+    }
+
+    @GetMapping("/wastage")
+    public ResponseEntity<?> getWastage(
+            @CookieValue(value = DeviceController.DEVICE_COOKIE, required = false) String deviceId,
+            @RequestParam int jobPhaseId) {
+        return deviceService.getWastage(deviceId, jobPhaseId)
+                .fold(ResponseEntity::ok,
+                        ExceptionHandler::toResponse);
+    }
+
 }

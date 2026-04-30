@@ -11,7 +11,9 @@ public enum JobStatus {
     PARTIALLY_COMPLETED(8),
     AWAITING(9),
     STARTED(10),
-    AWAITING_PAYMENT(11);
+    AWAITING_PAYMENT(11),
+    MACHINING_STARTABLE(12),
+    MACHINING_COMPLETED(13);
 
     private final int code;
 

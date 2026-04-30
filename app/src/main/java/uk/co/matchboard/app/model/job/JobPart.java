@@ -7,6 +7,6 @@ public record JobPart(int jobPartId, int productId, String name, String oldName,
                       boolean materialAvailable,
                       List<JobPartPhase> phases,
                       List<JobPartParam> params,
-                      int status) {
+                      int status, int partNumber) {
 
 }

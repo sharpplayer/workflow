@@ -32,6 +32,10 @@ export interface Phase {
   order: number
 }
 
+export interface ProductMachine {
+  name : string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -46,7 +50,7 @@ export interface Product {
   material: string;
   owner: string;
   rackType: string;
-  machinery: string[];
+  machinery: ProductMachine[];
   enabled: boolean;
 }
 

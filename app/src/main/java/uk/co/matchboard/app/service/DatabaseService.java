@@ -1,7 +1,6 @@
 package uk.co.matchboard.app.service;
 
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -22,7 +21,7 @@ import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
-import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
+import uk.co.matchboard.app.model.job.ScheduleForRole;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
@@ -32,14 +31,11 @@ import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
 import uk.co.matchboard.app.model.user.User;
+import uk.co.matchboard.app.model.wastage.CreateWastage;
+import uk.co.matchboard.app.model.wastage.Wastage;
+import uk.co.matchboard.app.model.wastage.WastageView;
 
 public interface DatabaseService {
-
-    enum SignStatus {
-        SIGN_PHASE,
-        SIGN_SCHEDULE_START,
-        SIGN_SCHEDULE_FINISH
-    }
 
     OptionalResult<User> findUser(String user);
 
@@ -67,7 +63,7 @@ public interface DatabaseService {
 
     OptionalResult<Product> findProduct(int productId);
 
-    Result<List<PhaseParam>> getPhaseParams(int phaseId, String phaseName);
+    Result<List<PhaseParam>> getPhaseParamsForResolving(int phaseId, String phaseName);
 
     Result<Phase> createPhase(CreatePhase phase);
 
@@ -91,20 +87,23 @@ public interface DatabaseService {
 
     OptionalResult<Job> findJob(int jobId);
 
-    Result<List<ScheduledJobPartParam>> getScheduleForRole(OffsetDateTime from, OffsetDateTime to);
+    Result<ScheduleForRole> getScheduleForRole(LocalDate from,
+            LocalDate to);
 
     Result<List<ScheduledJobPartView>> getScheduleForMachine(int machineId,
             LocalDate fromDate,
             LocalDate toDate);
 
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
-            Integer jobPhaseId);
+            int jobId, int jobPhaseId, Integer lastJobPhaseUpdated);
+
+    OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId, Integer completedPhase);
 
     OptionalResult<Customer> findCustomer(int customerId);
 
     OptionalResult<Carrier> findCarrier(int carrierId);
 
-    Result<Boolean> signOff(Map<Integer, String> signOffParams, SignStatus status);
+    OptionalResult<JobWithOnePart> signOff(Map<Integer, String> signOffParams, Integer operationId);
 
     Result<List<JobPartParam>> getJobPartParams(Integer paramId);
 
@@ -115,4 +114,10 @@ public interface DatabaseService {
     Result<List<JobView>> getJobs(Long toNumber, int count);
 
     int getMachine(String role);
+
+    Result<Wastage> createWastage(int reportedBy, CreateWastage wastage);
+
+    Result<List<WastageView>> getWastage(int jobPhaseId);
+
+    Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, int rpi);
 }

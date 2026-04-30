@@ -1,11 +1,15 @@
 package uk.co.matchboard.app.service;
 
 import uk.co.matchboard.app.functional.OptionalResult;
+import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.device.Device;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.LoginUser;
+import uk.co.matchboard.app.model.wastage.CreateWastage;
+import uk.co.matchboard.app.model.wastage.WastageView;
+import uk.co.matchboard.app.model.wastage.Wastages;
 
 public interface DeviceService {
 
@@ -22,4 +26,8 @@ public interface DeviceService {
     OptionalResult<JobWithOnePart> signOff(String deviceId, PhaseSignOff completion);
 
     OptionalResult<Device> deleteSessions(String deviceId);
+
+    Result<WastageView> createWastage(String deviceId, CreateWastage wastage);
+
+    Result<Wastages> getWastage(String deviceId, int jobPhaseId);
 }

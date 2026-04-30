@@ -4,15 +4,22 @@
     height: 100%;
 }
 
-.param-label {
+/* SHARED */
+
+.param-label,
+.param-empty,
+.check-review__value {
     display: flex;
     align-items: center;
+    box-sizing: border-box;
+    word-break: break-word;
+}
+
+.param-label,
+.param-empty {
     width: 100%;
     min-height: 3.5rem;
     padding: 0.5rem 0.75rem;
-    box-sizing: border-box;
-    text-align: inherit;
-    word-break: break-word;
 }
 
 .param-input {
@@ -28,12 +35,79 @@
     color: #000;
 }
 
-.param-signoff {
+.param-signoff,
+.check-cell,
+.wastage-cell {
     display: flex;
     width: 100%;
     height: 100%;
     min-height: 3.5rem;
+    box-sizing: border-box;
 }
+
+.check-cell,
+.wastage-cell {
+    transition: background-color 0.15s ease;
+}
+
+.signoff-operator-button,
+.check-review__btn,
+.wastage-btn {
+    border: none;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.signoff-operator-button:hover:not(:disabled),
+.check-review__btn:hover:not(:disabled),
+.wastage-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.signoff-operator-button:active:not(:disabled),
+.check-review__btn:active:not(:disabled),
+.wastage-btn:active:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.signoff-operator-button:focus,
+.check-review__btn:focus,
+.wastage-btn:focus {
+    outline: none;
+}
+
+.signoff-operator-button:focus-visible,
+.check-review__btn:focus-visible,
+.wastage-btn:focus-visible {
+    outline: 2px solid rgba(0, 0, 0, 0.25);
+    outline-offset: -2px;
+}
+
+.signoff-operator-button:disabled,
+.check-review__btn:disabled,
+.wastage-btn:disabled {
+    cursor: default;
+}
+
+/* BASIC DISPLAY */
+
+.param-label {
+    text-align: inherit;
+}
+
+.param-empty {
+    justify-content: center;
+    color: #5e6b7a;
+    font-style: italic;
+    text-align: center;
+}
+
+/* SIGNOFF PARAM */
 
 .signoff-operator-list {
     display: flex;
@@ -50,55 +124,14 @@
     min-height: 3.5rem;
     padding: 0.75rem;
     box-sizing: border-box;
-
-    border: none;
     border-radius: 0;
-    background: transparent;
     color: inherit;
-    font: inherit;
     font-weight: 600;
     text-align: center;
-
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-}
-
-.signoff-operator-button:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.04);
-}
-
-.signoff-operator-button:active:not(:disabled) {
-    background: rgba(0, 0, 0, 0.08);
-}
-
-.signoff-operator-button:focus {
-    outline: none;
-}
-
-.signoff-operator-button:focus-visible {
-    outline: 2px solid rgba(0, 0, 0, 0.25);
-    outline-offset: -2px;
 }
 
 .signoff-operator-button:disabled {
     opacity: 0.6;
-    cursor: default;
-}
-
-.param-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 3.5rem;
-    padding: 0.5rem 0.75rem;
-    box-sizing: border-box;
-    color: #5e6b7a;
-    font-style: italic;
-    text-align: center;
 }
 
 .param-signoff.single-operator .signoff-operator-list,
@@ -107,7 +140,6 @@
 }
 
 .param-signoff.signed {
-    display: flex;
     align-items: stretch;
     justify-content: stretch;
 }
@@ -121,7 +153,6 @@
     min-height: 3.5rem;
     padding: 0.75rem;
     box-sizing: border-box;
-
     background: transparent;
     color: inherit;
     font: inherit;
@@ -133,20 +164,13 @@
 
 /* CHECK PARAM */
 
-.check-cell {
-    display: flex;
-    width: 100%;
-    min-height: 3.5rem;
-    height: 100%;
-    box-sizing: border-box;
-    transition: background-color 0.15s ease;
-}
-
-.check-cell--matching {
+.check-cell--matching,
+.wastage-cell--yes {
     background: #dff3e2;
 }
 
-.check-cell--unmatching {
+.check-cell--unmatching,
+.wastage-cell--no {
     background: #f8d7da;
 }
 
@@ -163,66 +187,57 @@
     min-height: 3.5rem;
 }
 
-.check-review__value {
+.check-review {
     display: flex;
-    align-items: center;
-    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    min-height: 3.5rem;
+}
+
+.check-review__value {
+    width: 100%;
     min-width: 0;
     padding: 0.5rem 0.75rem;
-    box-sizing: border-box;
-    word-break: break-word;
 }
 
 .check-review__actions {
     display: flex;
-    flex: 0 0 auto;
+    width: 100%;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.check-review__btn {
+    flex: 1 1 50%;
+    width: auto;
+    min-width: 0;
+    min-height: 2.25rem;
+    border-left: none;
+}
+
+.check-review__btn + .check-review__btn {
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
 .check-review__btn {
     width: 3rem;
     min-width: 3rem;
     min-height: 3.5rem;
-    border: none;
     border-left: 1px solid rgba(0, 0, 0, 0.08);
-    background: transparent;
-    font: inherit;
     font-size: 1.2rem;
     font-weight: 700;
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
     transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.check-review__btn:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-.check-review__btn:active:not(:disabled) {
-    background: rgba(0, 0, 0, 0.1);
 }
 
 .check-review__btn:disabled {
     opacity: 0.6;
-    cursor: default;
 }
 
-.check-review__btn:focus {
-    outline: none;
-}
-
-.check-review__btn:focus-visible {
-    outline: 2px solid rgba(0, 0, 0, 0.25);
-    outline-offset: -2px;
-}
-
-.check-review__btn--tick {
+.check-review__btn--tick,
+.wastage-btn--yes {
     color: #1f7a1f;
 }
 
-.check-review__btn--cross {
+.check-review__btn--cross,
+.wastage-btn--no {
     color: #b42318;
 }
 
@@ -230,4 +245,25 @@
     border-radius: 0;
     border: 1px solid #c5ccd6;
     min-height: 3rem;
+}
+
+/* WASTAGE PARAM */
+
+.wastage-btn {
+    flex: 1 1 50%;
+    min-height: 3.5rem;
+    font-weight: 700;
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.wastage-btn + .wastage-btn {
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.wastage-btn:disabled {
+    opacity: 0.45;
+}
+
+.wastage-btn--selected {
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.22);
 }

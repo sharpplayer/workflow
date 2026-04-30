@@ -106,7 +106,33 @@ type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
           />
         }
       </div>
-    } @else if (isEditableText()) {
+    }
+    @else if (isWastage()) {
+      <div
+        class="wastage-cell"
+        [class.wastage-cell--yes]="isWastageYes()"
+        [class.wastage-cell--no]="isWastageNo()">
+
+        <button
+          type="button"
+          class="wastage-btn wastage-btn--yes"
+          [class.wastage-btn--selected]="isWastageYes()"
+          [disabled]="disabled()"
+          (click)="selectWastageYes()">
+          YES
+        </button>
+
+        <button
+          type="button"
+          class="wastage-btn wastage-btn--no"
+          [class.wastage-btn--selected]="isWastageNo()"
+          [disabled]="disabled() || isWastageYes()"
+          (click)="selectWastageNo()">
+          NO
+        </button>
+      </div>
+    }
+    @else if (isEditableText()) {
       <input
         class="param-input"
         [type]="inputType()"
@@ -138,6 +164,7 @@ export class JobPhaseParamComponent {
   readonly valueChanged = output<{ param: JobPartParam; value: string }>();
   readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
   readonly checkStatusChanged = output<{ param: JobPartParam; status: ParamStatus; value: string }>();
+  readonly wastageRequested = output<{ param: JobPartParam }>();
 
   readonly editingCheck = signal(false);
   readonly checkOriginalValue = signal('');
@@ -150,6 +177,50 @@ export class JobPhaseParamComponent {
   readonly isCheck = computed(() => {
     return !!this.param().config?.startsWith('CHECK(');
   });
+
+  // job-phase-param.component.ts
+  readonly isWastage = computed(() => {
+    return (this.param().config ?? '').trim().toUpperCase() === 'WASTAGE';
+  });
+
+  readonly wastageValue = computed(() => {
+    return this.displayValue().trim().toUpperCase();
+  });
+
+  readonly isWastageYes = computed(() => this.wastageValue() === 'YES');
+  readonly isWastageNo = computed(() => this.wastageValue() === 'NO');
+
+  selectWastageYes(): void {
+    if (this.disabled()) {
+      return;
+    }
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: 'YES'
+    });
+
+    this.wastageRequested.emit({
+      param: this.param()
+    });
+  }
+
+  selectWastageNo(): void {
+    if (this.disabled() || this.isWastageYes()) {
+      return;
+    }
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: 'NO'
+    });
+  }
+
+  requestWastage(): void {
+    this.wastageRequested.emit({
+      param: this.param()
+    });
+  }
 
   readonly signRole = computed(() => {
     const config = this.param().config ?? '';
