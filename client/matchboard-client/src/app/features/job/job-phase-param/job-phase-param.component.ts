@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { JobPartParam, ParamStatus } from '../../../core/services/job.service';
+import { JobPartParam, JobService, ParamStatus } from '../../../core/services/job.service';
 import { DeviceService } from '../../../core/services/device.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 
@@ -132,6 +132,43 @@ export interface LoggedOnOperator {
           NO
         </button>
       </div>
+      } @else if (isPhoto()) {
+        <div class="photo-cell">
+          @if (!cameraOpen()) {
+            <button
+              type="button"
+              class="photo-button"
+              [disabled]="disabled() || photoUploading()"
+              (click)="openCamera()">
+              @if (displayValue()) {
+                <img class="photo-preview" [src]="displayValue()" alt="Captured photo" />
+              } @else {
+                📷<br />
+                {{ photoUploading() ? 'Uploading...' : 'Take photo' }}
+              }
+            </button>
+          } @else {
+            <video #cameraVideo autoplay playsinline class="camera-video"></video>
+
+            <div class="camera-actions">
+              <button type="button" (click)="captureCameraPhoto()">Capture</button>
+              <button type="button" (click)="closeCamera()">Cancel</button>
+            </div>
+          }
+
+          <input
+            #photoInput
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            (change)="onPhotoSelected($event)"
+          />
+
+          @if (cameraError(); as error) {
+            <div class="param-empty">{{ error }}</div>
+          }
+        </div>
     } @else if (isSelect()) {
       <div class="select-cell">
         <select
@@ -180,10 +217,18 @@ export interface LoggedOnOperator {
 })
 export class JobPhaseParamComponent {
   private readonly deviceService = inject(DeviceService);
+  private readonly jobService = inject(JobService);
   private readonly configService = inject(ConfigService);
 
   @ViewChild('checkInput')
   private checkInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('photoInput')
+  private photoInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('cameraVideo')
+  private cameraVideoRef?: ElementRef<HTMLVideoElement>;
+
+
+  readonly photoUploading = signal(false);
 
   readonly param = input.required<JobPartParam>();
   readonly currentValue = input<string>('');
@@ -202,6 +247,11 @@ export class JobPhaseParamComponent {
   readonly selectOptions = signal<ConfigItem[]>([]);
   readonly selectType = signal<string | null>(null);
   readonly selectLoading = signal(false);
+  readonly cameraOpen = signal(false);
+  readonly cameraError = signal<string | null>(null);
+
+  private cameraStream?: MediaStream;
+
 
   constructor() {
     effect(() => {
@@ -233,7 +283,7 @@ export class JobPhaseParamComponent {
   readonly isSelect = computed(() => {
     const config = (this.param().config ?? '').trim();
 
-    if(this.param().value){
+    if (this.param().value) {
       return false;
     }
 
@@ -245,6 +295,7 @@ export class JobPhaseParamComponent {
 
     const primitive =
       config.includes('(') ||
+      normalized === 'photo' ||
       normalized === 'int' ||
       normalized === 'float' ||
       normalized === 'boolean';
@@ -257,6 +308,10 @@ export class JobPhaseParamComponent {
       this.param().input === 3
     );
   });
+
+  readonly isPhoto = computed(() =>
+    (this.param().config ?? '').trim().toUpperCase() === 'PHOTO'
+  );
 
   readonly isColourSelect = computed(() => {
     return this.selectType() === 'colour[]';
@@ -331,6 +386,7 @@ export class JobPhaseParamComponent {
       !this.isSignoff() &&
       !this.isCheck() &&
       !this.isWastage() &&
+      !this.isPhoto() &&
       this.param().input === 3
     );
   });
@@ -617,5 +673,115 @@ export class JobPhaseParamComponent {
     }
 
     return /^-?\d+$/.test(String(value).trim());
+  }
+
+  async openCamera(): Promise<void> {
+    if (this.disabled() || this.photoUploading()) {
+      return;
+    }
+
+    this.cameraError.set(null);
+
+    try {
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        },
+        audio: false
+      });
+
+      this.cameraOpen.set(true);
+
+      setTimeout(async () => {
+        const video = this.cameraVideoRef?.nativeElement;
+
+        if (!video || !this.cameraStream) {
+          this.cameraError.set('Camera preview unavailable');
+          return;
+        }
+
+        video.srcObject = this.cameraStream;
+        video.muted = true;
+        video.playsInline = true;
+
+        try {
+          await video.play();
+        } catch (err) {
+          console.error('Video play failed', err);
+          this.cameraError.set('Unable to start camera preview');
+        }
+      });
+    } catch (err) {
+      console.error('Camera access failed', err);
+      this.photoInputRef?.nativeElement.click();
+    }
+  }
+  
+  async captureCameraPhoto(): Promise<void> {
+    const video = this.cameraVideoRef?.nativeElement;
+
+    if (!video) {
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      this.cameraError.set('Unable to capture photo');
+      return;
+    }
+
+    context.drawImage(video, 0, 0);
+
+    canvas.toBlob(async blob => {
+      if (!blob) {
+        this.cameraError.set('Unable to capture photo');
+        return;
+      }
+
+      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+      await this.uploadPhoto(file);
+      this.closeCamera();
+    }, 'image/jpeg', 0.9);
+  }
+
+  async onPhotoSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    await this.uploadPhoto(file);
+    input.value = '';
+  }
+
+  private async uploadPhoto(file: File): Promise<void> {
+    this.photoUploading.set(true);
+
+    try {
+      const uploadedValue = await this.jobService.uploadPhoto(file, this.param());
+
+      this.valueChanged.emit({
+        param: this.param(),
+        value: uploadedValue
+      });
+    } catch (err) {
+      console.error('Failed to upload photo', err);
+      this.cameraError.set('Failed to upload photo');
+    } finally {
+      this.photoUploading.set(false);
+    }
+  }
+
+  closeCamera(): void {
+    this.cameraStream?.getTracks().forEach(track => track.stop());
+    this.cameraStream = undefined;
+    this.cameraOpen.set(false);
   }
 }

@@ -469,4 +469,16 @@ export class JobService {
       throw new Error(this.getErrorMessage(err, 'Get wastage failed.'));
     }
   }
+
+  async uploadPhoto(file: File, param: JobPartParam): Promise<string> {
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('paramId', String(param.partParamId));
+
+//    const response = await firstValueFrom(
+  //    this.http.post<{ value: string }>('/api/photos/upload', formData)
+    //);
+
+    return "File Uploaded";
+  }
 }
