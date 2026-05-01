@@ -3,6 +3,7 @@ import {
   ElementRef,
   ViewChild,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -12,13 +13,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { JobPartParam, ParamStatus } from '../../../core/services/job.service';
 import { DeviceService } from '../../../core/services/device.service';
+import { ConfigItem, ConfigService } from '../../../core/services/config.service';
+
+type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
 
 export interface LoggedOnOperator {
   username: string;
   role: string;
 }
-
-type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
 
 @Component({
   selector: 'job-phase-param',
@@ -106,8 +108,7 @@ type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
           />
         }
       </div>
-    }
-    @else if (isWastage()) {
+    } @else if (isWastage()) {
       <div
         class="wastage-cell"
         [class.wastage-cell--yes]="isWastageYes()"
@@ -131,8 +132,35 @@ type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
           NO
         </button>
       </div>
-    }
-    @else if (isEditableText()) {
+    } @else if (isSelect()) {
+      <div class="select-cell">
+        <select
+          class="param-input param-select"
+          [disabled]="disabled() || selectLoading()"
+          [value]="displayValue()"
+          (change)="onSelectChange($event)"
+        >
+          <option value="" disabled>
+            {{ selectLoading() ? 'Loading...' : 'Select...' }}
+          </option>
+
+          @for (opt of selectOptions(); track opt.key) {
+            <option [value]="opt.key">
+              {{ opt.value }}
+            </option>
+          }
+        </select>
+
+        @if (isColourSelect() && selectedColourValue(); as colour) {
+          @if (!colour.startsWith('(')) {
+            <span
+              class="colour-box"
+              [style.background-color]="colour.toLowerCase()"
+            ></span>
+          }
+        }
+      </div>
+    } @else if (isEditableText()) {
       <input
         class="param-input"
         [type]="inputType()"
@@ -152,6 +180,7 @@ type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
 })
 export class JobPhaseParamComponent {
   private readonly deviceService = inject(DeviceService);
+  private readonly configService = inject(ConfigService);
 
   @ViewChild('checkInput')
   private checkInputRef?: ElementRef<HTMLInputElement>;
@@ -170,17 +199,78 @@ export class JobPhaseParamComponent {
   readonly checkOriginalValue = signal('');
   readonly checkVisualState = signal<CheckVisualState>('neutral');
 
+  readonly selectOptions = signal<ConfigItem[]>([]);
+  readonly selectType = signal<string | null>(null);
+  readonly selectLoading = signal(false);
+
+  constructor() {
+    effect(() => {
+      const param = this.param();
+
+      if (!this.isSelect()) {
+        this.selectOptions.set([]);
+        this.selectType.set(null);
+        return;
+      }
+
+      void this.loadSelectOptions(param);
+    });
+  }
+
   readonly isSignoff = computed(() => {
-    return !!this.param().config?.startsWith('SIGN(');
+    const config = this.param().config ?? '';
+    return config.startsWith('SIGN(') || config.startsWith('AWAIT(');
   });
 
   readonly isCheck = computed(() => {
     return !!this.param().config?.startsWith('CHECK(');
   });
 
-  // job-phase-param.component.ts
   readonly isWastage = computed(() => {
     return (this.param().config ?? '').trim().toUpperCase() === 'WASTAGE';
+  });
+
+  readonly isSelect = computed(() => {
+    const config = (this.param().config ?? '').trim();
+
+    if(this.param().value){
+      return false;
+    }
+
+    if (!config) {
+      return false;
+    }
+
+    const normalized = config.toLowerCase();
+
+    const primitive =
+      config.includes('(') ||
+      normalized === 'int' ||
+      normalized === 'float' ||
+      normalized === 'boolean';
+
+    return (
+      !primitive &&
+      !this.isSignoff() &&
+      !this.isCheck() &&
+      !this.isWastage() &&
+      this.param().input === 3
+    );
+  });
+
+  readonly isColourSelect = computed(() => {
+    return this.selectType() === 'colour[]';
+  });
+
+  readonly selectedColourValue = computed(() => {
+    const selectedKey = this.displayValue();
+
+    if (!selectedKey) {
+      return null;
+    }
+
+    const selected = this.selectOptions().find(opt => opt.key === selectedKey);
+    return selected?.value ?? null;
   });
 
   readonly wastageValue = computed(() => {
@@ -189,6 +279,95 @@ export class JobPhaseParamComponent {
 
   readonly isWastageYes = computed(() => this.wastageValue() === 'YES');
   readonly isWastageNo = computed(() => this.wastageValue() === 'NO');
+
+  readonly signRole = computed(() => {
+    const config = this.param().config ?? '';
+    const match = config.match(/^SIGN\((.+)\)$/);
+    return match ? match[1].trim() : null;
+  });
+
+  readonly displayValue = computed(() => {
+    return this.currentValue() ?? '';
+  });
+
+  readonly isAlreadySigned = computed(() => {
+    return this.isSignoff() && this.displayValue().trim() !== '';
+  });
+
+  readonly signedBy = computed(() => {
+    return this.displayValue().trim();
+  });
+
+  readonly matchingOperators = computed(() => {
+    const role = this.signRole()?.trim().toLowerCase();
+
+    if (!role) {
+      return [];
+    }
+
+    const excluded = new Set(
+      this.excludedUsernames().map(username => username.trim().toLowerCase())
+    );
+
+    return this.deviceService.status()?.users.filter(operator =>
+      operator.role.trim().toLowerCase() === role &&
+      !excluded.has(operator.user.trim().toLowerCase())
+    ) ?? [];
+  });
+
+  readonly displayOperators = computed(() => {
+    return this.matchingOperators().map(operator => ({
+      key: operator.user,
+      username: operator.user,
+      label: operator.user,
+      role: operator.role
+    }));
+  });
+
+  readonly isEditableText = computed(() => {
+    return (
+      !this.disabled() &&
+      !this.isSelect() &&
+      !this.isSignoff() &&
+      !this.isCheck() &&
+      !this.isWastage() &&
+      this.param().input === 3
+    );
+  });
+
+  private async loadSelectOptions(param: JobPartParam): Promise<void> {
+    const paramConfig = param.config;
+
+    if (!paramConfig) {
+      this.selectOptions.set([]);
+      this.selectType.set(null);
+      return;
+    }
+
+    this.selectLoading.set(true);
+
+    try {
+      const list = await this.configService.getList(paramConfig);
+
+      this.selectOptions.set(list.value ?? []);
+      this.selectType.set(list.type);
+    } catch (err) {
+      console.error(`Failed to load list for ${paramConfig}`, err);
+      this.selectOptions.set([]);
+      this.selectType.set(null);
+    } finally {
+      this.selectLoading.set(false);
+    }
+  }
+
+  onSelectChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+
+    this.valueChanged.emit({
+      param: this.param(),
+      value: select.value
+    });
+  }
 
   selectWastageYes(): void {
     if (this.disabled()) {
@@ -221,53 +400,6 @@ export class JobPhaseParamComponent {
       param: this.param()
     });
   }
-
-  readonly signRole = computed(() => {
-    const config = this.param().config ?? '';
-    const match = config.match(/^SIGN\((.+)\)$/);
-    return match ? match[1].trim() : null;
-  });
-
-  readonly displayValue = computed(() => {
-    return this.currentValue() ?? '';
-  });
-
-  readonly isAlreadySigned = computed(() => {
-    return this.isSignoff() && this.displayValue().trim() !== '';
-  });
-
-  readonly signedBy = computed(() => {
-    return this.displayValue().trim();
-  });
-
-  readonly matchingOperators = computed(() => {
-    const role = this.signRole()?.trim().toLowerCase();
-    if (!role) {
-      return [];
-    }
-
-    const excluded = new Set(
-      this.excludedUsernames().map(username => username.trim().toLowerCase())
-    );
-
-    return this.deviceService.status()?.users.filter(operator =>
-      operator.role.trim().toLowerCase() === role &&
-      !excluded.has(operator.user.trim().toLowerCase())
-    ) ?? [];
-  });
-
-  readonly displayOperators = computed(() => {
-    return this.matchingOperators().map(operator => ({
-      key: operator.user,
-      username: operator.user,
-      label: operator.user,
-      role: operator.role
-    }));
-  });
-
-  readonly isEditableText = computed(() => {
-    return !this.disabled() && !this.isSignoff() && !this.isCheck() && this.param().input === 3;
-  });
 
   requestSignoff(username?: string, role?: string): void {
     this.signoffRequested.emit({
@@ -446,6 +578,7 @@ export class JobPhaseParamComponent {
 
     if (config === 'float') {
       const value = parseFloat(this.displayValue());
+
       if (!isNaN(value)) {
         this.onValueChange(value.toString());
       }
@@ -479,7 +612,10 @@ export class JobPhaseParamComponent {
   }
 
   isIntLike(value: string | null | undefined): boolean {
-    if (value == null) return false;
+    if (value == null) {
+      return false;
+    }
+
     return /^-?\d+$/.test(String(value).trim());
   }
 }

@@ -158,7 +158,7 @@ export class AdminUserComponent {
         this.form.set({
           username: data.username,
           password: data.password,
-          roles: [...data.roles],
+          roles: [...data.roles].sort((a, b) => a.localeCompare(b)),
           resetPin: data.resetPin,
           enabled: data.enabled
         });
@@ -166,7 +166,7 @@ export class AdminUserComponent {
         this.initialForm.set({
           username: data.username,
           password: data.password,
-          roles: [...data.roles],
+          roles: [...data.roles].sort((a, b) => a.localeCompare(b)),
           resetPin: data.resetPin,
           enabled: data.enabled
         });
@@ -198,7 +198,7 @@ export class AdminUserComponent {
         ? f.roles.filter(r => r !== role)
         : [...f.roles, role];
 
-      return { ...f, roles };
+      return { ...f, roles: roles.sort((a, b) => a.localeCompare(b)) };
     });
   }
 

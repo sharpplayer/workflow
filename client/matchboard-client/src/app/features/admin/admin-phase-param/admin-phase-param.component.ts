@@ -294,13 +294,7 @@ export class AdminPhaseParamComponent {
           def = p.paramConfig.substring(6, p.paramConfig.length - 1);
           type = 'check';
         } else {
-          try {
-            const list = await this.configService.getList(p.paramConfig);
-            options = list.value;
-            type = list.type;
-          } catch (err) {
-            console.error(`Failed to load list for ${p.paramConfig}`, err);
-          }
+          
         }
       }
 

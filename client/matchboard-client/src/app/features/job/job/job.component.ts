@@ -175,7 +175,9 @@ type PhasePackGroup = {
 
                 <table class="phase-table">
                   <colgroup>
-                    <col class="pack-col" />
+                    @if (hasPackColumn(currentJob, phase)) {
+                      <col class="pack-col" />
+                    }
 
                     @for (param of getDisplayNonSignParamsForPhase(currentJob, phase); track $index) {
                       <col class="param-col" />
@@ -208,7 +210,9 @@ type PhasePackGroup = {
                     }
 
                     <tr class="phase-param-header-row">
-                      <th class="pack-column">Pack</th>
+                      @if (hasPackColumn(currentJob, phase)) {
+                        <th class="pack-column">Pack</th>
+                      }
 
                       @for (param of getDisplayNonSignParamsForPhase(currentJob, phase); track $index) {
                         <th class="param-column">
@@ -227,9 +231,11 @@ type PhasePackGroup = {
                   <tbody>
                     @for (group of getPackGroupsForPhase(currentJob, phase); track group.pack ?? 'no-pack') {
                       <tr class="phase-param-value-row">
-                        <td class="pack-column value">
-                          {{ group.label || '-' }}
-                        </td>
+                        @if (hasPackColumn(currentJob, phase)) {
+                          <td class="pack-column value">
+                            {{ group.label || '-' }}
+                          </td>
+                        }
 
                         @for (param of getDisplayNonSignParamsForPackRow(currentJob, phase, group); track $index) {
                           <td class="param-column value">
@@ -456,7 +462,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
     }
 
     if (!this.arePhaseParamsFilled(currentJob, phase, event.param.pack)) {
-      alert('Please fill in all pack parameters before signoff.');
+      alert('Please fill in all ' + (event.param.pack ? 'pack ' : '') + 'parameters before signoff.');
       return;
     }
 
@@ -602,6 +608,10 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return String(pack);
     }
 
+    if (num <= 999) {
+      return `${num}`;
+    }
+
     if (num > 10_000_000) {
       return `${num % 10_000_000} R`;
     }
@@ -676,14 +686,19 @@ export class JobComponent implements OnChanges, AfterViewInit {
   }
 
   getTotalDisplayColumnsWithPack(job: JobWithOnePart, phase: JobPartPhase): number {
-    return 1 +
+    return (this.hasPackColumn(job, phase) ? 1 : 0) +
       this.getDisplayNonSignParamsForPhase(job, phase).length +
       this.getDisplaySignParamsForPhase(job, phase).length;
   }
 
   private getParamColumnKey(param: JobPartParam): string {
-    return `${param.name}|${param.config ?? ''}|${param.input ?? ''}`;
+    if (param.pack !== null && param.pack !== undefined) {
+      return `${param.name}|${param.config ?? ''}|${param.input ?? ''}`;
+    }
+
+    return `${param.partParamId}`;
   }
+
 
   isPlaceholderParam(param: JobPartParam): boolean {
     return param.partParamId === -1;
@@ -819,5 +834,9 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   onNextJob(): void {
     this.nextJob.emit();
+  }
+
+  hasPackColumn(job: JobWithOnePart, phase: JobPartPhase): boolean {
+    return this.getPackGroupsForPhase(job, phase).some(group => group.pack !== null && group.pack !== undefined);
   }
 }

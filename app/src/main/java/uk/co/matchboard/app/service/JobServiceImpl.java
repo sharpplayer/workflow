@@ -326,7 +326,12 @@ public class JobServiceImpl implements JobService {
                     return OptionalResult.of(j);
                 }, OptionalResult::<JobWithOnePart>failure, OptionalResult::<JobWithOnePart>empty)
                 // Next job here bumps all the states up
-                .flatMap(j -> nextJob(completion.role(), j.completedPhase()).map(_ -> j));
+                .flatMap(j -> {
+                    if (j.completedPhase() != null) {
+                        return nextJob(completion.role(), j.completedPhase()).map(_ -> j);
+                    }
+                    return OptionalResult.of(j);
+                })  ;
     }
 
     @Override

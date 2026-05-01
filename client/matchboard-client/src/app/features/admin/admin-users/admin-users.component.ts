@@ -42,16 +42,17 @@ export class AdminUsersComponent {
     }
 
     async loadRoles() {
-       try {
+        try {
             const res = await this.configService.getList("roles");
-            const roleValues = res.value.map((r: any) => r.value);
+
+            const roleValues = res.value
+                .map((r: any) => r.value)
+                .sort((a: string, b: string) => a.localeCompare(b));
+
             this.roles.set(roleValues);
         } catch (err) {
             console.error(err);
-        } finally {
-//            this.loading.set(false);
         }
-       
     }
 
     openCreate() {
@@ -63,13 +64,14 @@ export class AdminUsersComponent {
         this.selectedUser.set({
             username: user.username,
             password: '',
-            roles: user.roles,
+            roles: [...user.roles].sort((a, b) => a.localeCompare(b)),
             resetPin: false,
             enabled: user.enabled
         });
+
         this.showModal.set(true);
     }
-
+    
     closeModal() {
         this.showModal.set(false);
         this.selectedUser.set(null);
