@@ -113,8 +113,8 @@ button:disabled {
   left: 50%;
   transform: translate(-50%, -50%);
   padding: 2rem;
-  width: 90%;
-  max-width: 1200px;
+  width: 95%;
+  max-width: 1600px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -136,8 +136,12 @@ button:disabled {
   /* force it to fill the entire cell */
 }
 
+table .col-key {
+  width: 100px;
+}
+
 table .col-value {
-  width: 300px;
+  width: 200px;
 }
 
 table .col-input {
@@ -146,10 +150,6 @@ table .col-input {
 
 table .col-example {
   width: 100px;
-}
-
-table .col-description {
-  width: 300px;
 }
 
 .example-header {
@@ -167,4 +167,95 @@ table .col-description {
   cursor: pointer;
   padding: 0;
   margin-left: 0.4rem;
+}
+
+.compact-cell {
+  vertical-align: top;
+  max-width: 260px;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #f8f8f8;
+}
+
+.chip input {
+  margin: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.chip:has(input:checked) {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.chip:has(input:disabled) {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.chip-all {
+  font-weight: 600;
+}
+
+.col-description {
+  width: 240px;
+}
+
+.col-params {
+  width: auto; /* take remaining space */
+}
+
+.col-usage {
+  width: 120px;
+}
+
+.col-machines {
+  width: 240px;
+}
+
+.col-actions {
+  width: 140px;
+}
+
+.machine-scope {
+  margin-bottom: 6px;
+}
+
+.machine-divider {
+  border-top: 1px solid #ddd;
+  margin: 6px 0;
+}
+
+.group-label {
+  font-size: 11px;
+  color: #777;
+  margin-right: 6px;
+}
+
+/* Differentiate radios vs checkboxes */
+.radio-chip {
+  background: #eef5ff;
+  border: 1px solid #c6dafc;
+}
+
+.checkbox-chip {
+  background: #f7f7f7;
+  border: 1px solid #ddd;
 }

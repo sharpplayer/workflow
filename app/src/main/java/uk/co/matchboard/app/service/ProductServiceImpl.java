@@ -112,7 +112,8 @@ public class ProductServiceImpl implements ProductService {
                                 product.id(),
                                 product.name(),
                                 product.oldName(),
-                                product.enabled()
+                                product.enabled(),
+                                product.machinery().stream().map(ProductMachine::id).toList()
                         ))
                         .sorted(Comparator.comparing(ProductView::name))
                         .toList())
@@ -169,7 +170,8 @@ public class ProductServiceImpl implements ProductService {
                 p.params().stream()
                         .map(pm -> new PhaseParam(EXAMPLE_PRODUCT.id(), EXAMPLE_PRODUCT.name(),
                                 pm.phaseParamId(), pm.paramName(),
-                                pm.paramConfig(), pm.input(), 0, 0)).toList(), true).getFirst());
+                                pm.paramConfig(), pm.input(), 0, 0, 0, Collections.emptyList()))
+                        .toList(), true).getFirst());
     }
 
     private List<Phase> buildPhases(Product product, List<PhaseParam> phaseParams,
@@ -187,7 +189,8 @@ public class ProductServiceImpl implements ProductService {
                     List<PhaseParamData> phaseDataList = getPhaseParamData(
                             product, params);
 
-                    return new Phase(first.id(), first.description(), phaseDataList, first.order());
+                    return new Phase(first.id(), first.description(), phaseDataList, first.order(),
+                            first.usage(), first.machineIds());
                 })
                 .sorted(comparator)
                 .collect(Collectors.toList());

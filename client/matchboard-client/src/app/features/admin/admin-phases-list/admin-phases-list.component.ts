@@ -173,7 +173,8 @@ export interface PhasesSelected {
 
     @if (isModalOpen()) {
       <admin-phase
-        [excludedPhaseIds]="selectedPhaseIds()"
+        [excludedPhaseIds]="excludedPhaseIds()"
+         [machineFilter]="machineFilter()"
         (close)="closeModal()"
         (phaseSelected)="onPhaseSelected($event)"
       />
@@ -187,6 +188,7 @@ export class AdminPhasesListComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly productId = input.required<number>();
+  readonly machineFilter = input.required<number[]>();
   readonly phasesSelected = output<PhasesSelected>();
 
   protected readonly isModalOpen = signal(false);
@@ -194,7 +196,7 @@ export class AdminPhasesListComponent {
   protected readonly tableExpanded = signal(false);
   protected readonly hasUnsavedChanges = signal(false);
 
-  protected readonly selectedPhaseIds = computed(() =>
+  protected readonly excludedPhaseIds = computed(() =>
     this.editablePhases().map(jp => jp.phase.id)
   );
 
@@ -205,7 +207,6 @@ export class AdminPhasesListComponent {
   );
 
   private destroyed = false;
-  private lastLoadedProductId: number | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -214,26 +215,31 @@ export class AdminPhasesListComponent {
 
     effect(() => {
       const productId = this.productId();
+      const machineFilter = this.machineFilter();
 
-      if (productId === this.lastLoadedProductId) return;
+      console.log('EFFECT', { productId, machineFilter });
 
-      this.lastLoadedProductId = productId;
       void this.loadInitialPhases(productId);
     });
   }
 
   private async loadInitialPhases(productId: number): Promise<void> {
+    console.log('LOAD START', productId);
+
     const phasesFromService = await this.productService.loadProductPhases(productId);
+
+    console.log('PHASES FROM SERVICE', phasesFromService);
 
     if (this.destroyed) return;
     if (productId !== this.productId()) return;
 
-    const phases: JobPhase[] = phasesFromService.map((p, i) => ({
-      phase: p,
-      specialInstruction: '',
-      order: i + 1,
-      selectedForDelete: false
-    }));
+    const phases: JobPhase[] = phasesFromService
+      .map((p, i) => ({
+        phase: p,
+        specialInstruction: '',
+        order: i + 1,
+        selectedForDelete: false
+      }));
 
     this.editablePhases.set(phases);
     this.hasUnsavedChanges.set(false);

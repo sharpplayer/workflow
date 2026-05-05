@@ -47,6 +47,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -124,7 +125,8 @@ public class DatabaseServiceImpl implements DatabaseService {
 
     private static LinkedHashMap<Integer, Customer> CUSTOMERS_MAP;
 
-    private record JobWithOnePartSelection(int jobId, int jobPartId, Integer completedPhaseId, Integer activePhaseId) {
+    private record JobWithOnePartSelection(int jobId, int jobPartId, Integer completedPhaseId,
+                                           Integer activePhaseId) {
 
     }
 
@@ -233,14 +235,16 @@ public class DatabaseServiceImpl implements DatabaseService {
         return new PhaseParam(record.get(PHASE.ID), record.get(PHASE.DESCRIPTION),
                 record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
                 record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), productPhaseOrder,
-                record.get(PHASE_PARAM.ORDER));
+                record.get(PHASE_PARAM.ORDER), record.get(PHASE.USAGE),
+                Arrays.asList(record.get(PHASE.MACHINE_IDS)));
     }
 
-    private static PhaseParam getPhaseParam(String description, Record record) {
+    private static PhaseParam getResolvablePhaseParam(String description, Record record) {
         return new PhaseParam(record.get(PHASE_PARAM.PHASE_ID), description,
                 record.get(PHASE_PARAM.ID), record.get(PHASE_PARAM.NAME),
                 record.get(PHASE_PARAM.CONFIG), record.get(PHASE_PARAM.INPUT), 0,
-                record.get(PHASE_PARAM.ORDER));
+                record.get(PHASE_PARAM.ORDER), 0,
+                Collections.emptyList());
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -457,7 +461,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     @Override
-    public Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, int rpi) {
+    public Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, long rpi) {
         return TryUtils.tryCatch(() ->
                 outerDsl.transactionResult(configuration -> {
                     DSLContext dsl = DSL.using(configuration);
@@ -481,7 +485,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                     Table<Record1<Integer>> packs = values(packRows).as("packs", "pack");
 
-                    Field<Integer> packValue = field(name("packs", "pack"), Integer.class);
+                    Field<Long> packValue = field(name("packs", "pack"), Long.class);
 
                     // Non-machine-specific params
                     dsl.insertInto(JOB_PART_PARAMS,
@@ -578,7 +582,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                                 .join(packs).on(
                                                         packValue.eq(rpi)
                                                                 .or(PHASE.USAGE.bitAnd(
-                                                                                ProductServiceImpl.USAGE_PER_RPI_LEFT_RIGHT)
+                                                                                ProductServiceImpl
+                                                                                        .USAGE_PER_RPI_LEFT_RIGHT)
                                                                         .gt(0))
                                                 )
                                                 .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
@@ -740,7 +745,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Override
     public Result<List<PhaseParam>> getPhases(int productId) {
         return TryUtils.tryCatch(() ->
-                outerDsl.select(PHASE.ID, PHASE.DESCRIPTION)
+                outerDsl.select(PHASE.ID, PHASE.DESCRIPTION, PHASE.USAGE, PHASE.MACHINE_IDS)
                         .select(PRODUCT_PHASE.ORDER)
                         .select(PHASE_PARAM.fields())
                         .from(PRODUCT_PHASE)
@@ -863,15 +868,17 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .set(JOB_PART_OPERATION.ACTUAL_FINISH_AT, now)
                             .where(JOB_PART_OPERATION.ID.eq(operationId)).execute();
                     updatedStatus = innerDsl.update(JOB_PART_PHASES)
-                            .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
-                            .set(JOB_PART_PHASES.STARTED_AT, now)
+                            .set(JOB_PART_PHASES.STATUS, JobStatus.READY.getCode())
+                            .set(JOB_PART_PHASES.READY_AT, now)
+                            // And started????
                             .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
                             .and(JOB_PART_PHASES.STATUS.eq(JobStatus.AWAITING.getCode()))
                             .execute() > 0;
                     var current = JOB_PART_OPERATION.as("current");
                     var next = JOB_PART_OPERATION.as("next");
                     innerDsl.update(next)
-                            .set(next.STATUS, JobStatus.MACHINING_STARTABLE.getCode())
+                            .set(next.STATUS, JobStatus.READY.getCode())
+                            .set(next.READY_AT, now)
                             .from(current)
                             .where(current.ID.eq(operationId))
                             .and(next.JOB_PART_ID.eq(current.JOB_PART_ID))
@@ -890,6 +897,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 }
             }
 
+            // We need to check ready or started
             if (!updatedStatus && !rows.getFirst().get(JOB_PART_PHASES.STATUS)
                     .equals(JobStatus.STARTED.getCode())) {
                 throw new InvalidSignOffException("Phase " + rows.getFirst()
@@ -1052,10 +1060,10 @@ public class DatabaseServiceImpl implements DatabaseService {
         return TryUtils.tryCatch(() -> {
             var phaseParams = outerDsl.selectFrom(PHASE_PARAM)
                     .where(PHASE_PARAM.PHASE_ID.eq(phaseId))
-                    .orderBy(PHASE_PARAM.ORDER).fetch(r -> getPhaseParam(phaseName, r));
+                    .orderBy(PHASE_PARAM.ORDER).fetch(r -> getResolvablePhaseParam(phaseName, r));
             if (phaseParams.isEmpty()) {
                 return List.of(new PhaseParam(phaseId, phaseName, null, null, null, null, 1,
-                        null));
+                        null, 0, Collections.emptyList()));
             }
             return phaseParams;
         });
@@ -1073,6 +1081,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                     Integer id = innerDsl.insertInto(PHASE)
                             .set(PHASE.DESCRIPTION, phase.description())
                             .set(PHASE.ENABLED, true)
+                            .set(PHASE.USAGE, phase.usage())
+                            .set(PHASE.MACHINE_IDS, phase.machineIds().toArray(Integer[]::new))
                             .returning(PHASE.ID)
                             .fetchOne(PHASE.ID);
                     if (id == null) {
@@ -1100,7 +1110,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         params.add(new PhaseParamData(paramId, phaseParam.paramName(),
                                 phaseParam.paramConfig(), phaseParam.input(), ""));
                     }
-                    return new Phase(id, phase.description(), params, 0);
+                    return new Phase(id, phase.description(), params, 0, phase.usage(),
+                            phase.machineIds());
                 }));
     }
 
@@ -1233,6 +1244,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                         }
 
                         int phaseNo = 1;
+                        List<Integer> machines = findProduct(part.productId()).fold(
+                                p -> p.machinery().stream().map(ProductMachine::id).toList(),
+                                _ -> Collections.emptyList(), () -> Collections.emptyList());
                         List<JobPartPhase> jobPartPhases = new ArrayList<>();
                         List<JobPartParam> partParams = new ArrayList<>();
                         Integer status = -1;
@@ -1266,7 +1280,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         part.fromCallOff(), part.materialAvailable(),
                                         jobPartPhases,
                                         partParams,
-                                        partStatus, partNo));
+                                        partStatus, partNo, machines));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
                             job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
@@ -1276,7 +1290,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     private Map<UUID, JobPartParam> addParams(DSLContext innerDsl, int phaseId, int jobPartPhaseId,
             int phaseNo,
             List<CreateJobPartParam> params,
-            OffsetDateTime now, List<Integer> packs) {
+            OffsetDateTime now, List<Long> packs) {
         Map<UUID, JobPartParam> partParams = new LinkedHashMap<>();
         for (CreateJobPartParam param : params) {
             // This check is here because in create we pass in a list of cross phase params.
@@ -1309,7 +1323,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 OffsetDateTime valueTime = param.value() == null ? null : now;
                 int partPhaseId = param.jobPartPhaseId() == 0 ? jobPartPhaseId
                         : param.jobPartPhaseId();
-                for (Integer pack : packs) {
+                for (Long pack : packs) {
                     Integer paramId = innerDsl.insertInto(JOB_PART_PARAMS)
                             .set(JOB_PART_PARAMS.JOB_PART_PHASE_ID, partPhaseId
                             )
@@ -1334,7 +1348,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             new JobPartParam(paramId,
                                     param.phaseNumber(), input,
                                     phaseId,
-                                    partPhaseId, 1, name,
+                                    partPhaseId, 1L, name,
                                     param.value(), valueTime, config,
                                     ParamStatus.INITIALISED.getCode(), param.machineId()));
                 }
@@ -1356,15 +1370,11 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<SchedulableJobPart>> getUnscheduled() {
-        return TryUtils.tryCatch(() -> {
-            System.out.println("IN:" + System.currentTimeMillis());
-            var x = getSchedulableQuery()
-                    .where(JOB_PART.STATUS.eq(JobStatus.SAVED.getCode()))
-                    .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
-                    .flatMap(List::stream).toList();
-            System.out.println("OUT:" + System.currentTimeMillis());
-            return x;
-        });
+        return TryUtils.tryCatch(() ->
+                getSchedulableQuery()
+                        .where(JOB_PART.STATUS.eq(JobStatus.SAVED.getCode()))
+                        .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
+                        .flatMap(List::stream).toList());
     }
 
     private static List<SchedulableJobPart> getSchedulableJobPart(Record jobPartRecord,
@@ -1408,19 +1418,13 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<SchedulableJobPart>> getSchedulable() {
-        return TryUtils.tryCatch(() -> {
-                    System.out.println("IN:" + System.currentTimeMillis());
-                    var x = getSchedulableQuery()
-                            .where(JOB_PART.STATUS.in(
-                                    JobStatus.SCHEDULABLE.getCode()
-                            ))
-                            .orderBy(JOB.DUE.asc())
-                            .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
-                            .flatMap(List::stream).toList();
-                    System.out.println("OUT:" + System.currentTimeMillis());
-                    return x;
-                }
-        );
+        return TryUtils.tryCatch(() -> getSchedulableQuery()
+                .where(JOB_PART.STATUS.in(
+                        JobStatus.SCHEDULABLE.getCode()
+                ))
+                .orderBy(JOB.DUE.asc())
+                .fetch(r -> getSchedulableJobPart(r, outerDsl)).stream()
+                .flatMap(List::stream).toList());
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -1487,6 +1491,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .on(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.ID))
                     .where(JOB_PART.STATUS.in(
                             JobStatus.SCHEDULED.getCode(),
+                            JobStatus.READY.getCode(),
                             JobStatus.STARTED.getCode()
                     ))
                     .and(JOB_PART.ID.in(summary.keySet()))
@@ -1691,7 +1696,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     innerDsl.update(JOB_PART_PHASES)
                                             .set(JOB_PART_PHASES.STARTED_AT,
                                                     DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now))
-                                            .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
+                                            .set(JOB_PART_PHASES.STATUS, JobStatus.READY.getCode())
+                                            .set(JOB_PART_PHASES.READY_AT, now)
+                                            // And started????
                                             .where(JOB_PART_PHASES.ID.eq(jobPartPhaseId))
                                             .and(JOB_PART_PHASES.STATUS.ne(
                                                     JobStatus.COMPLETED.getCode()))
@@ -1705,7 +1712,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     innerDsl
                                             .update(JOB_PART_OPERATION)
                                             .set(JOB_PART_OPERATION.STATUS,
-                                                    JobStatus.MACHINING_STARTABLE.getCode())
+                                                    JobStatus.READY.getCode())
+                                            .set(JOB_PART_OPERATION.READY_AT, now)
                                             .where(JOB_PART_OPERATION.JOB_PART_ID.eq(jobPartId))
                                             .and(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.eq(
                                                     DSL.select(
@@ -1850,13 +1858,13 @@ public class DatabaseServiceImpl implements DatabaseService {
                         continue;
                     }
                     var machineIds = phase.phase.get(PHASE.MACHINE_IDS);
-                    List<Integer> packs = new ArrayList<>();
+                    List<Long> packs = new ArrayList<>();
                     packs.add(null);
 
                     List<CreateJobPartParam> phaseRunData = new ArrayList<>();
                     if (phase.paramCount.get() == -1) {
                         if ((usage & ProductServiceImpl.USAGE_PER_PRODUCT_PACK) > 0) {
-                            packs = IntStream.rangeClosed(1, product.fold(
+                            packs = LongStream.rangeClosed(1, product.fold(
                                             p -> Math.max(1,
                                                     Math.ceilDiv(jobPart.quantity(), p.packSize())),
                                             _ -> 1,
@@ -2057,14 +2065,20 @@ public class DatabaseServiceImpl implements DatabaseService {
         List<JobPartPhase> jobPartPhases = new ArrayList<>();
         List<JobPartParam> partParams = new ArrayList<>();
 
-        var product = innerDsl.selectFrom(PRODUCTS)
-                .where(PRODUCTS.ID.eq(partRecord.getProductId())).fetchOne();
-        if (product == null) {
-            throw new DataAccessException(
-                    "Failed to find Job, no product found with id "
-                            + partRecord.getProductId()) {
-            };
-        }
+        var product = findProduct(partRecord.getProductId())
+                .fold(
+                        p -> p,
+                        ex -> {
+                            throw new RuntimeException(ex);
+                        },
+                        () -> {
+                            throw new DataAccessException(
+                                    "Failed to find Job, no product found with id "
+                                            + partRecord.getProductId()
+                            ) {
+                            };
+                        }
+                );
 
         var phaseRecords = innerDsl
                 .select(JOB_PART_PHASES.fields())
@@ -2143,15 +2157,16 @@ public class DatabaseServiceImpl implements DatabaseService {
         return new JobPart(
                 partRecord.getId(),
                 partRecord.getProductId(),
-                product.getName(),
-                product.getOldName(),
+                product.name(),
+                product.oldName(),
                 partRecord.getQuantity(),
                 partRecord.getFromCallOff(),
                 partRecord.getMaterialAvailable(),
                 jobPartPhases,
                 partParams,
                 partRecord.getStatus(),
-                partRecord.getPartNumber()
+                partRecord.getPartNumber(),
+                product.machinery().stream().map(ProductMachine::id).toList()
         );
     }
 

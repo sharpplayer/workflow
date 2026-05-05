@@ -331,7 +331,7 @@ public class JobServiceImpl implements JobService {
                         return nextJob(completion.role(), j.completedPhase()).map(_ -> j);
                     }
                     return OptionalResult.of(j);
-                })  ;
+                });
     }
 
     @Override

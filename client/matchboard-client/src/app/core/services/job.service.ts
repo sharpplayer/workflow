@@ -87,6 +87,7 @@ export interface JobPart {
   phases: JobPartPhase[];
   params: JobPartParam[];
   status: number;
+  machineIds : number[] | null;
 };
 
 export interface Job {
@@ -196,7 +197,7 @@ export interface CreateScheduledJobPart {
 export enum JobStatus {
   NEW = 0,
   SAVED = 1,
-  READY = 2,
+  AWAITING_MATERIAL = 2,
   PARTIALLY_SCHEDULABLE = 3,
   SCHEDULABLE = 4,
   PARTIALLY_SCHEDULED = 5,
@@ -206,7 +207,7 @@ export enum JobStatus {
   AWAITING = 9,
   STARTED = 10,
   AWAITING_PAYMENT = 11,
-  MACHINING_STARTABLE = 12,
+  READY = 12,
   MACHINING_COMPLETED = 13,
 }
 
@@ -258,7 +259,7 @@ export interface ScheduledJobPartViews {
 export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.NEW]: "(New)",
   [JobStatus.SAVED]: "Saved",
-  [JobStatus.READY]: "Ready",
+  [JobStatus.AWAITING_MATERIAL]: "Awaiting Material",
   [JobStatus.PARTIALLY_SCHEDULABLE]: "Partially Schedulable",
   [JobStatus.SCHEDULABLE]: "Schedulable",
   [JobStatus.PARTIALLY_SCHEDULED]: "Partially Scheduled",
@@ -268,7 +269,7 @@ export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.AWAITING]: "Awaiting",
   [JobStatus.STARTED]: "Started",
   [JobStatus.AWAITING_PAYMENT]: "Awaiting Payment",
-  [JobStatus.MACHINING_STARTABLE]: "Startable",
+  [JobStatus.READY]: "Ready",
   [JobStatus.MACHINING_COMPLETED]: "Completed",
 };
 

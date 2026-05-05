@@ -1,17 +1,23 @@
 import { Component, computed, effect, inject, input, output, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PhaseParam, ProductView } from '../../../core/services/product.service';
-import { ConfigService } from '../../../core/services/config.service';
+import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 import { AdminProductListComponent } from '../admin-products-list/admin-products-list.component';
 import { AdminPhasesListComponent, JobPhase, PhasesSelected } from '../admin-phases-list/admin-phases-list.component';
-import { AdminPhaseParamComponent, PhaseParamSelected, PhaseParamValidationError } from '../admin-phase-param/admin-phase-param.component';
+import {
+    AdminPhaseParamComponent,
+    PhaseParamData,
+    PhaseParamSelected,
+    PhaseParamValidationError
+} from '../admin-phase-param/admin-phase-param.component';
 import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
+import { ParamStatus } from '../../../core/services/job.service';
 
 export interface ProductSave {
     mode: 'add' | 'update';
-    product: ProductView,
-    phases: JobPhase[],
-    params: PhaseParamSelected[]
+    product: ProductView;
+    phases: JobPhase[];
+    params: PhaseParamSelected[];
 }
 
 export const PHASE_PARAM_ID_QUANTITY = -1;
@@ -41,7 +47,7 @@ const PHASE_PARAM_PAYMENT: PhaseParam = {
     phaseNumber: 0,
     paramName: 'Payment Confirmed',
     paramConfig: '',
-    input: 2,
+    input: 1,
     evaluation: '(Input At Job Start)',
     type: 'date',
     value: '',
@@ -141,7 +147,12 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
 @Component({
     selector: 'admin-job-page',
     standalone: true,
-    imports: [CommonModule, AdminProductListComponent, AdminPhasesListComponent, AdminPhaseParamComponent],
+    imports: [
+        CommonModule,
+        AdminProductListComponent,
+        AdminPhasesListComponent,
+        AdminPhaseParamComponent
+    ],
     template: `
         <div class="jobs-container">
             <admin-products-list
@@ -156,19 +167,21 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
             @if ((selectedPart()?.product ?? manualSelectedProduct()) && hasResults) {
                 <admin-phases-list
                     [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
+                    [machineFilter]="(selectedPart()?.product ?? manualSelectedProduct())!.machineIds"
                     (phasesSelected)="phaseSelected($event)"
                 />
 
                 <admin-phase-param
                     [phaseParams]="phaseParamsToShow()"
-                    [selectedParams]="lastParamsSelected()"
                     [validationErrors]="validationErrors()"
                     (paramsSelected)="paramsSelected($event)"
                 />
 
                 <div class="actions">
                     <button (click)="cancelAdd()">Cancel</button>
-                    <button [disabled]="!canAddProduct()" (click)="addProduct()">{{ buttonText() }}</button>
+                    <button [disabled]="!canAddProduct()" (click)="addProduct()">
+                        {{ buttonText() }}
+                    </button>
                 </div>
             }
         </div>
@@ -179,9 +192,15 @@ export class AdminJobComponent {
     private configService = inject(ConfigService);
 
     manualSelectedProduct = signal<ProductView | null>(null);
-    phaseParamsToShow = signal<PhaseParam[]>([]);
+    phaseParamsToShow = signal<PhaseParamData[]>([]);
+    selectedPhases = signal<JobPhase[]>([]);
+    lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
+    validationErrors = signal<PhaseParamValidationError[]>([]);
+
     productSave = output<ProductSave>();
     cancel = output<void>();
+    crossJobParamsChanged = output<CrossJobParameters>();
+
     hasResults = true;
 
     crossJobParams = input<CrossJobParameters>({
@@ -202,20 +221,18 @@ export class AdminJobComponent {
         return part ? part.product : this.manualSelectedProduct();
     });
 
-    selectedPhases = signal<JobPhase[]>([]);
     hasSelectedPhases = computed(() => this.selectedPhases().length > 0);
-    crossJobParamsChanged = output<CrossJobParameters>();
     isEditing = computed(() => !!this.selectedPart());
     buttonText = computed(() => this.isEditing() ? 'Update Job Part' : 'Add Job Part');
-    validationErrors = signal<PhaseParamValidationError[]>([]);
-    lastParamsSelected = signal<PhaseParamSelected[] | null>(null);
 
     @ViewChild('productsList') productsList!: AdminProductListComponent;
 
     canAddProduct = computed(() => {
         if (!this.hasSelectedPhases()) return false;
+
         const params = this.lastParamsSelected();
         if (!params) return false;
+
         return this.getValidationErrors(params).length === 0;
     });
 
@@ -223,11 +240,13 @@ export class AdminJobComponent {
         effect(() => {
             const job = this.selectedPart();
             if (!job) return;
+
             this.loadJob(job);
         });
 
         effect(() => {
             const params = this.lastParamsSelected();
+
             if (!params) {
                 this.validationErrors.set([]);
                 return;
@@ -244,7 +263,7 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(null);
     }
 
-    async phaseSelected(phases: PhasesSelected) {
+    async phaseSelected(phases: PhasesSelected): Promise<void> {
         this.selectedPhases.set(phases.phases);
 
         const cross = this.crossJobParams();
@@ -256,7 +275,7 @@ export class AdminJobComponent {
         const carrierParam: PhaseParam = { ...PHASE_PARAM_CARRIER, value: cross.carrier };
         const callOffParam: PhaseParam = { ...PHASE_PARAM_CALLOFF, value: cross.callOff ? 'true' : 'false' };
 
-        const params = [
+        const params: PhaseParam[] = [
             dateParam,
             paymentParam,
             callOffParam,
@@ -268,7 +287,7 @@ export class AdminJobComponent {
             PHASE_PARAM_MATERIAL
         ];
 
-        this.phaseParamsToShow.set(params);
+        let selectedParams: PhaseParamSelected[] | null = null;
 
         if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
             const crossJobParamValueMap = new Map<number, string>([
@@ -279,44 +298,26 @@ export class AdminJobComponent {
                 [callOffParam.phaseParamId, callOffParam.value ?? '']
             ]);
 
-            const selectedParams = selected.params.map(p => ({
+            selectedParams = selected.params.map(p => ({
                 ...p,
                 value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
             }));
-
-            this.lastParamsSelected.set(
-                await this.initializeSelectedParams(params, selectedParams)
-            );
-        } else {
-            this.lastParamsSelected.set(
-                await this.initializeSelectedParams(params, null)
-            );
         }
+
+        const rows = await this.buildPhaseParamRows(params, selectedParams);
+
+        this.phaseParamsToShow.set(rows);
+
+        this.lastParamsSelected.set(
+            rows.map(row => this.toSelectedParam(row))
+        );
     }
 
-    paramsSelected(params: PhaseParamSelected[]) {
-        const existing = this.lastParamsSelected() ?? [];
+    paramsSelected(params: PhaseParamSelected[]): void {
+        this.lastParamsSelected.set(params);
 
-        const mergedMap = new Map<number, PhaseParamSelected>(
-            existing.map(p => [p.phaseParamId, p])
-        );
-
-        for (const p of params) {
-            const existingParam = mergedMap.get(p.phaseParamId);
-
-            mergedMap.set(
-                p.phaseParamId,
-                existingParam ? { ...existingParam, ...p } : p
-            );
-        }
-
-        const merged = Array.from(mergedMap.values());
-
-        this.lastParamsSelected.set(merged);
-
-        const errors = this.getValidationErrors(merged);
+        const errors = this.getValidationErrors(params);
         if (errors.length > 0) {
-            console.error('Invalid params detected:', errors);
             return;
         }
 
@@ -351,9 +352,9 @@ export class AdminJobComponent {
         }
     }
 
-    addProduct() {
+    addProduct(): void {
         const product = this.effectiveSelectedProduct();
-        const params = this.lastParamsSelected()?.slice() || [];
+        const params = this.lastParamsSelected()?.slice() ?? [];
 
         if (!product) {
             console.error('No product selected!');
@@ -378,50 +379,72 @@ export class AdminJobComponent {
         this.reset();
     }
 
-    cancelAdd() {
+    cancelAdd(): void {
         this.cancel.emit();
         this.productsList.clearFilter();
         this.reset();
     }
 
-    private loadJob(job: ProductSave) {
+    private loadJob(job: ProductSave): void {
         this.selectedPhases.set([...job.phases]);
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
     }
 
-    private async initializeSelectedParams(
+    private async buildPhaseParamRows(
         params: PhaseParam[],
         selectedParams: PhaseParamSelected[] | null
-    ): Promise<PhaseParamSelected[]> {
+    ): Promise<PhaseParamData[]> {
         const selectedMap = new Map(
             (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
         );
 
-        const result: PhaseParamSelected[] = [];
+        const filtered = params.filter(p => this.isWrappedEvaluation(p));
+        const result: PhaseParamData[] = [];
 
-        for (const p of params) {
-            let def = p.evaluation;
-            if (this.isWrappedEvaluation(p)) {
-                def = '';
-                if (p.paramConfig) {
-                    if (p.paramConfig.startsWith('CHECK(')) {
-                        def = p.paramConfig.substring(6, p.paramConfig.length - 1);
-                    } else {
-                        try {
-                            const list = await this.configService.getList(p.paramConfig);
+        for (const p of filtered) {
+            let options: ConfigItem[] = [];
+            let type = p.type ?? null;
+            let def = '';
 
-                            if (p.input === 1 && list.value.length > 0 && !p.optional) {
-                                def = list.value[0].key;
-                            }
-                        } catch (err) {
-                            console.error(`Failed to load list for ${p.paramConfig}`, err);
+            if (p.paramConfig) {
+                console.log(p.paramName + ":" + p.paramConfig);
+                if (p.paramConfig.startsWith('CHECK(')) {
+                    def = p.paramConfig.substring(6, p.paramConfig.length - 1);
+                    type = 'check';
+                } else {
+                    try {
+                        const list = await this.configService.getList(p.paramConfig);
+                        options = list.value;
+
+                        if (p.input === 1 && options.length > 0 && !p.optional) {
+                            def = options[0].key;
                         }
+                    } catch (err) {
+                        console.error(`Failed to load list for ${p.paramConfig}`, err);
                     }
                 }
+            }
 
-                if (p.input === 2 && !p.optional) {
-                    def = p.evaluation ?? '(Input At Job Start)';
-                }
+            const defaults: ConfigItem[] = [];
+
+            if (p.input === 2 && !p.optional) {
+                def = p.evaluation ?? '(Input At Job Start)';
+                defaults.push({
+                    key: def,
+                    value: def
+                });
+            }
+
+            const value = selectedMap.get(p.phaseParamId) ?? p.value ?? def;
+
+            const finalOptions = [...options];
+
+            if (
+                value &&
+                !finalOptions.some(o => o.key === value) &&
+                !defaults.some(d => d.key === value)
+            ) {
+                finalOptions.unshift({ key: value, value });
             }
 
             result.push({
@@ -429,16 +452,34 @@ export class AdminJobComponent {
                 phaseParamId: p.phaseParamId,
                 phaseNumber: p.phaseNumber,
                 key: p.paramName,
-                value: selectedMap.get(p.phaseParamId) ?? p.value ?? def,
-                input: p.input
+                value,
+                paramConfig: p.paramConfig,
+                type,
+                options: [...defaults, ...finalOptions],
+                input: p.input,
+                searchable: p.searchable ?? false,
+                editable: p.editable ?? false,
+                optional: p.optional ?? false,
+                status: type === 'check' ? ParamStatus.INITIALISED : ParamStatus.MATCHING
             });
         }
 
         return result;
     }
 
+    private toSelectedParam(param: PhaseParamData): PhaseParamSelected {
+        return {
+            phaseId: param.phaseId,
+            phaseParamId: param.phaseParamId,
+            phaseNumber: param.phaseNumber,
+            key: param.key,
+            value: param.value,
+            input: param.input
+        };
+    }
+
     private isWrappedEvaluation(evaluation: PhaseParam): boolean {
-        return !!evaluation.evaluation &&
+        return evaluation.input === 1 && !!evaluation.evaluation &&
             evaluation.evaluation.trim().startsWith('(') &&
             evaluation.evaluation.trim().endsWith(')');
     }
@@ -446,7 +487,7 @@ export class AdminJobComponent {
     private getValidationErrors(params: PhaseParamSelected[]): PhaseParamValidationError[] {
         const errors: PhaseParamValidationError[] = [];
 
-        const quantityParam = params.find(p => p.phaseParamId === PHASE_PARAM_QUANTITY.phaseParamId);
+        const quantityParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_QUANTITY);
         if (quantityParam && (!/^\d+$/.test(quantityParam.value) || Number(quantityParam.value) <= 0)) {
             errors.push({
                 phaseParamId: quantityParam.phaseParamId,
@@ -454,12 +495,13 @@ export class AdminJobComponent {
             });
         }
 
-        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_DUE_DATE.phaseParamId);
+        const dueDateParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_DUE_DATE);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         if (dueDateParam) {
             const selected = new Date(dueDateParam.value);
+
             if (isNaN(selected.getTime())) {
                 errors.push({
                     phaseParamId: dueDateParam.phaseParamId,
@@ -473,26 +515,25 @@ export class AdminJobComponent {
             }
         }
 
-        const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_CALLOFF.phaseParamId);
+        const callOffParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CALLOFF);
         const isCallOff = callOffParam?.value === 'true';
 
-        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_CUSTOMER.phaseParamId);
+        const customerParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CUSTOMER);
         if (customerParam) {
             const customerValue = Number(customerParam.value);
-            if (isCallOff) {
-                if (customerValue > 0) {
-                    errors.push({
-                        phaseParamId: customerParam.phaseParamId,
-                        message: 'Customer must not be selected for call off jobs.'
-                    });
-                }
-            } else {
-                if (customerValue <= 0) {
-                    errors.push({
-                        phaseParamId: customerParam.phaseParamId,
-                        message: 'Please select a customer.'
-                    });
-                }
+
+            if (isCallOff && customerValue > 0) {
+                errors.push({
+                    phaseParamId: customerParam.phaseParamId,
+                    message: 'Customer must not be selected for call off jobs.'
+                });
+            }
+
+            if (!isCallOff && customerValue <= 0) {
+                errors.push({
+                    phaseParamId: customerParam.phaseParamId,
+                    message: 'Please select a customer.'
+                });
             }
         }
 
@@ -506,23 +547,22 @@ export class AdminJobComponent {
             });
         }
 
-        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_CARRIER.phaseParamId);
+        const carrierParam = params.find(p => p.phaseParamId === PHASE_PARAM_ID_CARRIER);
         if (carrierParam) {
             const carrierValue = Number(carrierParam.value);
-            if (isCallOff) {
-                if (carrierValue > 0) {
-                    errors.push({
-                        phaseParamId: carrierParam.phaseParamId,
-                        message: 'Carrier must not be selected for call off jobs.'
-                    });
-                }
-            } else {
-                if (carrierValue <= 0) {
-                    errors.push({
-                        phaseParamId: carrierParam.phaseParamId,
-                        message: 'Please select a carrier.'
-                    });
-                }
+
+            if (isCallOff && carrierValue > 0) {
+                errors.push({
+                    phaseParamId: carrierParam.phaseParamId,
+                    message: 'Carrier must not be selected for call off jobs.'
+                });
+            }
+
+            if (!isCallOff && carrierValue <= 0) {
+                errors.push({
+                    phaseParamId: carrierParam.phaseParamId,
+                    message: 'Please select a carrier.'
+                });
             }
         }
 

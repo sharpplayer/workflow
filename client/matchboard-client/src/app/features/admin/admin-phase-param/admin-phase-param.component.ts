@@ -10,12 +10,14 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/material/core';
-import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/material-moment-adapter';
+import {
+  MatMomentDateModule,
+  MAT_MOMENT_DATE_ADAPTER_OPTIONS
+} from '@angular/material-moment-adapter';
 
 import moment, { Moment } from 'moment';
 import { NgSelectModule } from '@ng-select/ng-select';
 
-import { PhaseParam } from '../../../core/services/product.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
 import { ParamStatus } from '../../../core/services/job.service';
@@ -31,12 +33,12 @@ export const UK_DATE_FORMATS = {
     dateInput: 'DD/MM/YYYY',
     monthYearLabel: 'MMM YYYY',
     dateA11yLabel: 'DD/MM/YYYY',
-    monthYearA11yLabel: 'MMMM YYYY',
+    monthYearA11yLabel: 'MMMM YYYY'
   },
   storage: 'YYYY-MM-DD'
 };
 
-interface PhaseParamData {
+export interface PhaseParamData {
   phaseId: number;
   phaseParamId: number;
   phaseNumber: number;
@@ -93,11 +95,13 @@ export interface PhaseParamSelected {
       <th class="col-medium"></th>
     </tr>
   </thead>
+
   <tbody>
     @if (filteredParams().length > 0) {
       @for (param of filteredParams(); track param.phaseParamId) {
         <tr>
           <td>{{ param.key }}</td>
+
           <td>
             @if (param.type === 'colour[]') {
               <mat-form-field appearance="fill" class="param-field">
@@ -176,6 +180,7 @@ export interface PhaseParamSelected {
                   (dateChange)="onDateChange(param.phaseParamId, $event.value)"
                   placeholder="Select a date"
                 />
+
                 @if (param.optional) {
                   <button
                     matSuffix
@@ -188,6 +193,7 @@ export interface PhaseParamSelected {
                     <mat-icon>close</mat-icon>
                   </button>
                 }
+
                 <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
               </mat-form-field>
@@ -212,6 +218,7 @@ export interface PhaseParamSelected {
               </mat-form-field>
             }
           </td>
+
           <td>
             <div class="field-error" [class.has-error]="!!getError(param.phaseParamId)">
               {{ getError(param.phaseParamId) }}
@@ -240,9 +247,9 @@ export interface PhaseParamSelected {
 export class AdminPhaseParamComponent {
   private configService = inject(ConfigService);
 
-  phaseParams = input<PhaseParam[]>([]);
-  selectedParams = input<PhaseParamSelected[] | null>(null);
+  phaseParams = input<PhaseParamData[]>([]);
   validationErrors = input<PhaseParamValidationError[]>([]);
+
   paramsSelected = output<PhaseParamSelected[]>();
 
   filteredParams = signal<PhaseParamData[]>([]);
@@ -250,102 +257,34 @@ export class AdminPhaseParamComponent {
   showCarrierModal = signal(false);
   savingCarrier = signal(false);
   carrierFormData = signal<CarrierFormModel | null>(null);
-
   selectedParamForAdd = signal<PhaseParamData | null>(null);
 
   readonly editingCheckParams = signal<Record<number, boolean>>({});
 
   errorMap = computed(() => {
     const map = new Map<number, string>();
+
     for (const err of this.validationErrors()) {
       map.set(err.phaseParamId, err.message);
     }
+
     return map;
   });
 
   constructor() {
     effect(() => {
-      const params = this.phaseParams();
-      const selected = this.selectedParams();
+      this.filteredParams.set(
+        this.phaseParams().map(p => ({
+          ...p,
+          options: [...p.options]
+        }))
+      );
 
-      if (params?.length) {
-        void this.initialize(params, selected);
-      } else {
-        this.filteredParams.set([]);
-      }
+      this.editingCheckParams.set({});
     });
   }
 
-  private async initialize(params: PhaseParam[], selectedParams: PhaseParamSelected[] | null) {
-    const filtered = params.filter(p => this.isWrappedEvaluation(p));
-    const selectedMap = new Map(
-      (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
-    );
-
-    const result: PhaseParamData[] = [];
-
-    for (const p of filtered) {
-      let options: ConfigItem[] = [];
-      let type = p.type ?? null;
-
-      let def = '';
-      if (p.paramConfig) {
-        if (p.paramConfig.startsWith('CHECK(')) {
-          def = p.paramConfig.substring(6, p.paramConfig.length - 1);
-          type = 'check';
-        } else {
-          
-        }
-      }
-
-      const defaults: ConfigItem[] = [];
-      if (p.input === 2 && !p.optional) {
-        def = p.evaluation ?? '(Input At Job Start)';
-        defaults.push({
-          key: def,
-          value: def
-        });
-      }
-
-      const value = selectedMap.get(p.phaseParamId) ?? '';
-
-      let finalOptions = [...options];
-      if (
-        value &&
-        !finalOptions.some(o => o.key === value) &&
-        !defaults.some(d => d.key === value)
-      ) {
-        finalOptions.unshift({ key: value, value });
-      }
-
-      result.push({
-        phaseId: p.phaseId,
-        phaseParamId: p.phaseParamId,
-        phaseNumber: p.phaseNumber,
-        key: p.paramName,
-        value,
-        paramConfig: p.paramConfig,
-        type,
-        options: [...defaults, ...finalOptions],
-        input: p.input,
-        searchable: p.searchable ?? false,
-        editable: p.editable ?? false,
-        optional: p.optional ?? false,
-        status: type === 'check' ? ParamStatus.INITIALISED : ParamStatus.MATCHING
-      });
-    }
-
-    this.filteredParams.set(result);
-    this.editingCheckParams.set({});
-  }
-
-  private isWrappedEvaluation(evaluation: PhaseParam): boolean {
-    return !!evaluation.evaluation &&
-      evaluation.evaluation.trim().startsWith('(') &&
-      evaluation.evaluation.trim().endsWith(')');
-  }
-
-  onValueChange(id: number, value: string | boolean, type?: string) {
+  onValueChange(id: number, value: string | boolean, type?: string): void {
     this.filteredParams.update(params =>
       params.map(p => {
         if (p.phaseParamId !== id) return p;
@@ -372,13 +311,30 @@ export class AdminPhaseParamComponent {
     this.emitChanges();
   }
 
-  onDateChange(id: number, date: Moment | null) {
+  onDateChange(id: number, date: Moment | null): void {
     this.filteredParams.update(params =>
       params.map(p =>
         p.phaseParamId === id
           ? {
               ...p,
-              value: date ? date.format(UK_DATE_FORMATS.storage) : ''
+              value: date ? date.format(UK_DATE_FORMATS.storage) : '',
+              status: ParamStatus.INITIALISED
+            }
+          : p
+      )
+    );
+
+    this.emitChanges();
+  }
+
+  onNgSelectChange(id: number, key: string | null): void {
+    this.filteredParams.update(params =>
+      params.map(p =>
+        p.phaseParamId === id
+          ? {
+              ...p,
+              value: key ?? '',
+              status: ParamStatus.INITIALISED
             }
           : p
       )
@@ -392,7 +348,11 @@ export class AdminPhaseParamComponent {
     return moment(value, UK_DATE_FORMATS.storage, true);
   }
 
-  addItem(param: PhaseParamData) {
+  clearDate(id: number): void {
+    this.onDateChange(id, null);
+  }
+
+  addItem(param: PhaseParamData): void {
     const configName = param.paramConfig?.toLowerCase();
 
     if (configName === 'carrier') {
@@ -410,13 +370,13 @@ export class AdminPhaseParamComponent {
     console.error(`Add item modal not implemented for paramConfig: ${param.paramConfig}`);
   }
 
-  closeCarrierModal() {
+  closeCarrierModal(): void {
     this.showCarrierModal.set(false);
     this.selectedParamForAdd.set(null);
     this.carrierFormData.set(null);
   }
 
-  async submitCarrierModal(form: CarrierFormModel) {
+  async submitCarrierModal(form: CarrierFormModel): Promise<void> {
     const param = this.selectedParamForAdd();
     if (!param) return;
 
@@ -436,7 +396,8 @@ export class AdminPhaseParamComponent {
             ? {
                 ...p,
                 options: [...p.options, newItem],
-                value: newItem.key
+                value: newItem.key,
+                status: ParamStatus.INITIALISED
               }
             : p
         )
@@ -452,22 +413,7 @@ export class AdminPhaseParamComponent {
     }
   }
 
-  onNgSelectChange(id: number, key: string) {
-    this.filteredParams.update(params =>
-      params.map(p =>
-        p.phaseParamId === id
-          ? {
-              ...p,
-              value: key ?? ''
-            }
-          : p
-      )
-    );
-
-    this.emitChanges();
-  }
-
-  private emitChanges() {
+  private emitChanges(): void {
     const selected: PhaseParamSelected[] = this.filteredParams().map(p => ({
       phaseId: p.phaseId,
       phaseParamId: p.phaseParamId,
@@ -482,9 +428,5 @@ export class AdminPhaseParamComponent {
 
   getError(paramId: number): string {
     return this.errorMap().get(paramId) ?? '';
-  }
-
-  clearDate(id: number) {
-    this.onDateChange(id, null);
   }
 }

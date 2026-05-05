@@ -237,7 +237,8 @@ export class AdminJobsComponent implements OnInit {
                 id: part.productId,
                 name: part.name,
                 oldName: part.oldName,
-                enabled: true
+                enabled: true,
+                machineIds : part.machineIds ?? []
             },
             params,
             phases: (part.phases ?? []).map((phase): JobPhase => ({
@@ -245,7 +246,9 @@ export class AdminJobsComponent implements OnInit {
                     id: phase.phaseId,
                     order: 1,
                     params: [],
-                    description: ''
+                    description: '',
+                    usage: 0,
+                    machineIds: null
                 },
                 specialInstruction: phase.specialInstructions ?? '',
                 order: 1

@@ -140,7 +140,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Result<ConfigResponse> getOperators() {
         return getUsers().map(userList -> new ConfigResponse("OPERATOR",
-                userList.users(), "string[]"));
+                userList.users().stream().filter(UserView::enabled).toList(), "string[]"));
     }
 
     @Override

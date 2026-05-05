@@ -120,5 +120,5 @@ public interface DatabaseService {
 
     Result<List<WastageView>> getWastage(int jobPhaseId);
 
-    Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, int rpi);
+    Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, long rpi);
 }

@@ -7,7 +7,8 @@ export interface ProductView {
   id: number,
   name: string,
   oldName: string,
-  enabled: boolean
+  enabled: boolean,
+  machineIds: number[]
 }
 
 export interface PhaseParam {
@@ -29,7 +30,9 @@ export interface Phase {
   id: number,
   description: string,
   params: PhaseParam[],
-  order: number
+  order: number,
+  usage: number,
+  machineIds: number[] | null
 }
 
 export interface ProductMachine {

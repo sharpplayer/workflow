@@ -12,7 +12,7 @@ public enum JobStatus {
     AWAITING(9),
     STARTED(10),
     AWAITING_PAYMENT(11),
-    MACHINING_STARTABLE(12),
+    READY(12),
     MACHINING_COMPLETED(13);
 
     private final int code;

@@ -45,6 +45,7 @@ CREATE TABLE job_part_phases
     phase_number        INTEGER     NOT NULL,
     special_instruction TEXT,
     status              INTEGER     NOT NULL,
+    ready_at            TIMESTAMPTZ,
     started_at          TIMESTAMPTZ,
     completed_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -99,6 +100,7 @@ CREATE TABLE job_part_operation
 
     status                      INTEGER,
 
+    ready_at                    TIMESTAMPTZ,
     actual_start_at             TIMESTAMPTZ,
     actual_finish_at            TIMESTAMPTZ,
     first_off_at                TIMESTAMPTZ,

@@ -25,7 +25,7 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     private static final double AUTO_MATCH_THRESHOLD = 0.92;
 
     public static final int INPUT_JOB_CREATE = 1;
-    public static final int INPUT_JOB_START = 2;
+    public static final int INPUT_AT_SCHEDULE = 2;
     public static final int INPUT_PHASE_RUN = 3;
     public static final List<String> BOOLEANS = Arrays.asList("", "Y", "y", "Yes", "YES", "True",
             "true",
@@ -146,8 +146,6 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     private static String getDefaultInput(int input) {
         if (input == INPUT_PHASE_RUN) {
             return "(Input At Phase)";
-        } else if (input == INPUT_JOB_START) {
-            return "(Input At Job Start)";
         } else if (input == INPUT_JOB_CREATE) {
             return "(Input At Job Create)";
         }
