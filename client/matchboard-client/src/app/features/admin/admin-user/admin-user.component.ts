@@ -10,6 +10,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { UserService } from '../../../core/services/user.service';
+import { ConfigItem } from '../../../core/services/config.service';
 
 export interface UserForm {
   username: string;
@@ -69,19 +70,19 @@ export interface UserForm {
         <div class="field">
           <label>Roles</label>
           <div class="roles-container">
-            @for (role of roles(); track role) {
-              <div class="role-item">
-                <label>
-                  <input
-                    type="checkbox"
-                    [ngModel]="form().roles.includes(role)"
-                    [name]="'role-' + role"
-                    (ngModelChange)="toggleRole(role)"
-                  />
-                  {{ role }}
-                </label>
-              </div>
-            }
+          @for (role of roles(); track role.key) {
+            <div class="role-item">
+              <label>
+                <input
+                  type="checkbox"
+                  [ngModel]="form().roles.includes(role.key)"
+                  [name]="'role-' + role.key"
+                  (ngModelChange)="toggleRole(role.key)"
+                />
+                {{ role.value }}
+              </label>
+            </div>
+          }
           </div>
         </div>
 
@@ -113,7 +114,7 @@ export interface UserForm {
 export class AdminUserComponent {
   private readonly userService = inject(UserService);
 
-  readonly roles = input<string[]>([]);
+  readonly roles = input<ConfigItem[]>([]);
   readonly initialData = input<UserForm | null>(null);
 
   readonly saved = output<void>();
@@ -192,11 +193,11 @@ export class AdminUserComponent {
     this.form.update(f => ({ ...f, [field]: value }));
   }
 
-  toggleRole(role: string): void {
+  toggleRole(roleKey: string): void {
     this.form.update(f => {
-      const roles = f.roles.includes(role)
-        ? f.roles.filter(r => r !== role)
-        : [...f.roles, role];
+      const roles = f.roles.includes(roleKey)
+        ? f.roles.filter(r => r !== roleKey)
+        : [...f.roles, roleKey];
 
       return { ...f, roles: roles.sort((a, b) => a.localeCompare(b)) };
     });

@@ -171,6 +171,7 @@ button:disabled {
   width: 100%;
   table-layout: fixed;
   border-collapse: collapse;
+  border-spacing: 0;
 }
 
 .phase-table col.param-col {
@@ -187,6 +188,7 @@ button:disabled {
   z-index: 30;
   padding: 0.5rem 0.75rem;
   border: 1px solid #fff;
+  border-bottom: 0;
   background: #18336e;
   color: #fff;
   font-size: 1rem;
@@ -210,6 +212,8 @@ button:disabled {
 .phase-param-header-row th {
   padding: 0.35rem 0.5rem;
   border: 1px solid #fff;
+  border-top: 0;
+  border-bottom: 0;
   background: #000;
   color: #fff;
   font-size: 0.8rem;
@@ -228,14 +232,21 @@ button:disabled {
 }
 
 .phase-table tbody td {
-  padding: 0.6rem 0.5rem;
+  padding: 0;
   border: 1px solid #d9dfe7;
+  border-top: 0;
   background: #fff;
   color: #000;
   font-size: 0.95rem;
   text-align: center;
-  vertical-align: middle;
+  vertical-align: stretch;
   word-break: break-word;
+}
+
+.phase-table tbody td.machine-column,
+.phase-table tbody td.pack-column {
+  padding: 0.6rem 0.5rem;
+  vertical-align: middle;
 }
 
 .param-column {
@@ -263,6 +274,12 @@ button:disabled {
 .phase-param-header-row th.signoff-column:first-of-type,
 .phase-table tbody td.signoff-column:first-of-type {
   border-left: 2px solid #7a7a7a;
+}
+
+.phase-table tbody td job-phase-param {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* =========================
@@ -314,37 +331,24 @@ button:disabled {
   color: #fff;
 }
 
+/* =========================
+   DISABLED TABLE CELLS
+   ========================= */
+
 .phase-table td.param-disabled,
 .phase-table td.param-disabled.value,
 .phase-table td.param-disabled.param-column,
 .phase-table td.param-disabled.signoff-column,
 .phase-table td.param-disabled.signoff-active {
-  background-color: #e5e5e5 !important;
-  color: #777 !important;
+  background-color: #e5e5e5;
+  color: #777;
 }
 
 .phase-table td.param-disabled * {
-  color: #777 !important;
+  color: #777;
 }
 
-.phase-table td.param-disabled input,
-.phase-table td.param-disabled select,
-.phase-table td.param-disabled textarea,
-.phase-table td.param-disabled button {
-  background-color: #e5e5e5 !important;
-  color: #777 !important;
-  opacity: 0.75;
-}
-
-.param-required {
-  background-color: #fff3cd;
-}
-
-.param-complete {
-  background-color: #d1e7dd;
-}
-
-.param-disabled {
-  background-color: #f1f1f1;
-  opacity: 0.65;
-}
+/*
+  Actual required / complete colouring is handled by child component.
+  These parent classes are intentionally left out to avoid fighting child styling.
+*/

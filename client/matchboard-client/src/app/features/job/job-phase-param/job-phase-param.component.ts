@@ -16,6 +16,7 @@ import { DeviceService } from '../../../core/services/device.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 
 type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
+type ParamValueState = 'disabled' | 'required' | 'complete' | 'neutral';
 
 export interface LoggedOnOperator {
   username: string;
@@ -29,14 +30,19 @@ export interface LoggedOnOperator {
   template: `
     @if (isSignoff()) {
       @if (isAlreadySigned()) {
-        <div class="param-signoff signed">
+        <div
+          class="param-signoff signed"
+          [ngClass]="valueStateClass()">
           <div class="signed-label signoff-operator-button signed">
             SIGNED<br />
             {{ signedBy() }}
           </div>
         </div>
       } @else {
-        <div class="param-signoff" [class.single-operator]="displayOperators().length === 1">
+        <div
+          class="param-signoff"
+          [ngClass]="valueStateClass()"
+          [class.single-operator]="displayOperators().length === 1">
           @if (displayOperators().length > 0) {
             <div class="signoff-operator-list">
               @for (operator of displayOperators(); track operator.key) {
@@ -67,6 +73,7 @@ export interface LoggedOnOperator {
     } @else if (isCheck()) {
       <div
         class="check-cell"
+        [ngClass]="valueStateClass()"
         [class.check-cell--matching]="checkVisualState() === 'matching'"
         [class.check-cell--unmatching]="checkVisualState() === 'unmatching'"
         [class.check-cell--editing]="isEditingCheck()"
@@ -99,6 +106,7 @@ export interface LoggedOnOperator {
           <input
             #checkInput
             class="param-input check-input"
+            [ngClass]="valueStateClass()"
             [type]="checkInputType()"
             [attr.inputmode]="checkInputMode()"
             [disabled]="disabled()"
@@ -111,66 +119,81 @@ export interface LoggedOnOperator {
     } @else if (isWastage()) {
       <div
         class="wastage-cell"
-        [class.wastage-cell--yes]="isWastageYes()"
-        [class.wastage-cell--no]="isWastageNo()">
+        [ngClass]="valueStateClass()"
+        [class.wastage-cell--yes]="!disabled() && isWastageYes()"
+        [class.wastage-cell--no]="!disabled() && isWastageNo()">
 
-        <button
-          type="button"
-          class="wastage-btn wastage-btn--yes"
-          [class.wastage-btn--selected]="isWastageYes()"
-          [disabled]="disabled()"
-          (click)="selectWastageYes()">
-          YES
-        </button>
+        @if (disabled()) {
+          <span class="param-label">
+            {{ displayValue() || '-' }}
+          </span>
+        } @else if (isWastageYes()) {
+          <button
+            type="button"
+            class="wastage-btn wastage-btn--danger wastage-btn--selected"
+            (click)="requestWastage()">
+            ADD
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="wastage-btn wastage-btn--danger"
+            (click)="selectWastageYes()">
+            YES
+          </button>
 
-        <button
-          type="button"
-          class="wastage-btn wastage-btn--no"
-          [class.wastage-btn--selected]="isWastageNo()"
-          [disabled]="disabled() || isWastageYes()"
-          (click)="selectWastageNo()">
-          NO
-        </button>
+          <button
+            type="button"
+            class="wastage-btn wastage-btn--success"
+            [class.wastage-btn--selected]="isWastageNo()"
+            (click)="selectWastageNo()">
+            NO
+          </button>
+        }
       </div>
-      } @else if (isPhoto()) {
-        <div class="photo-cell">
-          @if (!cameraOpen()) {
-            <button
-              type="button"
-              class="photo-button"
-              [disabled]="disabled() || photoUploading()"
-              (click)="openCamera()">
-              @if (displayValue()) {
-                <img class="photo-preview" [src]="displayValue()" alt="Captured photo" />
-              } @else {
-                📷<br />
-                {{ photoUploading() ? 'Uploading...' : 'Take photo' }}
-              }
-            </button>
-          } @else {
-            <video #cameraVideo autoplay playsinline class="camera-video"></video>
+    } @else if (isPhoto()) {
+      <div
+        class="photo-cell"
+        [ngClass]="valueStateClass()">
+        @if (!cameraOpen()) {
+          <button
+            type="button"
+            class="photo-button"
+            [disabled]="disabled() || photoUploading()"
+            (click)="openCamera()">
+            @if (displayValue()) {
+              <img class="photo-preview" [src]="displayValue()" alt="Captured photo" />
+            } @else {
+              📷<br />
+              {{ photoUploading() ? 'Uploading...' : 'Take photo' }}
+            }
+          </button>
+        } @else {
+          <video #cameraVideo autoplay playsinline class="camera-video"></video>
 
-            <div class="camera-actions">
-              <button type="button" (click)="captureCameraPhoto()">Capture</button>
-              <button type="button" (click)="closeCamera()">Cancel</button>
-            </div>
-          }
+          <div class="camera-actions">
+            <button type="button" (click)="captureCameraPhoto()">Capture</button>
+            <button type="button" (click)="closeCamera()">Cancel</button>
+          </div>
+        }
 
-          <input
-            #photoInput
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            (change)="onPhotoSelected($event)"
-          />
+        <input
+          #photoInput
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          (change)="onPhotoSelected($event)"
+        />
 
-          @if (cameraError(); as error) {
-            <div class="param-empty">{{ error }}</div>
-          }
-        </div>
+        @if (cameraError(); as error) {
+          <div class="param-empty">{{ error }}</div>
+        }
+      </div>
     } @else if (isSelect()) {
-      <div class="select-cell">
+      <div
+        class="select-cell"
+        [ngClass]="valueStateClass()">
         <select
           class="param-input param-select"
           [disabled]="disabled() || selectLoading()"
@@ -200,6 +223,7 @@ export interface LoggedOnOperator {
     } @else if (isEditableText()) {
       <input
         class="param-input"
+        [ngClass]="valueStateClass()"
         [type]="inputType()"
         [attr.inputmode]="inputMode()"
         [disabled]="disabled()"
@@ -208,7 +232,9 @@ export interface LoggedOnOperator {
         (blur)="onBlur()"
       />
     } @else {
-      <span class="param-label">
+      <span
+        class="param-label"
+        [ngClass]="valueStateClass()">
         {{ displayValue() || '-' }}
       </span>
     }
@@ -222,11 +248,12 @@ export class JobPhaseParamComponent {
 
   @ViewChild('checkInput')
   private checkInputRef?: ElementRef<HTMLInputElement>;
+
   @ViewChild('photoInput')
   private photoInputRef?: ElementRef<HTMLInputElement>;
+
   @ViewChild('cameraVideo')
   private cameraVideoRef?: ElementRef<HTMLVideoElement>;
-
 
   readonly photoUploading = signal(false);
 
@@ -235,6 +262,7 @@ export class JobPhaseParamComponent {
   readonly disabled = input<boolean>(false);
   readonly excludedUsernames = input<string[]>([]);
   readonly machineName = input<string | null>(null);
+  readonly valueState = input<ParamValueState>('neutral');
 
   readonly valueChanged = output<{ param: JobPartParam; value: string }>();
   readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
@@ -253,7 +281,6 @@ export class JobPhaseParamComponent {
 
   private cameraStream?: MediaStream;
 
-
   constructor() {
     effect(() => {
       const param = this.param();
@@ -266,6 +293,10 @@ export class JobPhaseParamComponent {
 
       void this.loadSelectOptions(param);
     });
+  }
+
+  valueStateClass(): string {
+    return `param-state--${this.valueState()}`;
   }
 
   readonly isSignoff = computed(() => {
@@ -405,10 +436,10 @@ export class JobPhaseParamComponent {
     this.selectLoading.set(true);
 
     try {
-      if(paramConfig === 'OPERATOR')
-      {
-        paramConfig = paramConfig + "(" + this.machineName() + ")";
+      if (paramConfig === 'OPERATOR') {
+        paramConfig = paramConfig + '(' + this.machineName() + ')';
       }
+
       const list = await this.configService.getList(paramConfig);
 
       this.selectOptions.set(list.value ?? []);
@@ -436,18 +467,13 @@ export class JobPhaseParamComponent {
       return;
     }
 
-    this.valueChanged.emit({
-      param: this.param(),
-      value: 'YES'
-    });
-
     this.wastageRequested.emit({
       param: this.param()
     });
   }
 
   selectWastageNo(): void {
-    if (this.disabled() || this.isWastageYes()) {
+    if (this.disabled()) {
       return;
     }
 
@@ -458,6 +484,10 @@ export class JobPhaseParamComponent {
   }
 
   requestWastage(): void {
+    if (this.disabled()) {
+      return;
+    }
+
     this.wastageRequested.emit({
       param: this.param()
     });
@@ -722,7 +752,7 @@ export class JobPhaseParamComponent {
       this.photoInputRef?.nativeElement.click();
     }
   }
-  
+
   async captureCameraPhoto(): Promise<void> {
     const video = this.cameraVideoRef?.nativeElement;
 

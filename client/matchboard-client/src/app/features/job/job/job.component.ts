@@ -31,6 +31,8 @@ import { DeviceService } from '../../../core/services/device.service';
 import { WastageComponent } from '../wastage/wastage.component';
 import { ConfigService, MachineInput } from '../../../core/services/config.service';
 
+type ParamValueState = 'disabled' | 'required' | 'complete' | 'neutral';
+
 type PhasePackGroup = {
   pack: string | number | null;
   label: string;
@@ -249,6 +251,7 @@ type PhasePackGroup = {
                         @if (hasMachineColumn(phase)) {
                           <td class="machine-column value">{{ getMachineName(group.machineId) }}</td>
                         }
+
                         @if (hasPackColumn(currentJob, phase)) {
                           <td class="pack-column value">
                             {{ group.label || '-' }}
@@ -258,10 +261,7 @@ type PhasePackGroup = {
                         @for (param of getDisplayNonSignParamsForPackRow(currentJob, phase, group); track $index) {
                           <td
                             class="param-column value"
-                            [class.param-disabled]="isParamDisabled(currentJob, phase, group, param)"
-                            [class.param-required]="isParamRequired(currentJob, phase, group, param)"
-                            [class.param-complete]="isParamComplete(param)"
-                            >
+                            [class.param-disabled]="isParamDisabled(currentJob, phase, group, param)">
                             @if (!isPlaceholderParam(param)) {
                               <job-phase-param
                                 [param]="param"
@@ -269,6 +269,7 @@ type PhasePackGroup = {
                                 [disabled]="isParamDisabled(currentJob, phase, group, param)"
                                 [machineName]="getMachineName(group.machineId)"
                                 [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
+                                [valueState]="getParamValueState(currentJob, phase, group, param)"
                                 (valueChanged)="onParamValueChanged($event)"
                                 (checkStatusChanged)="onCheckStatusChanged($event)"
                                 (signoffRequested)="onSignoffRequested($event)"
@@ -281,15 +282,15 @@ type PhasePackGroup = {
                         @for (param of getDisplaySignParamsForPackRow(currentJob, phase, group); track $index) {
                           <td
                             class="signoff-column signoff-active"
-                            [class.param-disabled]="isParamDisabled(currentJob, phase, group, param)"
-                            [class.param-required]="isParamRequired(currentJob, phase, group, param)"
-                            [class.param-complete]="isParamComplete(param)">
+                            [class.param-disabled]="isParamDisabled(currentJob, phase, group, param)">
                             @if (!isPlaceholderParam(param)) {
                               <job-phase-param
                                 [param]="param"
                                 [currentValue]="getParamDisplayValue(param)"
                                 [disabled]="isParamDisabled(currentJob, phase, group, param)"
+                                [machineName]="getMachineName(group.machineId)"
                                 [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
+                                [valueState]="getParamValueState(currentJob, phase, group, param)"
                                 (valueChanged)="onParamValueChanged($event)"
                                 (checkStatusChanged)="onCheckStatusChanged($event)"
                                 (signoffRequested)="onSignoffRequested($event)">
@@ -362,6 +363,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   readonly allStartedPhaseParamsFilled = computed(() => {
     const currentJob = this.job();
+
     if (!currentJob) {
       return false;
     }
@@ -403,6 +405,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['job'] && this.job()) {
       this.initialiseParamValues();
+
       await Promise.all([
         this.loadJobRef(),
         this.loadMachines()
@@ -420,6 +423,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   private async loadJobRef(): Promise<void> {
     const currentJob = this.job();
+
     if (!currentJob) {
       this.jobRef = '-';
       return;
@@ -444,6 +448,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   private scrollToActivePhase(): void {
     const currentJob = this.job();
+
     if (!currentJob || !this.phaseBlocks?.length) {
       return;
     }
@@ -455,11 +460,13 @@ export class JobComponent implements OnChanges, AfterViewInit {
     }
 
     const block = this.phaseBlocks.toArray()[activeIndex]?.nativeElement;
+
     if (!block) {
       return;
     }
 
     const container = block.closest('.phase-table-scroll');
+
     if (!(container instanceof HTMLElement)) {
       block.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -493,8 +500,54 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return this.paramValues()[param.partParamId] ?? param.value ?? '';
   }
 
+  getParamValueState(
+    job: JobWithOnePart,
+    phase: JobPartPhase,
+    group: PhasePackGroup,
+    param: JobPartParam
+  ): ParamValueState {
+    if (this.isPlaceholderParam(param)) {
+      return 'neutral';
+    }
+
+    if (this.isParamDisabled(job, phase, group, param)) {
+      return 'disabled';
+    }
+
+    if (this.isParamComplete(param)) {
+      return 'complete';
+    }
+
+    return 'required';
+  }
+
+  isParamComplete(param: JobPartParam): boolean {
+    if (this.isPlaceholderParam(param)) {
+      return false;
+    }
+
+    const value = this.paramValues()[param.partParamId] ?? param.value ?? '';
+    const hasValue = String(value).trim() !== '';
+
+    if (!hasValue) {
+      return false;
+    }
+
+    if (param.config?.startsWith('CHECK(')) {
+      const status =
+        this.paramStatuses()[param.partParamId] ??
+        param.status ??
+        ParamStatus.INITIALISED;
+
+      return status !== ParamStatus.INITIALISED;
+    }
+
+    return true;
+  }
+
   async onSignoffRequested(event: { param: JobPartParam; username?: string; role?: string }): Promise<void> {
     const currentJob = this.job();
+
     if (!currentJob) {
       return;
     }
@@ -514,7 +567,8 @@ export class JobComponent implements OnChanges, AfterViewInit {
         [event.param.partParamId]: {
           value: String(
             this.paramValues()[event.param.partParamId] ?? event.param.value ?? ''
-          ), paramStatus: event.param.status
+          ),
+          paramStatus: event.param.status
         }
       };
     } else {
@@ -545,7 +599,10 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
     const fullParamMap: Record<number, ParamSignOff> = {
       ...paramValueMap,
-      [event.param.partParamId]: { value: trimmedUsername, paramStatus: ParamStatus.MATCHING }
+      [event.param.partParamId]: {
+        value: trimmedUsername,
+        paramStatus: ParamStatus.MATCHING
+      }
     };
 
     try {
@@ -555,6 +612,11 @@ export class JobComponent implements OnChanges, AfterViewInit {
         this.paramValues.update(values => ({
           ...values,
           [event.param.partParamId]: trimmedUsername
+        }));
+
+        this.paramStatuses.update(statuses => ({
+          ...statuses,
+          [event.param.partParamId]: ParamStatus.MATCHING
         }));
 
         this.jobUpdated.emit(updatedJob);
@@ -587,14 +649,15 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   private buildParamValueMap(job: JobWithOnePart): Record<number, ParamSignOff> {
     const currentValues = this.paramValues();
+    const currentStatuses = this.paramStatuses();
     const result: Record<number, ParamSignOff> = {};
 
     for (const phase of job.part.phases ?? []) {
       for (const param of this.getEditableParamsForPhase(job, phase)) {
         result[param.partParamId] = {
-          value: String(
-            currentValues[param.partParamId] ?? param.value ?? ''), paramStatus: param.status
-        }
+          value: String(currentValues[param.partParamId] ?? param.value ?? ''),
+          paramStatus: currentStatuses[param.partParamId] ?? param.status
+        };
       }
     }
 
@@ -892,6 +955,15 @@ export class JobComponent implements OnChanges, AfterViewInit {
   }
 
   onWastageSaved(event: unknown): void {
+    const param = this.selectedWastageParam();
+
+    if (param) {
+      this.onParamValueChanged({
+        param,
+        value: 'YES'
+      });
+    }
+
     this.closeWastageDialog();
   }
 
@@ -950,41 +1022,4 @@ export class JobComponent implements OnChanges, AfterViewInit {
         this.isAwaitParamPending(param)
       );
   }
-
-  isParamComplete(param: JobPartParam): boolean {
-  if (this.isPlaceholderParam(param)) {
-    return false;
-  }
-
-  const value = this.paramValues()[param.partParamId] ?? param.value ?? '';
-  const hasValue = String(value).trim() !== '';
-
-  if (!hasValue) {
-    return false;
-  }
-
-  if (param.config?.startsWith('CHECK(')) {
-    const status =
-      this.paramStatuses()[param.partParamId] ??
-      param.status ??
-      ParamStatus.INITIALISED;
-
-    return status !== ParamStatus.INITIALISED;
-  }
-
-  return true;
-}
-
-isParamRequired(
-  job: JobWithOnePart,
-  phase: JobPartPhase,
-  group: PhasePackGroup,
-  param: JobPartParam
-): boolean {
-  return (
-    !this.isPlaceholderParam(param) &&
-    !this.isParamDisabled(job, phase, group, param) &&
-    !this.isParamComplete(param)
-  );
-}
 }

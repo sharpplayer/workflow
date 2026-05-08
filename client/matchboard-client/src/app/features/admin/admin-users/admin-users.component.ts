@@ -2,7 +2,7 @@ import { CommonModule } from "@angular/common";
 import { AdminUserComponent, UserForm } from "../admin-user/admin-user.component";
 import { Component, inject, signal } from "@angular/core";
 import { User } from "../../../core/services/user.service";
-import { ConfigService } from "../../../core/services/config.service";
+import { ConfigItem, ConfigService } from "../../../core/services/config.service";
 import { AdminUsersListComponent } from "../admin-users-list/admin-users-list.component";
 
 @Component({
@@ -33,7 +33,7 @@ import { AdminUsersListComponent } from "../admin-users-list/admin-users-list.co
 export class AdminUsersComponent {
     private configService = inject(ConfigService);
 
-    roles = signal<string[]>([]);
+    roles = signal<ConfigItem[]>([]);
     selectedUser = signal<UserForm | null>(null);
     showModal = signal(false);
 
@@ -46,8 +46,7 @@ export class AdminUsersComponent {
             const res = await this.configService.getList("roles");
 
             const roleValues = res.value
-                .map((r: any) => r.value)
-                .sort((a: string, b: string) => a.localeCompare(b));
+                .sort((a: ConfigItem, b: ConfigItem) => a.value.localeCompare(b.value));
 
             this.roles.set(roleValues);
         } catch (err) {
