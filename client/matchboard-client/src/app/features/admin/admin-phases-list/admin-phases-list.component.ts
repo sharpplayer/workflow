@@ -217,19 +217,12 @@ export class AdminPhasesListComponent {
       const productId = this.productId();
       const machineFilter = this.machineFilter();
 
-      console.log('EFFECT', { productId, machineFilter });
-
       void this.loadInitialPhases(productId);
     });
   }
 
   private async loadInitialPhases(productId: number): Promise<void> {
-    console.log('LOAD START', productId);
-
     const phasesFromService = await this.productService.loadProductPhases(productId);
-
-    console.log('PHASES FROM SERVICE', phasesFromService);
-
     if (this.destroyed) return;
     if (productId !== this.productId()) return;
 

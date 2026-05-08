@@ -7,7 +7,7 @@ public record ScheduledJobPartParam(int jobId, long jobNumber, int jobParts, int
                                     String specialInstruction,
                                     int phaseStatus, Integer paramId, String paramName,
                                     String paramConfig,
-                                    Integer paramInput) {
+                                    Integer paramInput, Integer machineId) {
 
 }
 

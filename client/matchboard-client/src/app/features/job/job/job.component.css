@@ -234,7 +234,7 @@ button:disabled {
   color: #000;
   font-size: 0.95rem;
   text-align: center;
-  vertical-align: top;
+  vertical-align: middle;
   word-break: break-word;
 }
 
@@ -312,4 +312,39 @@ button:disabled {
 .value.portrait {
   background: green;
   color: #fff;
+}
+
+.phase-table td.param-disabled,
+.phase-table td.param-disabled.value,
+.phase-table td.param-disabled.param-column,
+.phase-table td.param-disabled.signoff-column,
+.phase-table td.param-disabled.signoff-active {
+  background-color: #e5e5e5 !important;
+  color: #777 !important;
+}
+
+.phase-table td.param-disabled * {
+  color: #777 !important;
+}
+
+.phase-table td.param-disabled input,
+.phase-table td.param-disabled select,
+.phase-table td.param-disabled textarea,
+.phase-table td.param-disabled button {
+  background-color: #e5e5e5 !important;
+  color: #777 !important;
+  opacity: 0.75;
+}
+
+.param-required {
+  background-color: #fff3cd;
+}
+
+.param-complete {
+  background-color: #d1e7dd;
+}
+
+.param-disabled {
+  background-color: #f1f1f1;
+  opacity: 0.65;
 }

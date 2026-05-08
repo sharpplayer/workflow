@@ -52,6 +52,7 @@ export interface PhaseParamData {
   editable: boolean;
   optional: boolean;
   status: ParamStatus;
+  phaseUsage: number;
 }
 
 export interface PhaseParamSelected {
@@ -61,6 +62,7 @@ export interface PhaseParamSelected {
   key: string;
   value: string;
   input: number;
+  phaseUsage: number;
 }
 
 @Component({
@@ -420,7 +422,8 @@ export class AdminPhaseParamComponent {
       phaseNumber: p.phaseNumber,
       key: p.key,
       value: p.value,
-      input: p.input
+      input: p.input,
+      phaseUsage: p.phaseUsage
     }));
 
     this.paramsSelected.emit(selected);

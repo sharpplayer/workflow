@@ -147,7 +147,7 @@ import { AuthService } from '../../../core/services/auth.service';
                     <job-phase-param
                       [param]="buildSignoffParam(job.actualStartParamId)"
                       [currentValue]="''"
-                      [disabled]="getDisabledStatus(job.status, JobStatus.MACHINING_STARTABLE)"
+                      [disabled]="getDisabledStatus(job.status, JobStatus.READY)"
                       (signoffRequested)="onSignOff(job, job.stepNumber === 1, $event)"
                     />
                   }
@@ -355,7 +355,9 @@ export class ScheduleListComponent implements OnInit, OnChanges {
       }
 
       await this.jobService.signOff(loginResult, {
-        [event.param.partParamId]: loginResult.username
+        [event.param.partParamId]: {
+          value: loginResult.username, paramStatus: ParamStatus.MATCHING
+        }
       }, job.operationId);
 
       await this.loadSchedule();
@@ -427,8 +429,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     this.loading.set(true);
 
     try {
-      const date = this.buildDateString();
-      const jobs = await this.jobService.getJobsForMachine(machineId, date);
+      const jobs = await this.jobService.getJobsForMachine(machineId);
 
       this.jobs.set(jobs);
     } catch (err) {

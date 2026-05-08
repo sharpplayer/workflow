@@ -32,7 +32,7 @@ export class ConfigService {
 
     async getList(config: string): Promise<ConfigResponse> {
         const res = await firstValueFrom(
-            this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/${config}`)
+            this.http.get<ConfigResponse>(`${API_BASE_URL}/api/config/${encodeURIComponent(config)}`)
         );
         return res;
     }

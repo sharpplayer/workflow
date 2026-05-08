@@ -304,7 +304,7 @@ export class AdminJobComponent {
             }));
         }
 
-        const rows = await this.buildPhaseParamRows(params, selectedParams);
+        const rows = await this.buildPhaseParamRows(phases.phases, params, selectedParams);
 
         this.phaseParamsToShow.set(rows);
 
@@ -391,6 +391,7 @@ export class AdminJobComponent {
     }
 
     private async buildPhaseParamRows(
+        phases: JobPhase[],
         params: PhaseParam[],
         selectedParams: PhaseParamSelected[] | null
     ): Promise<PhaseParamData[]> {
@@ -407,7 +408,6 @@ export class AdminJobComponent {
             let def = '';
 
             if (p.paramConfig) {
-                console.log(p.paramName + ":" + p.paramConfig);
                 if (p.paramConfig.startsWith('CHECK(')) {
                     def = p.paramConfig.substring(6, p.paramConfig.length - 1);
                     type = 'check';
@@ -426,14 +426,6 @@ export class AdminJobComponent {
             }
 
             const defaults: ConfigItem[] = [];
-
-            if (p.input === 2 && !p.optional) {
-                def = p.evaluation ?? '(Input At Job Start)';
-                defaults.push({
-                    key: def,
-                    value: def
-                });
-            }
 
             const value = selectedMap.get(p.phaseParamId) ?? p.value ?? def;
 
@@ -460,7 +452,8 @@ export class AdminJobComponent {
                 searchable: p.searchable ?? false,
                 editable: p.editable ?? false,
                 optional: p.optional ?? false,
-                status: type === 'check' ? ParamStatus.INITIALISED : ParamStatus.MATCHING
+                status: type === 'check' ? ParamStatus.INITIALISED : ParamStatus.MATCHING,
+                phaseUsage: phases.find(ph => ph.phase.id === p.phaseId)?.phase.usage ?? 0
             });
         }
 
@@ -474,7 +467,8 @@ export class AdminJobComponent {
             phaseNumber: param.phaseNumber,
             key: param.key,
             value: param.value,
-            input: param.input
+            input: param.input,
+            phaseUsage: param.phaseUsage
         };
     }
 

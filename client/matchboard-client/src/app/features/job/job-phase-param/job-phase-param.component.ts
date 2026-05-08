@@ -234,6 +234,7 @@ export class JobPhaseParamComponent {
   readonly currentValue = input<string>('');
   readonly disabled = input<boolean>(false);
   readonly excludedUsernames = input<string[]>([]);
+  readonly machineName = input<string | null>(null);
 
   readonly valueChanged = output<{ param: JobPartParam; value: string }>();
   readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
@@ -296,6 +297,7 @@ export class JobPhaseParamComponent {
     const primitive =
       config.includes('(') ||
       normalized === 'photo' ||
+      normalized === 'text' ||
       normalized === 'int' ||
       normalized === 'float' ||
       normalized === 'boolean';
@@ -337,8 +339,8 @@ export class JobPhaseParamComponent {
 
   readonly signRole = computed(() => {
     const config = this.param().config ?? '';
-    const match = config.match(/^SIGN\((.+)\)$/);
-    return match ? match[1].trim() : null;
+    const match = config.match(/^(SIGN|AWAIT)\((.+)\)$/);
+    return match ? match[2].trim() : null;
   });
 
   readonly displayValue = computed(() => {
@@ -392,7 +394,7 @@ export class JobPhaseParamComponent {
   });
 
   private async loadSelectOptions(param: JobPartParam): Promise<void> {
-    const paramConfig = param.config;
+    let paramConfig = param.config;
 
     if (!paramConfig) {
       this.selectOptions.set([]);
@@ -403,6 +405,10 @@ export class JobPhaseParamComponent {
     this.selectLoading.set(true);
 
     try {
+      if(paramConfig === 'OPERATOR')
+      {
+        paramConfig = paramConfig + "(" + this.machineName() + ")";
+      }
       const list = await this.configService.getList(paramConfig);
 
       this.selectOptions.set(list.value ?? []);

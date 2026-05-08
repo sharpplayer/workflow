@@ -46,7 +46,7 @@ public class JobServiceImpl implements JobService {
     }
 
     private record PartPhaseKey(int jobId, int partNumber, int phaseNumber, int jobPartId,
-                                int jobPartPhaseId) {
+                                int jobPartPhaseId, Integer machineId) {
 
     }
 
@@ -100,7 +100,7 @@ public class JobServiceImpl implements JobService {
             final var jobStatus = status;
             return databaseService.createJob(job,
                     part -> getSchedulableStatus(part, jobStatus).getCode(),
-                    (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode());
+                    (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode(), this::evaluator);
         });
     }
 
@@ -198,7 +198,8 @@ public class JobServiceImpl implements JobService {
                                             r.partNumber(),
                                             r.phaseNumber(),
                                             r.jobPartId(),
-                                            r.jobPartPhaseId()
+                                            r.jobPartPhaseId(),
+                                            r.machineId()
                                     ),
                                     LinkedHashMap::new,
                                     Collectors.toList()
@@ -223,21 +224,15 @@ public class JobServiceImpl implements JobService {
 
     private ConfigValuePair evaluator(PhaseParamEvaluatorInput phaseParamEvaluatorInput) {
         if ((phaseParamEvaluatorInput.input() == ConfigurationServiceImpl.INPUT_JOB_CREATE)
+                || (phaseParamEvaluatorInput.input() == ConfigurationServiceImpl.INPUT_AT_SCHEDULE)
                 || phaseParamEvaluatorInput.paramConfig().startsWith("CHECK(")) {
-            return phaseParamEvaluatorInput.product().fold(p ->
-                            configurationService.resolveConfig(p,
-                                    phaseParamEvaluatorInput.paramConfig(),
-                                    phaseParamEvaluatorInput.input()),
-                    ex -> new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(),
-                            ex.getMessage()),
-                    () -> new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(),
-                            null));
+            return configurationService.resolveConfig(phaseParamEvaluatorInput);
         }
         return new ConfigValuePair(phaseParamEvaluatorInput.paramConfig(), null);
     }
 
     @Override
-    public OptionalResult<JobWithOnePart> nextJob(String role, Integer lastJobPhaseUpdated) {
+    public OptionalResult<JobWithOnePart> nextJob(String role) {
         return getScheduleParamsFor(null).flatMapOptional(params -> {
             List<Integer> phasesToMarkDone = new ArrayList<>();
             PartPhaseKey startPhaseKey = null;
@@ -283,7 +278,7 @@ public class JobServiceImpl implements JobService {
             }
             if (startPhaseKey != null) {
                 var job = databaseService.completePhasesAndStart(phasesToMarkDone,
-                        startPhaseKey.jobId(), startPhaseKey.jobPartPhaseId(), lastJobPhaseUpdated,
+                        startPhaseKey.jobPartId(),
                         nextPhaseId);
                 if (nextJobKey != null && startPhaseKey.jobId() == nextJobKey.jobId()) {
                     return job;
@@ -294,7 +289,7 @@ public class JobServiceImpl implements JobService {
             }
             if (!jobStarted) {
                 return databaseService.completePhasesAndStart(phasesToMarkDone,
-                        nextJobKey.jobId(), nextJobKey.jobPartPhaseId(), lastJobPhaseUpdated,
+                        nextJobKey.jobPartId(),
                         nextPhaseId);
             }
             return databaseService.getJobWithOnePart(nextJobKey.jobId(),
@@ -304,11 +299,11 @@ public class JobServiceImpl implements JobService {
     }
 
     private boolean isPhaseStarted(JobStatus phaseStatus) {
-        return phaseStatus == JobStatus.STARTED;
+        return phaseStatus == JobStatus.STARTED || phaseStatus == JobStatus.READY;
     }
 
     private boolean isPhaseNotCompleted(JobStatus phaseStatus) {
-        return phaseStatus != JobStatus.COMPLETED;
+        return phaseStatus != JobStatus.COMPLETED && phaseStatus != JobStatus.MACHINING_COMPLETED;
     }
 
     @Override
@@ -324,14 +319,14 @@ public class JobServiceImpl implements JobService {
                         return addRpi(j, completion.rpi()).map(_ -> j).toOptional();
                     }
                     return OptionalResult.of(j);
-                }, OptionalResult::<JobWithOnePart>failure, OptionalResult::<JobWithOnePart>empty)
-                // Next job here bumps all the states up
-                .flatMap(j -> {
-                    if (j.completedPhase() != null) {
-                        return nextJob(completion.role(), j.completedPhase()).map(_ -> j);
-                    }
-                    return OptionalResult.of(j);
-                });
+                }, OptionalResult::failure, OptionalResult::empty);
+//                // Next job here bumps all the states up
+//                .flatMap(j -> {
+//                    if (j.completedPhase() != null) {
+//                        return nextJob(completion.role()).map(_ -> j);
+//                    }
+//                    return OptionalResult.of(j);
+//                });
     }
 
     @Override

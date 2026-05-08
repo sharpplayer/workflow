@@ -26,7 +26,7 @@ public interface JobService {
 
     Result<Boolean> createSchedule(CreateSchedule schedule);
 
-    OptionalResult<JobWithOnePart> nextJob(String role, Integer lastJobPhaseUpdated);
+    OptionalResult<JobWithOnePart> nextJob(String role);
 
     OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion);
 

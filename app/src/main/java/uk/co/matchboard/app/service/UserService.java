@@ -27,7 +27,7 @@ public interface UserService {
     Result<User> updateUser(String username, String password, List<String> roles, boolean pinReset,
             boolean enabled);
 
-    Result<ConfigResponse> getOperators();
+    Result<ConfigResponse> getOperators(String role);
 
     OptionalResult<User> findUser(String user);
 }

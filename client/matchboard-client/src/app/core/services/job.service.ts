@@ -58,6 +58,7 @@ export interface JobPartPhase {
   specialInstructions: string | null;
   status: JobStatus;
   description: string;
+  phaseUsage: number;
 }
 
 export interface JobPartParam {
@@ -88,6 +89,7 @@ export interface JobPart {
   params: JobPartParam[];
   status: number;
   machineIds : number[] | null;
+  packSize: number;
 };
 
 export interface Job {
@@ -139,6 +141,7 @@ export interface CreateJobPartParam {
   paramId: number;
   phaseNumber: number;
   value: string;
+  pack : number | null;
 }
 
 export interface CreateJobPart {
@@ -250,6 +253,11 @@ export interface ScheduledJobPartView {
   jobPartId : number;
   stepNumber: number;
   firstOffAt: string | null;
+}
+
+export interface ParamSignOff {
+  value :  string;
+  paramStatus : ParamStatus;
 }
 
 export interface ScheduledJobPartViews {
@@ -410,7 +418,7 @@ export class JobService {
     }
   }
 
-  async signOff(loginResult: LoginResult, paramData: Record<number, string>, operationId?: number): Promise<JobWithOnePart | null> {
+  async signOff(loginResult: LoginResult, paramData: Record<number, ParamSignOff>, operationId?: number): Promise<JobWithOnePart | null> {
     try {
       let job = await firstValueFrom(
         this.http.patch<JobWithOnePart | null>(

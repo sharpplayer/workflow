@@ -13,6 +13,7 @@ import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
+import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.user.LoginOptions;
 import uk.co.matchboard.app.model.user.User;
 import uk.co.matchboard.app.model.user.UserView;
@@ -138,9 +139,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result<ConfigResponse> getOperators() {
+    public Result<ConfigResponse> getOperators(String configName) {
+        String role = extractValue(configName);
         return getUsers().map(userList -> new ConfigResponse("OPERATOR",
-                userList.users().stream().filter(UserView::enabled).toList(), "string[]"));
+                userList.users().stream().filter(u -> u.enabled() && u.roles().contains(role))
+                        .map(u -> new KeyValuePair(u.username(), u.username())).toList(),
+                "string[]"));
+    }
+
+    public static String extractValue(String input) {
+        int start = input.indexOf('(');
+        int end = input.lastIndexOf(')');
+        return (start >= 0 && end > start)
+                ? input.substring(start + 1, end)
+                : null;
     }
 
     @Override

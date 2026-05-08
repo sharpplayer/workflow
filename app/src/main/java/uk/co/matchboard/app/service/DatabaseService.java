@@ -25,6 +25,7 @@ import uk.co.matchboard.app.model.job.ScheduleForRole;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
+import uk.co.matchboard.app.model.product.ParamSignOff;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
@@ -76,7 +77,8 @@ public interface DatabaseService {
     Result<Carrier> createCarrier(CreateCarrier carrier);
 
     Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
-            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus);
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus,
+            Function<PhaseParamEvaluatorInput, ConfigValuePair> paramConfigEvaluator);
 
     Result<List<SchedulableJobPart>> getUnscheduled();
 
@@ -95,7 +97,7 @@ public interface DatabaseService {
             LocalDate toDate);
 
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
-            int jobId, int jobPhaseId, Integer lastJobPhaseUpdated, Integer activePhaseId);
+            int jobPartId, Integer activePhaseId);
 
     OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId,
             Integer completedPhase, Integer activePhaseId);
@@ -104,7 +106,7 @@ public interface DatabaseService {
 
     OptionalResult<Carrier> findCarrier(int carrierId);
 
-    OptionalResult<JobWithOnePart> signOff(Map<Integer, String> signOffParams, Integer operationId);
+    OptionalResult<JobWithOnePart> signOff(Map<Integer, ParamSignOff> signOffParams, Integer operationId);
 
     Result<List<JobPartParam>> getJobPartParams(Integer paramId);
 

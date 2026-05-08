@@ -83,7 +83,7 @@ export interface CrossJobParameters {
                     <th>Product</th>
                     <th>Sage Name</th>
                     <th>Quantity</th>
-                    <th>From Call Off</th>
+                    <th>From Stock</th>
                     <th>Schedule</th>
                     <th></th>
                 </tr>
@@ -209,7 +209,8 @@ export class AdminJobsComponent implements OnInit {
                 phaseNumber: p.phaseNumber,
                 value: p.value || '',
                 key: p.name,
-                input: p.input
+                input: p.input,
+                phaseUsage: part.phases.find(ph => p.phaseId === ph.phaseId)?.phaseUsage ?? 0
             })),
 
             ...this.staticParamIds.map((id): PhaseParamSelected => {
@@ -221,7 +222,8 @@ export class AdminJobsComponent implements OnInit {
                     phaseNumber: 0,
                     key: base.paramName,
                     value: this.getValueByParamId(id, part),
-                    input: base.input
+                    input: base.input,
+                    phaseUsage: 0
                 };
             })
         ];
@@ -229,6 +231,8 @@ export class AdminJobsComponent implements OnInit {
         const paramMap = new Map(
             params.map((p: any) => [p.phaseParamId, p.value])
         );
+
+        console.log("PACK SIZE:" + part.packSize);
 
         return {
             clientId: this.createId(),
@@ -238,7 +242,8 @@ export class AdminJobsComponent implements OnInit {
                 name: part.name,
                 oldName: part.oldName,
                 enabled: true,
-                machineIds : part.machineIds ?? []
+                machineIds: part.machineIds ?? [],
+                packSize: part.packSize
             },
             params,
             phases: (part.phases ?? []).map((phase): JobPhase => ({
@@ -462,12 +467,29 @@ export class AdminJobsComponent implements OnInit {
                     phaseId: phase.phase.id,
                     specialInstructions: phase.specialInstruction
                 })),
-                params: jobPart.params.filter(p => p.phaseParamId > 0)
-                    .map((param): CreateJobPartParam => ({
-                        paramId: param.phaseParamId,
-                        phaseNumber: param.phaseNumber,
-                        value: param.value
-                    }))
+                params: jobPart.params
+                    .filter(p => p.phaseParamId > 0)
+                    .flatMap((param): CreateJobPartParam[] => {
+                        const usesProductPack = (param.phaseUsage & 16) !== 0;
+
+                        if (!usesProductPack) {
+                            return [{
+                                paramId: param.phaseParamId,
+                                phaseNumber: param.phaseNumber,
+                                value: param.value,
+                                pack: null
+                            }];
+                        }
+
+                        const packCount = Math.floor(Number(jobPart.params.find(i => i.phaseParamId == PHASE_PARAM_ID_QUANTITY)!.value) / jobPart.product.packSize) + 1;
+
+                        return Array.from({ length: packCount }, (_, i): CreateJobPartParam => ({
+                            paramId: param.phaseParamId,
+                            phaseNumber: param.phaseNumber,
+                            value: param.value,
+                            pack: i + 1
+                        }));
+                    })
             }))
         };
     }

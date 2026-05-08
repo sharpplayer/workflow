@@ -36,7 +36,7 @@ public class JobController {
 
     @GetMapping("/jobs/next")
     public ResponseEntity<?> nextJob(@RequestParam String role) {
-        return jobService.nextJob(role, null)
+        return jobService.nextJob(role)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
                         () -> ResponseEntity.noContent().build());
     }

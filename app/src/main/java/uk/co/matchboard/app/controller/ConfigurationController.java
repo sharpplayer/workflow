@@ -38,8 +38,14 @@ public class ConfigurationController {
             case AuxiliaryServiceImpl.CONFIG_MACHINE -> auxiliaryService.getMachines();
             case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
             case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
-            case UserServiceImpl.CONFIG_OPERATOR -> userService.getOperators();
-            default -> configurationService.getConfig(configName);
+            default -> {
+
+                if(configName.startsWith(UserServiceImpl.CONFIG_OPERATOR))
+                {
+                    yield userService.getOperators(configName);
+                }
+                yield configurationService.getConfig(configName);
+            }
         };
         return result.fold(d -> ResponseEntity.ok().body(d),
                 ExceptionHandler::toResponse);

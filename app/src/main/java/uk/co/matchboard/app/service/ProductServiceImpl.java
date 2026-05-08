@@ -22,6 +22,7 @@ import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.Phase;
 import uk.co.matchboard.app.model.product.PhaseParam;
 import uk.co.matchboard.app.model.product.PhaseParamData;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.Phases;
 import uk.co.matchboard.app.model.product.PhasesUpdate;
 import uk.co.matchboard.app.model.product.Product;
@@ -33,6 +34,8 @@ import uk.co.matchboard.app.model.sage.SageProduct;
 @Service
 public class ProductServiceImpl implements ProductService {
 
+    public static final int EXAMPLE_QUANTITY = 100;
+    public static final Long EXAMPLE_PACK = 1L;
     public static final Product EXAMPLE_PRODUCT = new Product(0, "prod", "sage", 1234, 567, 8,
             "pitch", "edge", "finish",
             "profile", "material", "owner", 12,
@@ -113,7 +116,8 @@ public class ProductServiceImpl implements ProductService {
                                 product.name(),
                                 product.oldName(),
                                 product.enabled(),
-                                product.machinery().stream().map(ProductMachine::id).toList()
+                                product.machinery().stream().map(ProductMachine::id).toList(),
+                                product.packSize()
                         ))
                         .sorted(Comparator.comparing(ProductView::name))
                         .toList())
@@ -134,7 +138,8 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Result<Phases> getPhases() {
-        return databaseService.getPhases().map(list -> buildPhases(EXAMPLE_PRODUCT, list, false))
+        return databaseService.getPhases()
+                .map(list -> buildPhases(EXAMPLE_PRODUCT, list, false))
                 .map(Phases::new);
     }
 
@@ -204,8 +209,9 @@ public class ProductServiceImpl implements ProductService {
                 .map(pp -> new PhaseParamData(pp.phaseParamId(), pp.paramName(),
                         pp.paramConfig(),
                         pp.input(),
-                        configurationService.resolveConfig(product, pp.paramConfig(), pp.input())
-                                .value()))
+                        configurationService.resolveConfig(
+                                new PhaseParamEvaluatorInput(product, pp.paramConfig(), pp.input(),
+                                        EXAMPLE_QUANTITY, EXAMPLE_PACK)).value()))
                 .collect(Collectors.toList());
     }
 

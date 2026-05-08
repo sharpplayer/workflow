@@ -310,11 +310,11 @@ export class AdminPhaseComponent implements OnInit {
   ];
 
   readonly usageOptions = [
-    { label: 'From Call Off', value: this.USAGE_FROM_CALL_OFF },
-    { label: 'To Call Off', value: this.USAGE_TO_CALL_OFF },
-    { label: 'Per RPI', value: this.USAGE_PER_RPI },
-    { label: 'Per Product Pack', value: this.USAGE_PER_PRODUCT_PACK },
-    { label: 'Per RPI Left/Right', value: this.USAGE_PER_RPI_LEFT_RIGHT }
+    { label: 'From Allocation Phase', value: this.USAGE_FROM_CALL_OFF },
+    { label: 'Call Off Stock Phase', value: this.USAGE_TO_CALL_OFF },
+    { label: 'Per RPI Phase', value: this.USAGE_PER_RPI },
+    { label: 'Per Product Pack Phase', value: this.USAGE_PER_PRODUCT_PACK },
+    { label: 'Per RPI Left/Right Phase', value: this.USAGE_PER_RPI_LEFT_RIGHT }
   ];
 
   ngOnInit(): void {

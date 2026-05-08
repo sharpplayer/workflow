@@ -16,6 +16,7 @@ import uk.co.matchboard.app.model.config.Config;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.config.KeyValuePair;
+import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.Product;
 
 @Service
@@ -44,7 +45,7 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         Result<List<KeyValuePair>> roles = Result.of(new ArrayList<>());
         if (config.equals("ROLES")) {
             roles = databaseService.getAllMachines().map(
-                    l -> l.stream().map(machine -> new KeyValuePair(machine.name(), machine.name()))
+                    l -> l.stream().map(machine -> new KeyValuePair(machine.name(), machine.name() + "*"))
                             .collect(Collectors.toCollection(ArrayList::new)));
         }
         return roles.map(list -> new ConfigResponse(
@@ -76,15 +77,17 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     }
 
     @Override
-    public ConfigValuePair resolveConfig(Product product, String config, int input) {
+    public ConfigValuePair resolveConfig(PhaseParamEvaluatorInput args) {
+        String config = args.paramConfig();
         if (config.startsWith("CHECK(")) {
-            ConfigValuePair resolve = resolveConfig(product,
-                    config.substring(6, config.length() - 1), input);
+            ConfigValuePair resolve = resolveConfig(new PhaseParamEvaluatorInput(args.product(),
+                    config.substring(6, config.length() - 1), args.input(), args.quantity(),
+                    args.pack()));
             return new ConfigValuePair("CHECK(" + resolve.value() + ")", resolve.value());
         } else if (config.startsWith("PRODUCT(")) {
             String prop = config.substring(8, config.length() - 1);
             if (prop.equals("format")) {
-                if (product.width() > product.length()) {
+                if (args.product().width() > args.product().length()) {
                     return new ConfigValuePair(config, "PORTRAIT");
                 } else {
                     return new ConfigValuePair(config, "LANDSCAPE");
@@ -92,12 +95,20 @@ public class ConfigurationServiceImpl implements ConfigurationService {
             }
             return TryUtils.tryCatch(() -> {
                 Method accessor = Product.class.getMethod(prop);
-                return new ConfigValuePair(config, convertToString(accessor.invoke(product)));
+                return new ConfigValuePair(config,
+                        convertToString(accessor.invoke(args.product())));
             }).fold(i -> i,
-                    _ -> new ConfigValuePair(config, getDefaultInput(input)));
+                    _ -> new ConfigValuePair(config, getDefaultInput(args.input())));
+        } else if (config.equals("RACKS")) {
+            return new ConfigValuePair(config,
+                    Integer.toString(Math.ceilDiv(args.quantity(), args.product().rackType())));
+        } else if (config.equals("PACKSIZE")) {
+            return new ConfigValuePair(config,
+                    Integer.toString(getPackQuantity(args.quantity(), args.product().packSize(),
+                            args.pack())));
         }
 
-        return new ConfigValuePair(config, getDefaultInput(input));
+        return new ConfigValuePair(config, getDefaultInput(args.input()));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -106,6 +117,10 @@ public class ConfigurationServiceImpl implements ConfigurationService {
             return list.stream().collect(Collectors.joining(" → ")).toString();
         }
         return value.toString();
+    }
+
+    private int getPackQuantity(int quantity, int packSize, Long pack) {
+        return (int) Math.max(0, Math.min(packSize, quantity - (pack - 1) * packSize));
     }
 
     @Override
