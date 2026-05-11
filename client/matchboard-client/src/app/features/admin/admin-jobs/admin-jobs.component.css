@@ -41,6 +41,23 @@ table tbody tr.selected {
   background: #e6f2ff;
 }
 
+table tbody tr.marked-for-delete {
+  opacity: 0.65;
+}
+
+.select-cell {
+  width: 60px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.select-cell input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #d32f2f;
+}
+
 button {
   padding: 4px 8px;
   border: none;

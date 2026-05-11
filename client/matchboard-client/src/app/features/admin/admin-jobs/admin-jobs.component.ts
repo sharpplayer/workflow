@@ -29,6 +29,7 @@ import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
 export interface ProductSelectedWithMap extends ProductSave {
     clientId: string;
     paramMap: Map<number, string>;
+    selectedForDelete?: boolean;
 }
 
 export interface CrossJobParameters {
@@ -79,13 +80,13 @@ export interface CrossJobParameters {
         <table>
             <thead>
                 <tr>
+                    <th>Delete</th>
                     <th>Part</th>
                     <th>Product</th>
                     <th>Sage Name</th>
                     <th>Quantity</th>
                     <th>From Stock</th>
                     <th>Schedule</th>
-                    <th></th>
                 </tr>
             </thead>
 
@@ -100,16 +101,23 @@ export interface CrossJobParameters {
                         <tr
                             (click)="selectPart(job)"
                             [class.selected]="selectedPart()?.clientId === job.clientId"
+                            [class.marked-for-delete]="job.selectedForDelete"
                         >
+                            <td class="select-cell">
+                                <input
+                                    type="checkbox"
+                                    [checked]="!!job.selectedForDelete"
+                                    (click)="$event.stopPropagation()"
+                                    (change)="togglePartDeleteSelection(job, $any($event.target).checked)"
+                                    aria-label="Select job part for deletion"
+                                />
+                            </td>
                             <td>{{ jobIndex + 1 }}</td>
                             <td>{{ job.product.name }}</td>
                             <td>{{ job.product.oldName }}</td>
                             <td>{{ job.paramMap.get(PHASE_PARAM_ID_QUANTITY) }}</td>
                             <td>{{ job.paramMap.get(PHASE_PARAM_ID_CALLOFF) === 'true' ? 'YES' : 'NO' }}</td>
                             <td>{{ getSchedulableDisplay(job) }}</td>
-                            <td>
-                                <button type="button" (click)="removePart(job, $event)">-</button>
-                            </td>
                         </tr>
                     }
                 }
@@ -118,6 +126,13 @@ export interface CrossJobParameters {
             <tfoot>
                 <tr>
                     <td colspan="7">
+                        <button
+                            type="button"
+                            (click)="deleteSelectedParts()"
+                            [disabled]="selectedDeleteCount() === 0"
+                        >
+                            Delete Selected
+                        </button>
                         <button
                             (click)="onSaveJob()"
                             [disabled]="!canSaveJob()"
@@ -167,6 +182,10 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     jobs = signal<ProductSelectedWithMap[]>([]);
     selectedPart = signal<ProductSelectedWithMap | null>(null);
     private cleanSnapshot = signal<string>('');
+
+    selectedDeleteCount = computed(() =>
+        this.jobs().filter(job => job.selectedForDelete).length
+    );
 
     @ViewChild(AdminJobComponent)
     jobBuilder!: AdminJobComponent;
@@ -299,7 +318,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
                 specialInstruction: phase.specialInstructions ?? '',
                 order: 1
             })),
-            paramMap
+            paramMap,
+            selectedForDelete: false
         };
     }
 
@@ -365,7 +385,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
             product: save.product,
             params: save.params,
             phases: save.phases,
-            paramMap
+            paramMap,
+            selectedForDelete: false
         };
 
         if (save.mode === 'update' && originalPart) {
@@ -400,14 +421,26 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         this.selectedPart.set(job);
     }
 
-    removePart(job: ProductSelectedWithMap, event: Event) {
-        event.stopPropagation();
+    togglePartDeleteSelection(job: ProductSelectedWithMap, checked: boolean): void {
+        this.jobs.update(jobs =>
+            jobs.map(j => (j.clientId === job.clientId ? { ...j, selectedForDelete: checked } : j))
+        );
+    }
 
+    deleteSelectedParts(): void {
         if (!this.canDiscardBuilderChanges()) return;
 
-        this.jobs.update(jobs => jobs.filter(j => j.clientId !== job.clientId));
+        const selectedIds = new Set(
+            this.jobs()
+                .filter(job => job.selectedForDelete)
+                .map(job => job.clientId)
+        );
 
-        if (this.selectedPart()?.clientId === job.clientId) {
+        if (selectedIds.size === 0) return;
+
+        this.jobs.update(jobs => jobs.filter(job => !selectedIds.has(job.clientId)));
+
+        if (selectedIds.has(this.selectedPart()?.clientId ?? '')) {
             this.selectedPart.set(null);
             this.jobBuilder.reset();
         }
