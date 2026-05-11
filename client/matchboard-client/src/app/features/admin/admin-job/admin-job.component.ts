@@ -200,6 +200,21 @@ export class AdminJobComponent {
     productSave = output<ProductSave>();
     cancel = output<void>();
     crossJobParamsChanged = output<CrossJobParameters>();
+    private cleanSnapshot = signal<string>('');
+
+    private editSnapshot = computed(() => JSON.stringify({
+        productId: this.effectiveSelectedProduct()?.id ?? null,
+        phaseIds: this.selectedPhases().map(p => p.phase.id),
+        params: this.lastParamsSelected() ?? []
+    }));
+
+    hasUnsavedChanges(): boolean {
+        return this.editSnapshot() !== this.cleanSnapshot();
+    }
+
+    private markClean(): void {
+        this.cleanSnapshot.set(this.editSnapshot());
+    }
 
     hasResults = true;
 
@@ -237,6 +252,8 @@ export class AdminJobComponent {
     });
 
     constructor() {
+        queueMicrotask(() => this.markClean());
+
         effect(() => {
             const job = this.selectedPart();
             if (!job) return;
@@ -257,6 +274,9 @@ export class AdminJobComponent {
     }
 
     async onProductSelected(product: ProductView): Promise<void> {
+        if (this.effectiveSelectedProduct()?.id === product.id) return;
+        if (!this.canDiscardChanges()) return;
+
         this.manualSelectedProduct.set(product);
         this.phaseParamsToShow.set([]);
         this.selectedPhases.set([]);
@@ -380,6 +400,8 @@ export class AdminJobComponent {
     }
 
     cancelAdd(): void {
+        if (!this.canDiscardChanges()) return;
+
         this.cancel.emit();
         this.productsList.clearFilter();
         this.reset();
@@ -388,6 +410,12 @@ export class AdminJobComponent {
     private loadJob(job: ProductSave): void {
         this.selectedPhases.set([...job.phases]);
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
+        queueMicrotask(() => this.markClean());
+    }
+
+    private canDiscardChanges(): boolean {
+        return !this.hasUnsavedChanges()
+            || confirm('You have unsaved changes. Continue without saving them?');
     }
 
     private async buildPhaseParamRows(
@@ -581,6 +609,7 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(null);
         this.validationErrors.set([]);
         this.hasResults = true;
+        queueMicrotask(() => this.markClean());
     }
 
     isPrimitive(config: string) {

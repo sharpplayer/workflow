@@ -36,6 +36,7 @@ export const adminRoutes: Routes = [
           {
             path: 'new',
             component: AdminJobsComponent,
+            canDeactivate: [unsavedChangesGuard],
             data: {
               title: 'New Job',
               breadcrumb: 'Jobs / New',
@@ -48,12 +49,13 @@ export const adminRoutes: Routes = [
           {
             path: ':id',
             component: AdminJobsComponent,
+            canDeactivate: [unsavedChangesGuard],
             data: {
               title: 'Edit Job',
               breadcrumb: 'Jobs / Edit',
               subnav: [
                 { label: 'List', link: '/admin/jobs' },
-                { label: 'Edit', link: '' } // current page
+                { label: 'Edit', link: '' }
               ]
             }
           }

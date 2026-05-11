@@ -1,4 +1,4 @@
-import { Component, signal, ViewChild, computed, inject, OnInit } from '@angular/core';
+import { Component, signal, ViewChild, computed, inject, OnInit, AfterViewInit, HostListener } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import {
     AdminJobComponent,
@@ -140,7 +140,7 @@ export interface CrossJobParameters {
   `,
     styleUrl: './admin-jobs.component.css'
 })
-export class AdminJobsComponent implements OnInit {
+export class AdminJobsComponent implements OnInit, AfterViewInit {
 
     PHASE_PARAM_ID_QUANTITY = PHASE_PARAM_ID_QUANTITY;
     PHASE_PARAM_ID_CALLOFF = PHASE_PARAM_ID_CALLOFF;
@@ -166,9 +166,49 @@ export class AdminJobsComponent implements OnInit {
 
     jobs = signal<ProductSelectedWithMap[]>([]);
     selectedPart = signal<ProductSelectedWithMap | null>(null);
+    private cleanSnapshot = signal<string>('');
 
     @ViewChild(AdminJobComponent)
     jobBuilder!: AdminJobComponent;
+
+    private dirtySnapshot = computed(() => JSON.stringify({
+        crossJobParams: this.crossJobParams(),
+        jobs: this.jobs().map(job => ({
+            productId: job.product.id,
+            params: job.params,
+            phases: job.phases
+        })),
+        selectedPartClientId: this.selectedPart()?.clientId ?? null,
+        builderDirty: this.jobBuilder?.hasUnsavedChanges?.() ?? false
+    }));
+
+    ngAfterViewInit(): void {
+        if (this.crossJobParams().jobId === 0 && this.jobs().length === 0) {
+            queueMicrotask(() => this.markClean());
+        }
+    }
+
+    isDirty(): boolean {
+        return this.dirtySnapshot() !== this.cleanSnapshot();
+    }
+
+    @HostListener('window:beforeunload', ['$event'])
+    onBeforeUnload(event: BeforeUnloadEvent): void {
+        if (!this.isDirty()) return;
+
+        event.preventDefault();
+        event.returnValue = '';
+    }
+
+    private markClean(): void {
+        this.cleanSnapshot.set(this.dirtySnapshot());
+    }
+
+    private canDiscardBuilderChanges(): boolean {
+        return !this.jobBuilder?.hasUnsavedChanges?.()
+            || confirm('You have unsaved changes. Continue without saving them?');
+    }
+
 
     ngOnInit(): void {
         const idParam = this.route.snapshot.paramMap.get('id');
@@ -196,6 +236,7 @@ export class AdminJobsComponent implements OnInit {
 
             this.jobs.set(job.parts.map(part => this.mapJobPartToSelected(part)));
             this.selectedPart.set(null);
+            queueMicrotask(() => this.markClean());
         } catch (err) {
             console.error('Failed to load job', err);
         }
@@ -354,11 +395,15 @@ export class AdminJobsComponent implements OnInit {
     }
 
     selectPart(job: ProductSelectedWithMap) {
+        if (!this.canDiscardBuilderChanges()) return;
+
         this.selectedPart.set(job);
     }
 
     removePart(job: ProductSelectedWithMap, event: Event) {
         event.stopPropagation();
+
+        if (!this.canDiscardBuilderChanges()) return;
 
         this.jobs.update(jobs => jobs.filter(j => j.clientId !== job.clientId));
 
@@ -428,6 +473,12 @@ export class AdminJobsComponent implements OnInit {
 
     async onSaveJob() {
         if (!this.canSaveJob()) return;
+
+        if (this.jobBuilder?.hasUnsavedChanges?.()) {
+            alert('Please add/update or cancel the current part before saving the job.');
+            return;
+        }
+
         await this.saveJob();
     }
 
@@ -443,6 +494,8 @@ export class AdminJobsComponent implements OnInit {
                 jobNumber: job.number,
                 status: job.status
             });
+
+            queueMicrotask(() => this.markClean());
         } catch (err) {
             console.error('Job save failed', err);
         }
