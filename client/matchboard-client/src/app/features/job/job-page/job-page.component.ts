@@ -20,7 +20,7 @@ import { AuthService } from '../../../core/services/auth.service';
           </div>
         } @else {
           <job
-            [job]="currentJob()"
+            [job]="currentJob()!"
             (schedule)="showPhaseList()"
             (jobUpdated)="onJobUpdated($event)"
             (nextJob)="nextJob()">

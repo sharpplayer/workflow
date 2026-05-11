@@ -88,7 +88,7 @@ export interface JobPart {
   phases: JobPartPhase[];
   params: JobPartParam[];
   status: number;
-  machineIds : number[] | null;
+  machineIds: number[] | null;
   packSize: number;
 };
 
@@ -141,7 +141,7 @@ export interface CreateJobPartParam {
   paramId: number;
   phaseNumber: number;
   value: string;
-  pack : number | null;
+  pack: number | null;
 }
 
 export interface CreateJobPart {
@@ -249,15 +249,15 @@ export interface ScheduledJobPartView {
   actualStartParamId: number,
   firstOffParamId: number | null;
   actualFinishParamId: number,
-  jobId : number;
-  jobPartId : number;
+  jobId: number;
+  jobPartId: number;
   stepNumber: number;
   firstOffAt: string | null;
 }
 
 export interface ParamSignOff {
-  value :  string;
-  paramStatus : ParamStatus;
+  value: string;
+  paramStatus: ParamStatus;
 }
 
 export interface ScheduledJobPartViews {
@@ -479,15 +479,19 @@ export class JobService {
     }
   }
 
-  async uploadPhoto(file: File, param: JobPartParam): Promise<string> {
-    const formData = new FormData();
-    formData.append('photo', file);
-    formData.append('paramId', String(param.partParamId));
+  async uploadPhoto(jobNumber: number, jobPart: number, file: File, param: JobPartParam): Promise<string> {
+    try {
+      const formData = new FormData();
+      formData.append('photo', file);
 
-//    const response = await firstValueFrom(
-  //    this.http.post<{ value: string }>('/api/photos/upload', formData)
-    //);
+      const response = await firstValueFrom(
+        this.http.post<{ value: string }>(`${API_BASE_URL}/api/jobs/${jobNumber}/part/${jobPart}/phase/${param.phaseNumber}/param/${param.partParamId}`, formData)
+      );
 
-    return "File Uploaded";
+      console.log(response.value);
+      return response.value;
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Get wastage failed.'));
+    }
   }
 }

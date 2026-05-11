@@ -1,12 +1,16 @@
 package uk.co.matchboard.app.service;
 
+import org.springframework.core.io.UrlResource;
+import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateSchedule;
 import uk.co.matchboard.app.model.job.Job;
 import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
+import uk.co.matchboard.app.model.job.PhotoView;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
@@ -33,4 +37,9 @@ public interface JobService {
     Result<JobViews> getJobs(Long toNumber, int count);
 
     OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi);
+
+    Result<ConfigValuePair> createPhoto(int jobNumber, int jobPart, MultipartFile photo,
+            int paramId, int phase);
+
+    Result<PhotoView> getPhoto(int jobNumber, int jobPart, int phase, int paramId);
 }

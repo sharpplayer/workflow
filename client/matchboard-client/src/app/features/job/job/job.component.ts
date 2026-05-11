@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   QueryList,
+  ViewChild,
   ViewChildren,
   inject,
   input,
@@ -104,8 +105,7 @@ type PhasePackGroup = {
                   [ngClass]="{
                     'landscape': currentJob.product.width > currentJob.product.length,
                     'portrait': currentJob.product.width <= currentJob.product.length
-                  }"
-                >
+                  }">
                   {{ currentJob.product.width > currentJob.product.length ? 'LANDSCAPE' : 'PORTRAIT' }}
                 </div>
               </div>
@@ -265,15 +265,19 @@ type PhasePackGroup = {
                             @if (!isPlaceholderParam(param)) {
                               <job-phase-param
                                 [param]="param"
+                                [jobNumber]="currentJob.number"
+                                [jobPart]="currentJob.partNumber"
                                 [currentValue]="getParamDisplayValue(param)"
                                 [disabled]="isParamDisabled(currentJob, phase, group, param)"
                                 [machineName]="getMachineName(group.machineId)"
                                 [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
                                 [valueState]="getParamValueState(currentJob, phase, group, param)"
+                                [photoUploading]="isPhotoUploading(param)"
                                 (valueChanged)="onParamValueChanged($event)"
                                 (checkStatusChanged)="onCheckStatusChanged($event)"
                                 (signoffRequested)="onSignoffRequested($event)"
-                                (wastageRequested)="openWastageDialog($event)">
+                                (wastageRequested)="openWastageDialog($event)"
+                                (photoRequested)="openCameraDialog($event)">
                               </job-phase-param>
                             }
                           </td>
@@ -286,14 +290,18 @@ type PhasePackGroup = {
                             @if (!isPlaceholderParam(param)) {
                               <job-phase-param
                                 [param]="param"
+                                [jobNumber]="currentJob.number"
+                                [jobPart]="currentJob.partNumber"
                                 [currentValue]="getParamDisplayValue(param)"
                                 [disabled]="isParamDisabled(currentJob, phase, group, param)"
                                 [machineName]="getMachineName(group.machineId)"
                                 [excludedUsernames]="getExcludedSignoffUsersForPack(group, param)"
                                 [valueState]="getParamValueState(currentJob, phase, group, param)"
+                                [photoUploading]="isPhotoUploading(param)"
                                 (valueChanged)="onParamValueChanged($event)"
                                 (checkStatusChanged)="onCheckStatusChanged($event)"
-                                (signoffRequested)="onSignoffRequested($event)">
+                                (signoffRequested)="onSignoffRequested($event)"
+                                (photoRequested)="openCameraDialog($event)">
                               </job-phase-param>
                             }
                           </td>
@@ -310,6 +318,48 @@ type PhasePackGroup = {
         <p>No job loaded.</p>
       }
     </div>
+
+    <input
+      #cameraFileInput
+      type="file"
+      accept="image/*"
+      capture="environment"
+      hidden
+      (change)="onCameraFileSelected($event)"
+    />
+
+    @if (cameraOpen()) {
+      <div class="camera-modal-backdrop">
+        <div class="camera-modal">
+          <video
+            #cameraVideo
+            autoplay
+            playsinline
+            class="camera-video">
+          </video>
+
+          <div class="camera-actions">
+            <button
+              type="button"
+              [disabled]="photoUploading()"
+              (click)="captureCameraPhoto()">
+              {{ photoUploading() ? 'Uploading...' : 'Capture' }}
+            </button>
+
+            <button
+              type="button"
+              [disabled]="photoUploading()"
+              (click)="closeCameraDialog()">
+              Cancel
+            </button>
+          </div>
+
+          @if (cameraError(); as error) {
+            <div class="camera-error">{{ error }}</div>
+          }
+        </div>
+      </div>
+    }
 
     @if (showWastageDialog() && selectedWastageParam(); as param) {
       <wastage
@@ -334,17 +384,30 @@ export class JobComponent implements OnChanges, AfterViewInit {
   readonly selectedWastageParam = signal<JobPartParam | null>(null);
   readonly showWastageDialog = signal(false);
   readonly machines = signal<MachineInput[]>([]);
+  readonly selectedPhotoParam = signal<JobPartParam | null>(null);
+  readonly cameraOpen = signal(false);
+  readonly cameraError = signal<string | null>(null);
+  readonly photoUploading = signal(false);
+
   readonly jobUpdated = output<JobWithOnePart>();
   readonly nextJob = output<void>();
 
   @ViewChildren('phaseBlock')
   phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
 
-  readonly job = input<JobWithOnePart | null>(null);
+  @ViewChild('cameraVideo')
+  private cameraVideoRef?: ElementRef<HTMLVideoElement>;
+
+  @ViewChild('cameraFileInput')
+  private cameraFileInputRef?: ElementRef<HTMLInputElement>;
+
+  readonly job = input.required<JobWithOnePart>();
   readonly schedule = output<void>();
 
   jobRef = '-';
   zone = '';
+
+  private cameraStream?: MediaStream;
 
   private readonly placeholderParam: JobPartParam = {
     partParamId: -1,
@@ -840,7 +903,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   isPhaseActive(phase: JobPartPhase): boolean {
     return (
       (phase.status === JobStatus.READY || phase.status === JobStatus.STARTED) &&
-      this.job()?.activePhase === phase.phaseId
+      this.job().activePhase === phase.phaseId
     );
   }
 
@@ -1021,5 +1084,129 @@ export class JobComponent implements OnChanges, AfterViewInit {
         !this.isPlaceholderParam(param) &&
         this.isAwaitParamPending(param)
       );
+  }
+
+  isPhotoUploading(param: JobPartParam): boolean {
+    return this.photoUploading() &&
+      this.selectedPhotoParam()?.partParamId === param.partParamId;
+  }
+
+  async openCameraDialog(event: { param: JobPartParam }): Promise<void> {
+    if (this.photoUploading()) {
+      return;
+    }
+
+    this.selectedPhotoParam.set(event.param);
+    this.cameraError.set(null);
+
+    try {
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        },
+        audio: false
+      });
+
+      this.cameraOpen.set(true);
+
+      setTimeout(async () => {
+        const video = this.cameraVideoRef?.nativeElement;
+
+        if (!video || !this.cameraStream) {
+          this.cameraError.set('Camera preview unavailable');
+          return;
+        }
+
+        video.srcObject = this.cameraStream;
+        video.muted = true;
+        video.playsInline = true;
+
+        try {
+          await video.play();
+        } catch (err) {
+          console.error('Video play failed', err);
+          this.cameraError.set('Unable to start camera preview');
+        }
+      }, 0);
+    } catch (err) {
+      console.error('Camera access failed', err);
+      this.cameraFileInputRef?.nativeElement.click();
+    }
+  }
+
+  async captureCameraPhoto(): Promise<void> {
+    const video = this.cameraVideoRef?.nativeElement;
+
+    if (!video || this.photoUploading()) {
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      this.cameraError.set('Unable to capture photo');
+      return;
+    }
+
+    context.drawImage(video, 0, 0);
+
+    canvas.toBlob(async blob => {
+      if (!blob) {
+        this.cameraError.set('Unable to capture photo');
+        return;
+      }
+
+      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+      await this.uploadCameraPhoto(file);
+      this.closeCameraDialog();
+    }, 'image/jpeg', 0.9);
+  }
+
+  async onCameraFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    await this.uploadCameraPhoto(file);
+    input.value = '';
+  }
+
+  private async uploadCameraPhoto(file: File): Promise<void> {
+    const param = this.selectedPhotoParam();
+
+    if (!param) {
+      this.cameraError.set('No photo parameter selected');
+      return;
+    }
+
+    this.photoUploading.set(true);
+    this.cameraError.set(null);
+
+    try {
+      const uploadedValue = await this.jobService.uploadPhoto(this.job().number, this.job().partNumber, file, param);
+
+      this.onParamValueChanged({
+        param,
+        value: uploadedValue
+      });
+    } catch (err) {
+      console.error('Failed to upload photo', err);
+      this.cameraError.set('Failed to upload photo');
+    } finally {
+      this.photoUploading.set(false);
+    }
+  }
+
+  closeCameraDialog(): void {
+    this.cameraStream?.getTracks().forEach(track => track.stop());
+    this.cameraStream = undefined;
+    this.cameraOpen.set(false);
   }
 }

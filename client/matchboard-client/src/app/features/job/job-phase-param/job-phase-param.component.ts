@@ -14,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { JobPartParam, JobService, ParamStatus } from '../../../core/services/job.service';
 import { DeviceService } from '../../../core/services/device.service';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
+import { API_BASE_URL } from '../../../app.config';
 
 type CheckVisualState = 'neutral' | 'matching' | 'unmatching';
 type ParamValueState = 'disabled' | 'required' | 'complete' | 'neutral';
@@ -30,9 +31,7 @@ export interface LoggedOnOperator {
   template: `
     @if (isSignoff()) {
       @if (isAlreadySigned()) {
-        <div
-          class="param-signoff signed"
-          [ngClass]="valueStateClass()">
+        <div class="param-signoff signed" [ngClass]="valueStateClass()">
           <div class="signed-label signoff-operator-button signed">
             SIGNED<br />
             {{ signedBy() }}
@@ -71,51 +70,54 @@ export interface LoggedOnOperator {
         </div>
       }
     } @else if (isCheck()) {
-      <div
-        class="check-cell"
-        [ngClass]="valueStateClass()"
-        [class.check-cell--matching]="checkVisualState() === 'matching'"
-        [class.check-cell--unmatching]="checkVisualState() === 'unmatching'"
-        [class.check-cell--editing]="isEditingCheck()"
-      >
-        @if (!isEditingCheck()) {
-          <div class="check-review">
-            <span class="check-review__value">{{ displayValue() || '-' }}</span>
+      @if (disabled()) {
+        <span class="param-label" [ngClass]="valueStateClass()">
+          {{ displayValue() || '-' }}
+        </span>
+      } @else {
+        <div
+          class="check-cell"
+          [ngClass]="valueStateClass()"
+          [class.check-cell--matching]="checkVisualState() === 'matching'"
+          [class.check-cell--unmatching]="checkVisualState() === 'unmatching'"
+          [class.check-cell--editing]="isEditingCheck()">
+          @if (!isEditingCheck()) {
+            <div class="check-review">
+              <span class="check-review__value">{{ displayValue() || '-' }}</span>
 
-            <div class="check-review__actions">
-              <button
-                type="button"
-                class="check-review__btn check-review__btn--tick"
-                aria-label="Accept value"
-                [disabled]="disabled() || !canAcceptCheck()"
-                (click)="acceptCheckValue()">
-                ✓
-              </button>
+              <div class="check-review__actions">
+                <button
+                  type="button"
+                  class="check-review__btn check-review__btn--tick"
+                  aria-label="Accept value"
+                  [disabled]="!canAcceptCheck()"
+                  (click)="acceptCheckValue()">
+                  ✓
+                </button>
 
-              <button
-                type="button"
-                class="check-review__btn check-review__btn--cross"
-                aria-label="Reject value and edit"
-                [disabled]="disabled()"
-                (click)="startEditingCheck()">
-                ✕
-              </button>
+                <button
+                  type="button"
+                  class="check-review__btn check-review__btn--cross"
+                  aria-label="Reject value and edit"
+                  (click)="startEditingCheck()">
+                  ✕
+                </button>
+              </div>
             </div>
-          </div>
-        } @else {
-          <input
-            #checkInput
-            class="param-input check-input"
-            [ngClass]="valueStateClass()"
-            [type]="checkInputType()"
-            [attr.inputmode]="checkInputMode()"
-            [disabled]="disabled()"
-            [value]="displayValue()"
-            (input)="onCheckInput($event)"
-            (blur)="finishEditingCheck(checkInput.value)"
-          />
-        }
-      </div>
+          } @else {
+            <input
+              #checkInput
+              class="param-input check-input"
+              [ngClass]="valueStateClass()"
+              [type]="checkInputType()"
+              [attr.inputmode]="checkInputMode()"
+              [value]="displayValue()"
+              (input)="onCheckInput($event)"
+              (blur)="finishEditingCheck(checkInput.value)"
+            />
+          }
+        </div>
+      }
     } @else if (isWastage()) {
       <div
         class="wastage-cell"
@@ -152,54 +154,27 @@ export interface LoggedOnOperator {
         }
       </div>
     } @else if (isPhoto()) {
-      <div
-        class="photo-cell"
-        [ngClass]="valueStateClass()">
-        @if (!cameraOpen()) {
-          <button
-            type="button"
-            class="photo-button"
-            [disabled]="disabled() || photoUploading()"
-            (click)="openCamera()">
-            @if (displayValue()) {
-              <img class="photo-preview" [src]="displayValue()" alt="Captured photo" />
-            } @else {
-              📷<br />
-              {{ photoUploading() ? 'Uploading...' : 'Take photo' }}
-            }
-          </button>
-        } @else {
-          <video #cameraVideo autoplay playsinline class="camera-video"></video>
-
-          <div class="camera-actions">
-            <button type="button" (click)="captureCameraPhoto()">Capture</button>
-            <button type="button" (click)="closeCamera()">Cancel</button>
-          </div>
-        }
-
-        <input
-          #photoInput
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          (change)="onPhotoSelected($event)"
-        />
-
-        @if (cameraError(); as error) {
-          <div class="param-empty">{{ error }}</div>
-        }
+      <div class="photo-cell" [ngClass]="valueStateClass()">
+        <button
+          type="button"
+          class="photo-button"
+          [disabled]="disabled() || photoUploading()"
+          (click)="requestPhoto()">
+          @if (displayValue()) {
+            <img class="photo-preview" [src]="photoUrl()" alt="Captured photo" />
+          } @else {
+            📷<br />
+            {{ photoUploading() ? 'Uploading...' : 'Take photo' }}
+          }
+        </button>
       </div>
     } @else if (isSelect()) {
-      <div
-        class="select-cell"
-        [ngClass]="valueStateClass()">
+      <div class="select-cell" [ngClass]="valueStateClass()">
         <select
           class="param-input param-select"
           [disabled]="disabled() || selectLoading()"
           [value]="displayValue()"
-          (change)="onSelectChange($event)"
-        >
+          (change)="onSelectChange($event)">
           <option value="" disabled>
             {{ selectLoading() ? 'Loading...' : 'Select...' }}
           </option>
@@ -215,9 +190,33 @@ export interface LoggedOnOperator {
           @if (!colour.startsWith('(')) {
             <span
               class="colour-box"
-              [style.background-color]="colour.toLowerCase()"
-            ></span>
+              [style.background-color]="colour.toLowerCase()">
+            </span>
           }
+        }
+      </div>
+    } @else if (isBoolean()) {
+      <div class="boolean-cell" [ngClass]="valueStateClass()">
+        @if (disabled()) {
+          <span class="param-label param-label--disabled">
+            {{ displayValue() || '-' }}
+          </span>
+        } @else {
+          <button
+            type="button"
+            class="check-review__btn check-review__btn--tick"
+            [class.check-review__btn--selected]="isBooleanYes()"
+            (click)="setBooleanValue('YES')">
+            ✓
+          </button>
+
+          <button
+            type="button"
+            class="check-review__btn check-review__btn--cross"
+            [class.check-review__btn--selected]="isBooleanNo()"
+            (click)="setBooleanValue('NO')">
+            ✕
+          </button>
         }
       </div>
     } @else if (isEditableText()) {
@@ -232,9 +231,7 @@ export interface LoggedOnOperator {
         (blur)="onBlur()"
       />
     } @else {
-      <span
-        class="param-label"
-        [ngClass]="valueStateClass()">
+      <span class="param-label" [ngClass]="valueStateClass()">
         {{ displayValue() || '-' }}
       </span>
     }
@@ -243,19 +240,15 @@ export interface LoggedOnOperator {
 })
 export class JobPhaseParamComponent {
   private readonly deviceService = inject(DeviceService);
-  private readonly jobService = inject(JobService);
   private readonly configService = inject(ConfigService);
+  private readonly jobService = inject(JobService);
 
   @ViewChild('checkInput')
   private checkInputRef?: ElementRef<HTMLInputElement>;
 
-  @ViewChild('photoInput')
-  private photoInputRef?: ElementRef<HTMLInputElement>;
-
-  @ViewChild('cameraVideo')
-  private cameraVideoRef?: ElementRef<HTMLVideoElement>;
-
-  readonly photoUploading = signal(false);
+  readonly photoUploading = input<boolean>(false);
+  readonly jobNumber = input<number>(0);
+  readonly jobPart = input<number>(0);
 
   readonly param = input.required<JobPartParam>();
   readonly currentValue = input<string>('');
@@ -268,6 +261,7 @@ export class JobPhaseParamComponent {
   readonly signoffRequested = output<{ param: JobPartParam; username?: string; role?: string }>();
   readonly checkStatusChanged = output<{ param: JobPartParam; status: ParamStatus; value: string }>();
   readonly wastageRequested = output<{ param: JobPartParam }>();
+  readonly photoRequested = output<{ param: JobPartParam }>();
 
   readonly editingCheck = signal(false);
   readonly checkOriginalValue = signal('');
@@ -276,10 +270,6 @@ export class JobPhaseParamComponent {
   readonly selectOptions = signal<ConfigItem[]>([]);
   readonly selectType = signal<string | null>(null);
   readonly selectLoading = signal(false);
-  readonly cameraOpen = signal(false);
-  readonly cameraError = signal<string | null>(null);
-
-  private cameraStream?: MediaStream;
 
   constructor() {
     effect(() => {
@@ -312,6 +302,10 @@ export class JobPhaseParamComponent {
     return (this.param().config ?? '').trim().toUpperCase() === 'WASTAGE';
   });
 
+  readonly isPhoto = computed(() =>
+    (this.param().config ?? '').trim().toUpperCase() === 'PHOTO'
+  );
+
   readonly isSelect = computed(() => {
     const config = (this.param().config ?? '').trim();
 
@@ -328,7 +322,7 @@ export class JobPhaseParamComponent {
     const primitive =
       config.includes('(') ||
       normalized === 'photo' ||
-      normalized === 'text' ||
+      normalized === 'string' ||
       normalized === 'int' ||
       normalized === 'float' ||
       normalized === 'boolean';
@@ -341,10 +335,6 @@ export class JobPhaseParamComponent {
       this.param().input === 3
     );
   });
-
-  readonly isPhoto = computed(() =>
-    (this.param().config ?? '').trim().toUpperCase() === 'PHOTO'
-  );
 
   readonly isColourSelect = computed(() => {
     return this.selectType() === 'colour[]';
@@ -386,6 +376,15 @@ export class JobPhaseParamComponent {
     return this.displayValue().trim();
   });
 
+  readonly photoUrl = computed(() => {
+    const phase = this.param().phaseNumber;
+    const paramId = this.param().partParamId;
+    const jobNumber = this.jobNumber();
+    const jobPart = this.jobPart();
+
+    return `${API_BASE_URL}/api/jobs/${jobNumber}/part/${jobPart}/phase/${phase}/param/${paramId}`;
+  });
+
   readonly matchingOperators = computed(() => {
     const role = this.signRole()?.trim().toLowerCase();
 
@@ -412,12 +411,24 @@ export class JobPhaseParamComponent {
     }));
   });
 
+  readonly isBoolean = computed(() => {
+    return (this.param().config ?? '').trim().toLowerCase() === 'boolean';
+  });
+
+  readonly booleanValue = computed(() => {
+    return this.displayValue().trim().toUpperCase();
+  });
+
+  readonly isBooleanYes = computed(() => this.booleanValue() === 'YES');
+  readonly isBooleanNo = computed(() => this.booleanValue() === 'NO');
+
   readonly isEditableText = computed(() => {
     return (
       !this.disabled() &&
       !this.isSelect() &&
       !this.isSignoff() &&
       !this.isCheck() &&
+      !this.isBoolean() &&
       !this.isWastage() &&
       !this.isPhoto() &&
       this.param().input === 3
@@ -451,6 +462,16 @@ export class JobPhaseParamComponent {
     } finally {
       this.selectLoading.set(false);
     }
+  }
+
+  requestPhoto(): void {
+    if (this.disabled() || this.photoUploading()) {
+      return;
+    }
+
+    this.photoRequested.emit({
+      param: this.param()
+    });
   }
 
   onSelectChange(event: Event): void {
@@ -711,113 +732,14 @@ export class JobPhaseParamComponent {
     return /^-?\d+$/.test(String(value).trim());
   }
 
-  async openCamera(): Promise<void> {
-    if (this.disabled() || this.photoUploading()) {
+  setBooleanValue(value: 'YES' | 'NO'): void {
+    if (this.disabled()) {
       return;
     }
 
-    this.cameraError.set(null);
-
-    try {
-      this.cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        },
-        audio: false
-      });
-
-      this.cameraOpen.set(true);
-
-      setTimeout(async () => {
-        const video = this.cameraVideoRef?.nativeElement;
-
-        if (!video || !this.cameraStream) {
-          this.cameraError.set('Camera preview unavailable');
-          return;
-        }
-
-        video.srcObject = this.cameraStream;
-        video.muted = true;
-        video.playsInline = true;
-
-        try {
-          await video.play();
-        } catch (err) {
-          console.error('Video play failed', err);
-          this.cameraError.set('Unable to start camera preview');
-        }
-      });
-    } catch (err) {
-      console.error('Camera access failed', err);
-      this.photoInputRef?.nativeElement.click();
-    }
-  }
-
-  async captureCameraPhoto(): Promise<void> {
-    const video = this.cameraVideoRef?.nativeElement;
-
-    if (!video) {
-      return;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-      this.cameraError.set('Unable to capture photo');
-      return;
-    }
-
-    context.drawImage(video, 0, 0);
-
-    canvas.toBlob(async blob => {
-      if (!blob) {
-        this.cameraError.set('Unable to capture photo');
-        return;
-      }
-
-      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
-      await this.uploadPhoto(file);
-      this.closeCamera();
-    }, 'image/jpeg', 0.9);
-  }
-
-  async onPhotoSelected(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    await this.uploadPhoto(file);
-    input.value = '';
-  }
-
-  private async uploadPhoto(file: File): Promise<void> {
-    this.photoUploading.set(true);
-
-    try {
-      const uploadedValue = await this.jobService.uploadPhoto(file, this.param());
-
-      this.valueChanged.emit({
-        param: this.param(),
-        value: uploadedValue
-      });
-    } catch (err) {
-      console.error('Failed to upload photo', err);
-      this.cameraError.set('Failed to upload photo');
-    } finally {
-      this.photoUploading.set(false);
-    }
-  }
-
-  closeCamera(): void {
-    this.cameraStream?.getTracks().forEach(track => track.stop());
-    this.cameraStream = undefined;
-    this.cameraOpen.set(false);
+    this.valueChanged.emit({
+      param: this.param(),
+      value
+    });
   }
 }

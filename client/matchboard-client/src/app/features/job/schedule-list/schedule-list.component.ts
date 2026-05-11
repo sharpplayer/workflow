@@ -144,12 +144,13 @@ import { AuthService } from '../../../core/services/auth.service';
                   @if (job.actualStart) {
                     {{ formatTime(job.actualStart) }}
                   } @else {
-                    <job-phase-param
-                      [param]="buildSignoffParam(job.actualStartParamId)"
-                      [currentValue]="''"
-                      [disabled]="getDisabledStatus(job.status, JobStatus.READY)"
-                      (signoffRequested)="onSignOff(job, job.stepNumber === 1, $event)"
-                    />
+                  <job-phase-param
+                    [param]="buildSignoffParam(job.actualStartParamId)"
+                    [currentValue]="''"
+                    [disabled]="getDisabledStatus(job.status, JobStatus.READY)"
+                    [valueState]="getScheduleSignoffValueState(job.status, JobStatus.READY)"
+                    (signoffRequested)="onSignOff(job, job.stepNumber === 1, $event)"
+                  />
                   }
                 </td>
 
@@ -163,6 +164,7 @@ import { AuthService } from '../../../core/services/auth.service';
                             [param]="buildSignoffParam(job.firstOffParamId)"
                             [currentValue]="''"
                             [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                            [valueState]="getScheduleSignoffValueState(job.status, JobStatus.STARTED)"
                             (signoffRequested)="onSignOff(job, false, $event)"
                           />
                         }
@@ -190,10 +192,10 @@ import { AuthService } from '../../../core/services/auth.service';
                     <job-phase-param
                       [param]="buildSignoffParam(job.actualFinishParamId)"
                       [currentValue]="''"
-                      [disabled]="getDisabledStatus(job.status, JobStatus.STARTED)"
+                      [disabled]="isActualEndDisabled(job)"
+                      [valueState]="getActualEndValueState(job)"
                       (signoffRequested)="onSignOff(job, false, $event)"
-                    />
-                  }
+                    />                  }
                 </td>
 
                 <td>
@@ -548,5 +550,28 @@ export class ScheduleListComponent implements OnInit, OnChanges {
 
   getDisabledStatus(status: JobStatus, enabledStatus: JobStatus): boolean {
     return this.loading() || status !== enabledStatus;
+  }
+
+  getScheduleSignoffValueState(
+    status: JobStatus,
+    enabledStatus: JobStatus
+  ): 'disabled' | 'required' | 'complete' | 'neutral' {
+    if (this.getDisabledStatus(status, enabledStatus)) {
+      return 'disabled';
+    }
+
+    return 'required';
+  }
+
+  isActualEndDisabled(job: ScheduledJobPartView): boolean {
+    if (this.getDisabledStatus(job.status, JobStatus.STARTED)) {
+      return true;
+    }
+
+    return job.firstOffParamId != null && !job.firstOffAt;
+  }
+
+  getActualEndValueState(job: ScheduledJobPartView): 'disabled' | 'required' | 'complete' | 'neutral' {
+    return this.isActualEndDisabled(job) ? 'disabled' : 'required';
   }
 }

@@ -72,6 +72,9 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         if (item.type().equals("string[]") || item.type().equals("colour[]")) {
             return getListConfig(item.name(), item.value(), item.type());
         }
+        if (item.type().equals("string")) {
+            return Result.of(new ConfigResponse(item.name(), item.value(), item.type()));
+        }
         return Result.failure(new UnknownConfigException(
                 item.name().toUpperCase() + " type not supported:" + item.type()));
     }

@@ -67,6 +67,7 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.InvalidJobException;
+import uk.co.matchboard.app.exception.InvalidParamException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
@@ -402,6 +403,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         return Result.of(getMachineList());
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<JobView>> getJobs(Long toNumber, int count) {
         return TryUtils.tryCatch(() ->
@@ -415,6 +418,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         );
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public int getMachine(String role) {
         return getAllMachines().fold(
@@ -427,6 +432,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         );
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Wastage> createWastage(int userId, CreateWastage wastage) {
         return TryUtils.tryCatch(() ->
@@ -449,6 +456,8 @@ public class DatabaseServiceImpl implements DatabaseService {
         ));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<List<WastageView>> getWastage(int jobPhaseId) {
         return TryUtils.tryCatch(() ->
@@ -467,6 +476,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 w.get(WASTAGE.REASON), w.get(WASTAGE.CREATED_AT));
     }
 
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, long rpi) {
         return TryUtils.tryCatch(() ->
@@ -616,6 +627,42 @@ public class DatabaseServiceImpl implements DatabaseService {
                     return true;
                 })
         );
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public OptionalResult<String> getParamValue(int paramId) {
+        return TryUtils.tryCatch(
+                () -> outerDsl.selectFrom(JOB_PART_PARAMS).where(JOB_PART_PARAMS.ID.eq(paramId))
+                        .fetchOne(JOB_PART_PARAMS.VALUE)).toOptional();
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<Boolean> updateParam(int paramId, long jobNumber, int jobPart, int phaseNumber,
+            String config,
+            String value) {
+        return TryUtils.tryCatch(() ->
+                outerDsl.update(JOB_PART_PARAMS)
+                        .set(JOB_PART_PARAMS.VALUE, value)
+                        .from(
+                                JOB
+                                        .join(JOB_PART)
+                                        .on(JOB_PART.JOB_ID.eq(JOB.ID))
+                                        .join(JOB_PART_PHASES)
+                                        .on(JOB_PART_PHASES.JOB_PART_ID.eq(JOB_PART.ID))
+                        )
+                        .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(JOB_PART_PHASES.ID))
+                        .and(JOB.NUMBER.eq(jobNumber))
+                        .and(JOB_PART.PART_NUMBER.eq(jobPart))
+                        .and(JOB_PART_PHASES.PHASE_NUMBER.eq(phaseNumber))
+                        .and(JOB_PART_PARAMS.CONFIG.eq(config))
+                        .execute() > 0
+        ).flatMap(r -> r ? Result.of(true)
+                : Result.failure(new InvalidParamException(paramId, jobNumber, jobPart, phaseNumber,
+                        config)));
     }
 
     private static JobView getJobView(JobRecord jobRecord, DSLContext dsl) {
@@ -876,7 +923,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         var next = JOB_PART_OPERATION.as("next");
                         innerDsl.update(next)
                                 .set(next.STATUS, JobStatus.READY.getCode())
-                                .set(next.READY_AT, now)
+                                .set(next.READY_AT, DSL.coalesce(next.READY_AT, now))
                                 .from(current)
                                 .where(current.ID.eq(operationId))
                                 .and(next.JOB_PART_ID.eq(current.JOB_PART_ID))
@@ -1076,9 +1123,11 @@ public class DatabaseServiceImpl implements DatabaseService {
 
         innerDsl.update(JOB_PART_PHASES)
                 .set(JOB_PART_PHASES.STATUS, startStatus.getCode())
-                .set(JOB_PART_PHASES.READY_AT, now)
+                .set(JOB_PART_PHASES.READY_AT, DSL.coalesce(JOB_PART_PHASES.READY_AT, now))
                 .set(JOB_PART_PHASES.STARTED_AT,
-                        startStatus == JobStatus.STARTED ? now : null)
+                        startStatus == JobStatus.STARTED
+                                ? DSL.coalesce(JOB_PART_PHASES.STARTED_AT, now)
+                                : JOB_PART_PHASES.STARTED_AT)
                 .where(JOB_PART_PHASES.ID.eq(checkPhase))
                 .and(condition)
                 .execute();
@@ -1087,7 +1136,8 @@ public class DatabaseServiceImpl implements DatabaseService {
             innerDsl
                     .update(JOB_PART_OPERATION)
                     .set(JOB_PART_OPERATION.STATUS, JobStatus.READY.getCode())
-                    .set(JOB_PART_OPERATION.READY_AT, now)
+                    .set(JOB_PART_OPERATION.READY_AT,
+                            DSL.coalesce(JOB_PART_OPERATION.READY_AT, now))
                     .where(JOB_PART_OPERATION.JOB_PART_ID.eq(jobPartId))
                     .and(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.eq(
                             DSL.select(DSL.min(JOB_PART_OPERATION.MACHINE_QUEUE_POSITION))
@@ -1695,7 +1745,7 @@ public class DatabaseServiceImpl implements DatabaseService {
             if (fromDate == null) {
                 condition = condition.and(
                         JOB_PART_OPERATION.STATUS.in(JobStatus.SCHEDULED.getCode(),
-                                JobStatus.STARTED.getCode()));
+                                JobStatus.STARTED.getCode(), JobStatus.READY.getCode()));
             }
 
             var x = outerDsl

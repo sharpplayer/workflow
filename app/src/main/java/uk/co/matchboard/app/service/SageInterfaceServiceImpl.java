@@ -3,6 +3,7 @@ package uk.co.matchboard.app.service;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -22,66 +23,107 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
 
     private final ConfigurationService configService;
 
+    private List<SageProduct> cachedProducts;
+    private String cachedProductFile;
+    private long cachedProductLastModified = -1L;
+
+    private List<SageCustomer> cachedCustomers;
+    private String cachedCustomerFile;
+    private long cachedCustomerLastModified = -1L;
+
     public SageInterfaceServiceImpl(ConfigurationService configService) {
         this.configService = configService;
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public Result<List<SageProduct>> readProductsFromFile(String csvFile) {
+    public synchronized Result<List<SageProduct>> readProductsFromFile(String csvFile) {
+        return configService.getConfig("DATA").flatMap(folder ->
+                TryUtils.tryCatchResult(() -> {
+                    File file = new File(folder.value() + csvFile);
+                    long lastModified = file.lastModified();
 
-        return TryUtils.tryCatchResult(() -> {
-            try (InputStream inputStream = new FileInputStream(csvFile)) {
-                CsvSchema schema = CsvSchema.emptySchema().withHeader();
+                    if (cachedProducts != null
+                            && csvFile.equals(cachedProductFile)
+                            && lastModified <= cachedProductLastModified) {
+                        return Result.of(cachedProducts);
+                    }
 
-                MappingIterator<Map<String, String>> it = mapper
-                        .readerFor(Map.class)
-                        .with(schema)
-                        .readValues(inputStream);
+                    try (InputStream inputStream = new FileInputStream(file)) {
+                        CsvSchema schema = CsvSchema.emptySchema().withHeader();
 
-                return configService.getConfig("PRODUCTCSV")
-                        .map(config -> ((List<KeyValuePair>) config.value()).stream()
-                                .map(s -> s.value().split("=", 2))        // split on first '=' only
-                                .filter(arr -> arr.length == 2)
-                                .collect(Collectors.toMap(
-                                        arr -> arr[0].trim(),
-                                        arr -> arr[1].trim()
-                                ))).flatMapTry(headerMapping ->
+                        MappingIterator<Map<String, String>> it = mapper
+                                .readerFor(Map.class)
+                                .with(schema)
+                                .readValues(inputStream);
 
-                                Result.sequence(it.readAll().stream()
-                                        .map(row -> SageProduct.fromMap(row, headerMapping))
-                                        .toList()));
+                        Result<List<SageProduct>> result = configService.getConfig("PRODUCTCSV")
+                                .map(config -> ((List<KeyValuePair>) config.value()).stream()
+                                        .map(s -> s.value().split("=", 2))
+                                        .filter(arr -> arr.length == 2)
+                                        .collect(Collectors.toMap(
+                                                arr -> arr[0].trim(),
+                                                arr -> arr[1].trim()
+                                        )))
+                                .flatMapTry(headerMapping ->
+                                        Result.sequence(it.readAll().stream()
+                                                .map(row -> SageProduct.fromMap(row, headerMapping))
+                                                .toList()));
 
-            }
-        });
+                        result.ifSuccess(products -> {
+                            cachedProducts = products;
+                            cachedProductFile = csvFile;
+                            cachedProductLastModified = lastModified;
+                        });
+
+                        return result;
+                    }
+                }));
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public Result<List<SageCustomer>> readCustomersFromFile(String csvFile) {
-        return TryUtils.tryCatchResult(() -> {
-            try (InputStream inputStream = new FileInputStream(csvFile)) {
-                CsvSchema schema = CsvSchema.emptySchema().withHeader();
+    public synchronized Result<List<SageCustomer>> readCustomersFromFile(String csvFile) {
+        return configService.getConfig("DATA").flatMap(folder ->
+                TryUtils.tryCatchResult(() -> {
+                    File file = new File(folder.value() + csvFile);
+                    long lastModified = file.lastModified();
 
-                MappingIterator<Map<String, String>> it = mapper
-                        .readerFor(Map.class)
-                        .with(schema)
-                        .readValues(inputStream);
+                    if (cachedCustomers != null
+                            && csvFile.equals(cachedCustomerFile)
+                            && lastModified <= cachedCustomerLastModified) {
+                        return Result.of(cachedCustomers);
+                    }
 
-                return configService.getConfig("CUSTOMERCSV")
-                        .map(config -> ((List<KeyValuePair>) config.value()).stream()
-                                .map(s -> s.value().split("=", 2))        // split on first '=' only
-                                .filter(arr -> arr.length == 2)
-                                .collect(Collectors.toMap(
-                                        arr -> arr[0].trim(),
-                                        arr -> arr[1].trim()
-                                ))).flatMapTry(headerMapping ->
+                    try (InputStream inputStream = new FileInputStream(file)) {
+                        CsvSchema schema = CsvSchema.emptySchema().withHeader();
 
-                                Result.sequence(it.readAll().stream()
-                                        .map(row -> SageCustomer.fromMap(row, headerMapping))
-                                        .toList()));
+                        MappingIterator<Map<String, String>> it = mapper
+                                .readerFor(Map.class)
+                                .with(schema)
+                                .readValues(inputStream);
 
-            }
-        });
+                        Result<List<SageCustomer>> result = configService.getConfig("CUSTOMERCSV")
+                                .map(config -> ((List<KeyValuePair>) config.value()).stream()
+                                        .map(s -> s.value().split("=", 2))
+                                        .filter(arr -> arr.length == 2)
+                                        .collect(Collectors.toMap(
+                                                arr -> arr[0].trim(),
+                                                arr -> arr[1].trim()
+                                        )))
+                                .flatMapTry(headerMapping ->
+                                        Result.sequence(it.readAll().stream()
+                                                .map(row -> SageCustomer.fromMap(row, headerMapping))
+                                                .toList()));
+
+                        result.ifSuccess(customers -> {
+                            cachedCustomers = customers;
+                            cachedCustomerFile = csvFile;
+                            cachedCustomerLastModified = lastModified;
+                        });
+
+                        return result;
+                    }
+                }));
     }
 }

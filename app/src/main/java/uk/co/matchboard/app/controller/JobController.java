@@ -1,5 +1,6 @@
 package uk.co.matchboard.app.controller;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -7,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateSchedule;
@@ -76,6 +78,35 @@ public class JobController {
         return jobService.createRpi(jobId, jobPartId, rpi)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
                         () -> ResponseEntity.noContent().build());
+    }
+
+    @PostMapping("/jobs/{jobNumber}/part/{jobPart}/phase/{phase}/param/{paramId}")
+    public ResponseEntity<?> uploadPhoto(
+            @PathVariable int jobNumber,
+            @PathVariable int jobPart,
+            @PathVariable int phase,
+            @PathVariable int paramId,
+            @RequestParam("photo") MultipartFile photo
+    ) {
+        return jobService.createPhoto(jobNumber, jobPart, photo, paramId, phase)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+
+    }
+
+    @GetMapping("/jobs/{jobNumber}/part/{jobPart}/phase/{phase}/param/{paramId}")
+    public ResponseEntity<?> getPhoto(
+            @PathVariable int jobNumber,
+            @PathVariable int jobPart,
+            @PathVariable int phase,
+            @PathVariable int paramId
+    ) {
+        return jobService.getPhoto(jobNumber, jobPart, phase, paramId)
+                .fold(photoView ->
+                                ResponseEntity.ok()
+                                        .contentType(MediaType.parseMediaType(photoView.mediaType()))
+                                        .body(photoView.resource())
+                        , ExceptionHandler::toResponse);
+
     }
 
 }

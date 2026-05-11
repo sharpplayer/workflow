@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import uk.co.matchboard.app.exception.AggregateException;
 
@@ -161,5 +162,11 @@ public class Result<T> {
             return OptionalResult.failure(exception);
         }
         return OptionalResult.of(value);
+    }
+
+    public void ifSuccess(Consumer<T> consumer) {
+        if (!isFaulted()) {
+            consumer.accept(value);
+        }
     }
 }

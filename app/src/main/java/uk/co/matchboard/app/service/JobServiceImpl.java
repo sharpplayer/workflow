@@ -1,19 +1,31 @@
 package uk.co.matchboard.app.service;
 
+import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.exception.InvalidCustomerException;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
+import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
@@ -27,6 +39,7 @@ import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
+import uk.co.matchboard.app.model.job.PhotoView;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduleSummary;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
@@ -340,6 +353,51 @@ public class JobServiceImpl implements JobService {
                 .flatMap(j -> addRpi(j, rpi).toOptional());
     }
 
+    @Override
+    public Result<ConfigValuePair> createPhoto(int jobNumber, int jobPart,
+            MultipartFile photo, int paramId, int phase) {
+        return configurationService.getConfig("DATA").flatMap(folder ->
+                TryUtils.tryCatchResult(() -> {
+                            String originalFilename = photo.getOriginalFilename();
+                            String extension = "";
+                            if (originalFilename != null && originalFilename.contains(".")) {
+                                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+                            }
+                            String timestamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+                                    .withZone(ZoneOffset.UTC)
+                                    .format(Instant.now());
+
+                            String randomPart = UUID.randomUUID()
+                                    .toString()
+                                    .replace("-", "")
+                                    .substring(0, 4);
+
+                            String filename = paramId
+                                    + "_"
+                                    + timestamp
+                                    + "_"
+                                    + randomPart
+                                    + extension;
+
+                            Path directoryPath = Paths.get(
+                                    folder.value().toString(),
+                                    "photos",
+                                    jobNumber + "_" + jobPart + "_" + phase
+                            );
+                            Files.createDirectories(directoryPath);
+                            Path uploadPath = directoryPath.resolve(filename);
+                            Files.copy(
+                                    photo.getInputStream(),
+                                    uploadPath,
+                                    StandardCopyOption.REPLACE_EXISTING
+                            );
+                            return databaseService.updateParam(paramId, jobNumber, jobPart, phase, "PHOTO",
+                                    filename).map(_ -> new ConfigValuePair("PHOTO", filename));
+                        }
+                )
+        );
+    }
+
     private Result<JobWithOnePart> addRpi(JobWithOnePart jobWithOnePart, int rpi) {
         // Phases with RPI usage need params duplicated per rpi
         return databaseService.createRpi(jobWithOnePart, rpi).map(_ -> jobWithOnePart);
@@ -427,4 +485,36 @@ public class JobServiceImpl implements JobService {
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
+
+    @Override
+    public Result<PhotoView> getPhoto(
+            int jobNumber,
+            int jobPart,
+            int phase,
+            int paramId) {
+
+        return databaseService.getParamValue(paramId).flatMapResult(file ->
+                configurationService.getConfig("DATA").flatMap(folder -> TryUtils.tryCatch(() -> {
+                    Path directoryPath = Paths.get(
+                            folder.value().toString(),
+                            "photos",
+                            jobNumber + "_" + jobPart + "_" + phase
+                    );
+                    Path photoPath = directoryPath.resolve(file).normalize();
+                    if (!photoPath.startsWith(directoryPath)) {
+                        throw new InvalidUserException();// Change this
+                    }
+                    if (!Files.exists(photoPath) || !Files.isRegularFile(photoPath)) {
+                        throw new FileNotFoundException();
+                    }
+                    String contentType = Files.probeContentType(photoPath);
+
+                    if (contentType == null) {
+                        contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                    }
+
+                    return new PhotoView(new UrlResource(photoPath.toUri()), contentType);
+                })));
+    }
 }
+
