@@ -1,5 +1,6 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { JobService, JobStatus, JobStatusLabel, JobView } from '../../../core/services/job.service';
 
 @Component({
@@ -77,6 +78,7 @@ import { JobService, JobStatus, JobStatusLabel, JobView } from '../../../core/se
 })
 export class AdminJobListComponent implements OnInit {
   private readonly jobService = inject(JobService);
+  private readonly router = inject(Router);
 
   readonly pageSize = 50;
 
@@ -119,8 +121,9 @@ export class AdminJobListComponent implements OnInit {
     await this.loadPage(previousToNumber);
   }
 
-  selectJob(job: JobView): void {
+  async selectJob(job: JobView): Promise<void> {
     this.selectedJob.set(job);
+    await this.router.navigate(['/admin/jobs', job.id]);
   }
 
   formatDue(due: Date): string {

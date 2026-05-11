@@ -127,17 +127,17 @@ export interface CrossJobParameters {
                 <tr>
                     <td colspan="7">
                         <button
+                            (click)="onSaveJob()"
+                            [disabled]="!canSaveJob()"
+                        >
+                            Save Job
+                        </button>
+                        <button
                             type="button"
                             (click)="deleteSelectedParts()"
                             [disabled]="selectedDeleteCount() === 0"
                         >
                             Delete Selected
-                        </button>
-                        <button
-                            (click)="onSaveJob()"
-                            [disabled]="!canSaveJob()"
-                        >
-                            Save Job
                         </button>
                     </td>
                 </tr>
@@ -241,7 +241,6 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     async loadJob(jobId: number) {
         try {
             const job = await this.jobService.getJob(jobId);
-
             this.crossJobParams.set({
                 jobId: job.id,
                 jobNumber: job.number,
@@ -264,8 +263,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     private mapJobPartToSelected(part: JobPart): ProductSelectedWithMap {
         const params = [
             ...(part.params ?? []).map((p): PhaseParamSelected => ({
-                phaseId: p.partPhaseId,
-                phaseParamId: p.partParamId,
+                phaseId: p.phaseId,
+                phaseParamId: p.originalParamId ?? p.partParamId,
                 phaseNumber: p.phaseNumber,
                 value: p.value || '',
                 key: p.name,
@@ -291,8 +290,6 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         const paramMap = new Map(
             params.map((p: any) => [p.phaseParamId, p.value])
         );
-
-        console.log("PACK SIZE:" + part.packSize);
 
         return {
             clientId: this.createId(),
@@ -517,9 +514,12 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
 
     async saveJob() {
         try {
-            const job = await this.jobService.createJob(
-                this.createJob(this.crossJobParams(), this.jobs())
-            );
+            const payload = this.createJob(this.crossJobParams(), this.jobs());
+            const current = this.crossJobParams();
+
+            const job = current.jobId > 0
+                ? await this.jobService.updateJob(current.jobId, payload)
+                : await this.jobService.createJob(payload);
 
             this.crossJobParams.set({
                 ...this.crossJobParams(),

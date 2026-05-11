@@ -6,7 +6,6 @@ import java.util.Set;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.config.ConfigValuePair;
-import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 
 public interface ConfigurationService {

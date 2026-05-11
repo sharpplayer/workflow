@@ -201,6 +201,7 @@ export class AdminJobComponent {
     cancel = output<void>();
     crossJobParamsChanged = output<CrossJobParameters>();
     private cleanSnapshot = signal<string>('');
+    private pendingEditHydration = false;
 
     private editSnapshot = computed(() => JSON.stringify({
         productId: this.effectiveSelectedProduct()?.id ?? null,
@@ -248,7 +249,9 @@ export class AdminJobComponent {
         const params = this.lastParamsSelected();
         if (!params) return false;
 
-        return this.getValidationErrors(params).length === 0;
+        if (this.getValidationErrors(params).length > 0) return false;
+
+        return !this.isEditing() || this.hasUnsavedChanges();
     });
 
     constructor() {
@@ -307,7 +310,7 @@ export class AdminJobComponent {
             PHASE_PARAM_MATERIAL
         ];
 
-        let selectedParams: PhaseParamSelected[] | null = null;
+        let jobPartParams: PhaseParamSelected[] | null = null;
 
         if (selected && selected.product.id === this.effectiveSelectedProduct()?.id) {
             const crossJobParamValueMap = new Map<number, string>([
@@ -318,19 +321,24 @@ export class AdminJobComponent {
                 [callOffParam.phaseParamId, callOffParam.value ?? '']
             ]);
 
-            selectedParams = selected.params.map(p => ({
+            jobPartParams = selected.params.map(p => ({
                 ...p,
                 value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
             }));
         }
 
-        const rows = await this.buildPhaseParamRows(phases.phases, params, selectedParams);
+        const rows = await this.buildPhaseParamRows(phases.phases, params, jobPartParams);
 
         this.phaseParamsToShow.set(rows);
 
         this.lastParamsSelected.set(
             rows.map(row => this.toSelectedParam(row))
         );
+
+        if (this.pendingEditHydration) {
+            this.pendingEditHydration = false;
+            queueMicrotask(() => this.markClean());
+        }
     }
 
     paramsSelected(params: PhaseParamSelected[]): void {
@@ -400,17 +408,15 @@ export class AdminJobComponent {
     }
 
     cancelAdd(): void {
-        if (!this.canDiscardChanges()) return;
-
         this.cancel.emit();
         this.productsList.clearFilter();
         this.reset();
     }
 
     private loadJob(job: ProductSave): void {
+        this.pendingEditHydration = true;
         this.selectedPhases.set([...job.phases]);
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
-        queueMicrotask(() => this.markClean());
     }
 
     private canDiscardChanges(): boolean {
@@ -421,10 +427,10 @@ export class AdminJobComponent {
     private async buildPhaseParamRows(
         phases: JobPhase[],
         params: PhaseParam[],
-        selectedParams: PhaseParamSelected[] | null
+        jobPartParams: PhaseParamSelected[] | null
     ): Promise<PhaseParamData[]> {
         const selectedMap = new Map(
-            (selectedParams ?? []).map(p => [p.phaseParamId, p.value])
+            (jobPartParams ?? []).map(p => [p.phaseParamId, p.value])
         );
 
         const filtered = params.filter(p => this.isWrappedEvaluation(p));
@@ -609,6 +615,7 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(null);
         this.validationErrors.set([]);
         this.hasResults = true;
+        this.pendingEditHydration = false;
         queueMicrotask(() => this.markClean());
     }
 

@@ -24,8 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.exception.InvalidCustomerException;
 import uk.co.matchboard.app.exception.InvalidJobException;
+import uk.co.matchboard.app.exception.InvalidPathException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
-import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
@@ -46,6 +46,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
+import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 
@@ -81,39 +82,42 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public Result<Job> createJob(CreateJob job) {
-        // Validate job
+        return resolveJobStatus(job.customer(), job.callOff(), job.paymentConfirmed())
+                .flatMap(jobStatus -> databaseService.createJob(job,
+                        part -> getSchedulableStatus(part, jobStatus).getCode(),
+                        (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode()));
+    }
 
-        // Check to/from call off matches phases provided
+    @Override
+    public Result<Job> updateJob(UpdateJob job) {
+        return resolveJobStatus(job.customer(), job.callOff(), job.paymentConfirmed())
+                .flatMap(jobStatus -> databaseService.updateJob(job,
+                        part -> getSchedulableStatus(part, jobStatus).getCode(),
+                        (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode()));
+    }
 
-        // Check the phases are relevant for at least one machine
-        // If all don't match -> saved
-        // If some don't match -> partially schedulable
-        // If all match -> schedulable
-
+    private Result<JobStatus> resolveJobStatus(Integer customerId, boolean callOff,
+            OffsetDateTime paymentConfirmed) {
         OptionalResult<Customer> optCustomer = OptionalResult.empty();
-        if (job.customer() != null) {
-            optCustomer = databaseService.findCustomer(job.customer());
+        if (customerId != null) {
+            optCustomer = databaseService.findCustomer(customerId);
             Result<Customer> customerResult = optCustomer.fold(Result::of, Result::failure,
-                    () -> Result.failure(new InvalidCustomerException(job.customer())));
+                    () -> Result.failure(new InvalidCustomerException(customerId)));
             if (customerResult.isFaulted()) {
                 return customerResult.cast();
             }
         }
 
         return optCustomer.flatMapResult(customer -> {
-            JobStatus status = JobStatus.SCHEDULABLE;
-            if (customer == null) {
-                if (!job.callOff()) {
-                    status = JobStatus.SAVED;
-                }
-            } else if (customer.proforma() && job.paymentConfirmed() == null) {
-                status = JobStatus.AWAITING_PAYMENT;
+            if (customer == null && !callOff) {
+                return Result.of(JobStatus.SAVED);
             }
 
-            final var jobStatus = status;
-            return databaseService.createJob(job,
-                    part -> getSchedulableStatus(part, jobStatus).getCode(),
-                    (_, _) -> JobStatus.AWAITING.getCode(), jobStatus.getCode(), this::evaluator);
+            if (customer != null && customer.proforma() && paymentConfirmed == null) {
+                return Result.of(JobStatus.AWAITING_PAYMENT);
+            }
+
+            return Result.of(JobStatus.SCHEDULABLE);
         });
     }
 
@@ -502,7 +506,7 @@ public class JobServiceImpl implements JobService {
                     );
                     Path photoPath = directoryPath.resolve(file).normalize();
                     if (!photoPath.startsWith(directoryPath)) {
-                        throw new InvalidUserException();// Change this
+                        throw new InvalidPathException(file);
                     }
                     if (!Files.exists(photoPath) || !Files.isRegularFile(photoPath)) {
                         throw new FileNotFoundException();

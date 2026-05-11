@@ -178,7 +178,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public LoginOptions getOptions(String user, boolean loggedInOnDevice) {
         OptionalResult<User> userRecord = databaseService.findUser(user);
-            return userRecord.fold(getUserLoginOptionsFunction(loggedInOnDevice),
+        return userRecord.fold(getUserLoginOptionsFunction(loggedInOnDevice),
                 _ -> new LoginOptions(List.of(LOGIN_OPT_PASSWORD), List.of(LOGIN_ADMIN)),
                 () -> new LoginOptions(List.of(LOGIN_OPT_PASSWORD), List.of(LOGIN_ADMIN)));
     }

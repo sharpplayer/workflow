@@ -1,6 +1,5 @@
 package uk.co.matchboard.app.service;
 
-import org.springframework.core.io.UrlResource;
 import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
@@ -14,6 +13,7 @@ import uk.co.matchboard.app.model.job.PhotoView;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
+import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 
 public interface JobService {
@@ -21,6 +21,8 @@ public interface JobService {
     Result<Job> findJob(int jobId);
 
     Result<Job> createJob(CreateJob job);
+
+    Result<Job> updateJob(UpdateJob job);
 
     Result<SchedulableJobParts> getSchedulable();
 

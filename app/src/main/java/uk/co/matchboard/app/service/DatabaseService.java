@@ -23,6 +23,7 @@ import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduleForRole;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
+import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.ParamSignOff;
@@ -77,8 +78,10 @@ public interface DatabaseService {
     Result<Carrier> createCarrier(CreateCarrier carrier);
 
     Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
-            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus,
-            Function<PhaseParamEvaluatorInput, ConfigValuePair> paramConfigEvaluator);
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus);
+
+    Result<Job> updateJob(UpdateJob job, Function<CreateJobPart, Integer> partStatusProvider,
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus);
 
     Result<List<SchedulableJobPart>> getUnscheduled();
 

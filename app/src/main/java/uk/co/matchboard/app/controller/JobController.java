@@ -3,6 +3,7 @@ package uk.co.matchboard.app.controller;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import uk.co.matchboard.app.exception.ExceptionHandler;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateSchedule;
+import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.service.JobService;
 
 @RestController
@@ -33,6 +35,22 @@ public class JobController {
     @PostMapping("/jobs")
     public ResponseEntity<?> createJob(@RequestBody CreateJob job) {
         return jobService.createJob(job)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @PatchMapping("/jobs/{jobId}")
+    public ResponseEntity<?> updateJob(@PathVariable int jobId, @RequestBody UpdateJob job) {
+        UpdateJob update = new UpdateJob(
+                jobId,
+                job.due(),
+                job.customer(),
+                job.carrier(),
+                job.callOff(),
+                job.paymentConfirmed(),
+                job.parts()
+        );
+
+        return jobService.updateJob(update)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
@@ -102,10 +120,9 @@ public class JobController {
     ) {
         return jobService.getPhoto(jobNumber, jobPart, phase, paramId)
                 .fold(photoView ->
-                                ResponseEntity.ok()
-                                        .contentType(MediaType.parseMediaType(photoView.mediaType()))
-                                        .body(photoView.resource())
-                        , ExceptionHandler::toResponse);
+                        ResponseEntity.ok()
+                                .contentType(MediaType.parseMediaType(photoView.mediaType()))
+                                .body(photoView.resource()), ExceptionHandler::toResponse);
 
     }
 

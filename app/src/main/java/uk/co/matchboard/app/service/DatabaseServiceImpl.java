@@ -60,12 +60,12 @@ import org.jooq.Row1;
 import org.jooq.SelectOnConditionStep;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
-import org.springframework.dao.DataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import uk.co.matchboard.app.exception.DataException;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidParamException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
@@ -95,6 +95,7 @@ import uk.co.matchboard.app.model.job.ScheduleForRole;
 import uk.co.matchboard.app.model.job.ScheduleSummary;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
+import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.model.product.CreatePhase;
 import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.ParamSignOff;
@@ -336,8 +337,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .fetchOne(PRODUCTS.ID);
 
             if (productId == null) {
-                throw new DataAccessException("Failed to insert product, no ID returned") {
-                };
+                throw new DataException("Failed to insert product, no ID returned");
             }
 
             List<ProductMachine> machinery = product.machinery();
@@ -357,9 +357,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .fetchOne(MACHINES.ID);
 
                         if (machineId == null) {
-                            throw new DataAccessException(
-                                    "Failed to insert machine: " + machineName) {
-                            };
+                            throw new DataException(
+                                    "Failed to insert machine: " + machineName);
                         }
                     }
 
@@ -747,8 +746,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .execute();
 
                 if (updated != 1) {
-                    throw new DataAccessException("Failed to update product: " + product.id()) {
-                    };
+                    throw new DataException("Failed to update product: " + product.id());
                 }
 
                 dsl.deleteFrom(PRODUCT_MACHINES)
@@ -771,9 +769,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     .returning(MACHINES.ID)
                                     .fetchOne(MACHINES.ID);
                             if (machineId == null) {
-                                throw new DataAccessException(
-                                        "Failed to insert machine: " + machine.name()) {
-                                };
+                                throw new DataException(
+                                        "Failed to insert machine: " + machine.name());
                             }
                         }
 
@@ -1022,7 +1019,6 @@ public class DatabaseServiceImpl implements DatabaseService {
         Integer nextJobPartPhaseId = null;
         int nextJobPartPhaseNumber = 0;
         boolean isNextPhaseMachine = false;
-        boolean isMachinePhase = isMachinePhase(currentJobPartPhaseId, innerDsl);
 
         var phases = innerDsl.select(JOB_PART_PHASES.fields())
                 .select(PHASE.USAGE, PHASE.MACHINE_IDS, JOB_PART_PHASES.STATUS)
@@ -1128,6 +1124,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .and(condition)
                 .execute();
 
+        boolean isMachinePhase = isMachinePhase(currentJobPartPhaseId, innerDsl);
         if (!isMachinePhase && isNextPhaseMachine) {
             innerDsl
                     .update(JOB_PART_OPERATION)
@@ -1243,7 +1240,9 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     private static JobPartParam getJobPartParam(JobPartParamsRecord jobPartParamsRecord) {
-        return new JobPartParam(jobPartParamsRecord.getId(), 0, jobPartParamsRecord.getInput(),
+        return new JobPartParam(jobPartParamsRecord.getId(),
+                jobPartParamsRecord.getOriginalParamId(),
+                0, jobPartParamsRecord.getInput(),
                 jobPartParamsRecord.getJobPartPhaseId(), jobPartParamsRecord.getJobPartPhaseId(),
                 jobPartParamsRecord.getPack(),
                 jobPartParamsRecord.getName(), jobPartParamsRecord.getValue(),
@@ -1260,8 +1259,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .from(PHASE)
                     .where(PHASE.ID.eq(phaseId)).fetchOne(PHASE.DESCRIPTION);
             if (desc == null) {
-                throw new DataAccessException("Failed to insert Phase, no ID returned") {
-                };
+                throw new DataException("Failed to insert Phase, no ID returned");
             }
             return desc;
         });
@@ -1300,8 +1298,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .returning(PHASE.ID)
                             .fetchOne(PHASE.ID);
                     if (id == null) {
-                        throw new DataAccessException("Failed to insert Phase, no ID returned") {
-                        };
+                        throw new DataException("Failed to insert Phase, no ID returned");
                     }
 
                     List<PhaseParamData> params = new ArrayList<>();
@@ -1317,9 +1314,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .returning(PHASE_PARAM.ID)
                                 .fetchOne(PHASE_PARAM.ID);
                         if (paramId == null) {
-                            throw new DataAccessException(
-                                    "Failed to insert phase parameter, no ID returned") {
-                            };
+                            throw new DataException(
+                                    "Failed to insert phase parameter, no ID returned");
                         }
                         params.add(new PhaseParamData(paramId, phaseParam.paramName(),
                                 phaseParam.paramConfig(), phaseParam.input(), ""));
@@ -1412,8 +1408,7 @@ public class DatabaseServiceImpl implements DatabaseService {
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
     public Result<Job> createJob(CreateJob job, Function<CreateJobPart, Integer> partStatusProvider,
-            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus,
-            Function<PhaseParamEvaluatorInput, ConfigValuePair> paramConfigEvaluator) {
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus) {
 
         return TryUtils.tryCatch(() ->
                 outerDsl.transactionResult(connection -> {
@@ -1434,8 +1429,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .fetchOne(JOB.ID);
 
                     if (jobId == null) {
-                        throw new DataAccessException("Failed to insert Job, no ID returned") {
-                        };
+                        throw new DataException("Failed to insert Job, no ID returned");
                     }
 
                     int partNo = 1;
@@ -1456,9 +1450,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .returning(JOB_PART.ID)
                                 .fetchOne(JOB_PART.ID);
                         if (partId == null) {
-                            throw new DataAccessException(
-                                    "Failed to insert Job Part, no ID returned") {
-                            };
+                            throw new DataException(
+                                    "Failed to insert Job Part, no ID returned");
                         }
 
                         int phaseNo = 1;
@@ -1479,9 +1472,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                     .returning(JOB_PART_PHASES.ID)
                                     .fetchOne(JOB_PART_PHASES.ID);
                             if (partPhaseId == null) {
-                                throw new DataAccessException(
-                                        "Failed to insert Job Part Phase, no ID returned") {
-                                };
+                                throw new DataException(
+                                        "Failed to insert Job Part Phase, no ID returned");
                             }
 
                             jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
@@ -1501,6 +1493,138 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         partStatus, partNo, machines, product.packSize()));
                     }
                     return new Job(jobId, jobNumber, job.due(), job.customer(), job.carrier(),
+                            job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
+                }));
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
+    public Result<Job> updateJob(UpdateJob job, Function<CreateJobPart, Integer> partStatusProvider,
+            BiFunction<CreateJobPartPhase, Integer, Integer> phaseStatusProvider, int jobStatus) {
+
+        return TryUtils.tryCatch(() ->
+                outerDsl.transactionResult(connection -> {
+                    final OffsetDateTime now = OffsetDateTime.now();
+                    DSLContext innerDsl = connection.dsl();
+
+                    var existingJob = innerDsl.selectFrom(JOB)
+                            .where(JOB.ID.eq(job.jobId()))
+                            .fetchOne();
+
+                    if (existingJob == null) {
+                        throw new DataException("Failed to update Job, no row found");
+                    }
+
+                    JobStatus currentStatus = JobStatus.fromCode(existingJob.getStatus());
+                    if (currentStatus == JobStatus.SCHEDULED
+                            || currentStatus == JobStatus.STARTED
+                            || currentStatus == JobStatus.COMPLETED) {
+                        throw new DataException(
+                                "Cannot update job " + job.jobId() + " because it is " + currentStatus);
+                    }
+
+                    Long jobNumber = innerDsl.update(JOB)
+                            .set(JOB.PARTS, job.parts().size())
+                            .set(JOB.DUE, job.due())
+                            .set(JOB.CUSTOMER_ID, job.customer())
+                            .set(JOB.CARRIER_ID, job.carrier())
+                            .set(JOB.CALL_OFF, job.callOff())
+                            .set(JOB.PAYMENT_CONFIRMED, job.paymentConfirmed())
+                            .set(JOB.STATUS, jobStatus)
+                            .where(JOB.ID.eq(job.jobId()))
+                            .returning(JOB.NUMBER)
+                            .fetchOne(JOB.NUMBER);
+
+                    if (jobNumber == null) {
+                        throw new DataException("Failed to update Job, no row found");
+                    }
+
+                    List<Integer> existingPartIds = innerDsl
+                            .select(JOB_PART.ID)
+                            .from(JOB_PART)
+                            .where(JOB_PART.JOB_ID.eq(job.jobId()))
+                            .fetch(JOB_PART.ID);
+
+                    if (!existingPartIds.isEmpty()) {
+                        innerDsl.deleteFrom(JOB_PART_PARAMS)
+                                .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.in(
+                                        innerDsl.select(JOB_PART_PHASES.ID)
+                                                .from(JOB_PART_PHASES)
+                                                .where(JOB_PART_PHASES.JOB_PART_ID.in(existingPartIds))
+                                ))
+                                .execute();
+
+                        innerDsl.deleteFrom(JOB_PART_PHASES)
+                                .where(JOB_PART_PHASES.JOB_PART_ID.in(existingPartIds))
+                                .execute();
+
+                        innerDsl.deleteFrom(JOB_PART)
+                                .where(JOB_PART.ID.in(existingPartIds))
+                                .execute();
+                    }
+
+                    int partNo = 1;
+                    List<JobPart> jobParts = new ArrayList<>();
+                    for (CreateJobPart part : job.parts()) {
+                        Product product = getKnownProduct(part.productId());
+                        final List<Integer> machines = product.machinery().stream()
+                                .map(ProductMachine::id).toList();
+                        int partStatus = partStatusProvider.apply(part);
+                        Integer partId = innerDsl.insertInto(JOB_PART)
+                                .set(JOB_PART.JOB_ID, job.jobId())
+                                .set(JOB_PART.PART_NUMBER, partNo)
+                                .set(JOB_PART.PRODUCT_ID, part.productId())
+                                .set(JOB_PART.QUANTITY, part.quantity())
+                                .set(JOB_PART.FROM_CALL_OFF, part.fromCallOff())
+                                .set(JOB_PART.MATERIAL_AVAILABLE, part.materialAvailable())
+                                .set(JOB_PART.STATUS, partStatus)
+                                .returning(JOB_PART.ID)
+                                .fetchOne(JOB_PART.ID);
+                        if (partId == null) {
+                            throw new DataException(
+                                    "Failed to insert Job Part, no ID returned");
+                        }
+
+                        int phaseNo = 1;
+                        List<JobPartPhase> jobPartPhases = new ArrayList<>();
+                        List<JobPartParam> partParams = new ArrayList<>();
+                        Integer status = -1;
+
+                        List<CreateJobPartParam> params = new ArrayList<>(part.params());
+                        for (CreateJobPartPhase phase : part.phases()) {
+                            status = phaseStatusProvider.apply(phase, status);
+                            Integer partPhaseId = innerDsl.insertInto(JOB_PART_PHASES)
+                                    .set(JOB_PART_PHASES.JOB_PART_ID, partId)
+                                    .set(JOB_PART_PHASES.PHASE_ID, phase.phaseId())
+                                    .set(JOB_PART_PHASES.PHASE_NUMBER, phaseNo)
+                                    .set(JOB_PART_PHASES.SPECIAL_INSTRUCTION,
+                                            phase.specialInstructions())
+                                    .set(JOB_PART_PHASES.STATUS, status)
+                                    .returning(JOB_PART_PHASES.ID)
+                                    .fetchOne(JOB_PART_PHASES.ID);
+                            if (partPhaseId == null) {
+                                throw new DataException(
+                                        "Failed to insert Job Part Phase, no ID returned");
+                            }
+
+                            jobPartPhases.add(new JobPartPhase(partPhaseId, partId,
+                                    phaseNo, phase.specialInstructions(), status, "()", 0));
+                            partParams.addAll(
+                                    addParams(innerDsl, phase.phaseId(), partPhaseId, phaseNo,
+                                            params,
+                                            now).values());
+                            phaseNo++;
+                        }
+                        partNo++;
+                        jobParts.add(
+                                new JobPart(partId, part.productId(), "()", "()", part.quantity(),
+                                        part.fromCallOff(), part.materialAvailable(),
+                                        jobPartPhases,
+                                        partParams,
+                                        partStatus, partNo, machines, product.packSize()));
+                    }
+                    return new Job(job.jobId(), jobNumber, job.due(), job.customer(), job.carrier(),
                             job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
                 }));
     }
@@ -1526,9 +1650,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                     var paramData = innerDsl.selectFrom(PHASE_PARAM)
                             .where(PHASE_PARAM.ID.eq(param.paramId())).fetchOne();
                     if (paramData == null) {
-                        throw new DataAccessException(
-                                "Failed to find Param, for id " + param.paramId()) {
-                        };
+                        throw new DataException(
+                                "Failed to find Param, for id " + param.paramId());
                     }
                     config = param.config() == null ? paramData.getConfig() : param.config();
                     name = paramData.getName();
@@ -1555,12 +1678,12 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .returning(JOB_PART_PARAMS.ID)
                         .fetchOne(JOB_PART_PARAMS.ID);
                 if (paramId == null) {
-                    throw new DataAccessException(
-                            "Failed to insert Job Part Param, no ID returned") {
-                    };
+                    throw new DataException(
+                            "Failed to insert Job Part Param, no ID returned");
                 }
                 partParams.put(param.tempKey(),
                         new JobPartParam(paramId,
+                                param.paramId(),
                                 param.phaseNumber(), input,
                                 phaseId,
                                 partPhaseId, 1L, name,
@@ -2101,9 +2224,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .fetchOne();
 
         if (counts == null) {
-            throw new DataAccessException(
-                    "Failed to count job part statuses ") {
-            };
+            throw new DataException(
+                    "Failed to count job part statuses ");
         }
 
         int totalParts = counts.value1();
@@ -2232,6 +2354,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
             var records = innerDsl
                     .select(JOB_PART_PARAMS.ID,
+                            JOB_PART_PARAMS.ORIGINAL_PARAM_ID,
                             JOB_PART_PARAMS.INPUT,
                             JOB_PART_PHASES.PHASE_ID,
                             JOB_PART_PARAMS.NAME,
@@ -2266,6 +2389,7 @@ public class DatabaseServiceImpl implements DatabaseService {
             for (var record : records) {
                 partParams.add(new JobPartParam(
                         record.get(JOB_PART_PARAMS.ID),
+                        record.get(JOB_PART_PARAMS.ORIGINAL_PARAM_ID),
                         phaseNumber,
                         record.get(JOB_PART_PARAMS.INPUT),
                         record.get(JOB_PART_PHASES.PHASE_ID),
@@ -2305,11 +2429,10 @@ public class DatabaseServiceImpl implements DatabaseService {
                             throw new RuntimeException(ex);
                         },
                         () -> {
-                            throw new DataAccessException(
+                            throw new DataException(
                                     "Failed to find product found with id "
                                             + productId
-                            ) {
-                            };
+                            );
                         }
                 );
     }

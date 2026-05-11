@@ -63,6 +63,7 @@ export interface JobPartPhase {
 
 export interface JobPartParam {
   partParamId: number;
+  originalParamId?: number;
   partPhaseId: number;
   phaseId: number;
   phaseNumber: number;
@@ -315,6 +316,16 @@ export class JobService {
     );
   }
 
+  async updateJob(jobId: number, job: CreateJob): Promise<Job> {
+    return await firstValueFrom(
+      this.http.patch<Job>(
+        `${API_BASE_URL}/api/jobs/${jobId}`,
+        job,
+        { withCredentials: true }
+      )
+    );
+  }
+
   async getJob(jobId: number): Promise<Job> {
     return await firstValueFrom(
       this.http.get<Job>(
@@ -486,8 +497,6 @@ export class JobService {
       const response = await firstValueFrom(
         this.http.post<{ value: string }>(`${API_BASE_URL}/api/jobs/${jobNumber}/part/${jobPart}/phase/${param.phaseNumber}/param/${param.partParamId}`, formData)
       );
-
-      console.log(response.value);
       return response.value;
     } catch (err) {
       throw new Error(this.getErrorMessage(err, 'Get wastage failed.'));
