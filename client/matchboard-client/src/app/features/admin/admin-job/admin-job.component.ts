@@ -407,7 +407,7 @@ export class AdminJobComponent {
             let type = p.type ?? null;
             let def = '';
 
-            if (p.paramConfig) {
+            if (p.paramConfig && !this.isPrimitive(p.paramConfig)) {
                 if (p.paramConfig.startsWith('CHECK(')) {
                     def = p.paramConfig.substring(6, p.paramConfig.length - 1);
                     type = 'check';
@@ -420,7 +420,7 @@ export class AdminJobComponent {
                             def = options[0].key;
                         }
                     } catch (err) {
-                        console.error(`Failed to load list for ${p.paramConfig}`, err);
+                        console.error(`Failed to load list for ${p.paramName} because config is ${p.paramConfig} type is ${p.type}`, err);
                     }
                 }
             }
@@ -581,5 +581,15 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(null);
         this.validationErrors.set([]);
         this.hasResults = true;
+    }
+
+    isPrimitive(config: string) {
+        const normalized = config.toLowerCase();
+        return normalized === 'photo' ||
+            normalized === 'string' ||
+            normalized === 'string[]' ||
+            normalized === 'int' ||
+            normalized === 'float' ||
+            normalized === 'boolean';
     }
 }

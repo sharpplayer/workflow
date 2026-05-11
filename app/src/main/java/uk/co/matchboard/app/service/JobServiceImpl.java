@@ -201,7 +201,7 @@ public class JobServiceImpl implements JobService {
                                     return OffsetDateTime.MAX;
                                 }
 
-                                return r.status() == JobStatus.MACHINING_COMPLETED.getCode()
+                                return r.status() == JobStatus.COMPLETED.getCode()
                                         ? s.minPlannedTime()
                                         : s.maxPlannedTime();
                             }))
@@ -316,7 +316,7 @@ public class JobServiceImpl implements JobService {
     }
 
     private boolean isPhaseNotCompleted(JobStatus phaseStatus) {
-        return phaseStatus != JobStatus.COMPLETED && phaseStatus != JobStatus.MACHINING_COMPLETED;
+        return phaseStatus != JobStatus.COMPLETED;
     }
 
     @Override

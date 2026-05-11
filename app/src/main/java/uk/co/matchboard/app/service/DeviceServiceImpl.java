@@ -77,19 +77,21 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public OptionalResult<Device> deleteSession(String deviceId, String username) {
+        String devId = registerDevice(deviceId).deviceId();
         return sessionService.endSession(deviceId, username)
-                .map(_ -> getDevice(deviceId, false).orElse(null));
+                .map(_ -> getDevice(devId, false).orElse(null));
     }
 
     @Override
     public OptionalResult<Device> deleteSessions(String deviceId) {
+        String devId = registerDevice(deviceId).deviceId();
         return sessionService.endSessions(deviceId)
-                .map(_ -> getDevice(deviceId, false).orElse(null));
+                .map(_ -> getDevice(devId, false).orElse(null));
     }
 
     @Override
     public Result<WastageView> createWastage(String deviceId, CreateWastage wastage) {
-        getDevice(deviceId, false);
+        getDevice(registerDevice(deviceId).deviceId(), false);
         return wastageService.createWastage(wastage);
     }
 

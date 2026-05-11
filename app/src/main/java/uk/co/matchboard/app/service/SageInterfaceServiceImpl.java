@@ -8,11 +8,9 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
-import uk.co.matchboard.app.model.config.KeyValuePair;
 import uk.co.matchboard.app.model.sage.SageCustomer;
 import uk.co.matchboard.app.model.sage.SageProduct;
 
@@ -35,7 +33,6 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
         this.configService = configService;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public synchronized Result<List<SageProduct>> readProductsFromFile(String csvFile) {
         return configService.getConfig("DATA").flatMap(folder ->
@@ -57,14 +54,7 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                                 .with(schema)
                                 .readValues(inputStream);
 
-                        Result<List<SageProduct>> result = configService.getConfig("PRODUCTCSV")
-                                .map(config -> ((List<KeyValuePair>) config.value()).stream()
-                                        .map(s -> s.value().split("=", 2))
-                                        .filter(arr -> arr.length == 2)
-                                        .collect(Collectors.toMap(
-                                                arr -> arr[0].trim(),
-                                                arr -> arr[1].trim()
-                                        )))
+                        Result<List<SageProduct>> result = configService.getConfigMap("PRODUCTCSV")
                                 .flatMapTry(headerMapping ->
                                         Result.sequence(it.readAll().stream()
                                                 .map(row -> SageProduct.fromMap(row, headerMapping))
@@ -81,7 +71,6 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                 }));
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public synchronized Result<List<SageCustomer>> readCustomersFromFile(String csvFile) {
         return configService.getConfig("DATA").flatMap(folder ->
@@ -103,17 +92,12 @@ public class SageInterfaceServiceImpl implements SageInterfaceService {
                                 .with(schema)
                                 .readValues(inputStream);
 
-                        Result<List<SageCustomer>> result = configService.getConfig("CUSTOMERCSV")
-                                .map(config -> ((List<KeyValuePair>) config.value()).stream()
-                                        .map(s -> s.value().split("=", 2))
-                                        .filter(arr -> arr.length == 2)
-                                        .collect(Collectors.toMap(
-                                                arr -> arr[0].trim(),
-                                                arr -> arr[1].trim()
-                                        )))
+                        Result<List<SageCustomer>> result = configService.getConfigMap(
+                                        "CUSTOMERCSV")
                                 .flatMapTry(headerMapping ->
                                         Result.sequence(it.readAll().stream()
-                                                .map(row -> SageCustomer.fromMap(row, headerMapping))
+                                                .map(row -> SageCustomer.fromMap(row,
+                                                        headerMapping))
                                                 .toList()));
 
                         result.ifSuccess(customers -> {

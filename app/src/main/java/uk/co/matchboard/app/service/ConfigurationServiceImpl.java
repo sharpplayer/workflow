@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,7 +46,8 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         Result<List<KeyValuePair>> roles = Result.of(new ArrayList<>());
         if (config.equals("ROLES")) {
             roles = databaseService.getAllMachines().map(
-                    l -> l.stream().map(machine -> new KeyValuePair(machine.name(), machine.name() + "*"))
+                    l -> l.stream()
+                            .map(machine -> new KeyValuePair(machine.name(), machine.name() + "*"))
                             .collect(Collectors.toCollection(ArrayList::new)));
         }
         return roles.map(list -> new ConfigResponse(
@@ -66,6 +68,27 @@ public class ConfigurationServiceImpl implements ConfigurationService {
                 Result::failure,
                 () -> Result.failure(new UnknownConfigException(config.toUpperCase())));
 
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Result<Map<String, String>> getConfigMap(String config) {
+        return getConfig(config).map(resp ->
+                ((List<KeyValuePair>) resp.value()).stream()
+                        .map(s -> s.value().split("=", 2))
+                        .filter(arr -> arr.length == 2)
+                        .collect(Collectors.toMap(
+                                arr -> arr[0].trim(),
+                                arr -> arr[1].trim()
+                        )));
+    }
+
+    @Override
+    public Result<ConfigResponse> getConfigKeyValueList(String config) {
+        return getConfigMap(config)
+                .map(map -> new ConfigResponse(config, map.entrySet().stream()
+                        .map(e -> new KeyValuePair(e.getKey(), e.getValue())).toList(),
+                        "string[]"));
     }
 
     private Result<ConfigResponse> convertItem(Config item) {

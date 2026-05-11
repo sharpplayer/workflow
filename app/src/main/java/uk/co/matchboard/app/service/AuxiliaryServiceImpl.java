@@ -37,12 +37,6 @@ public class AuxiliaryServiceImpl implements AuxiliaryService {
     }
 
     @NonNull
-    private static KeyValuePair getCustomerKeyPair(Customer c) {
-        return new KeyValuePair(Integer.toString(c.id()),
-                c.name() + " (" + c.code() + ")");
-    }
-
-    @NonNull
     private static KeyValuePair getCarrierKeyPair(Carrier c) {
         return new KeyValuePair(Integer.toString(c.id()),
                 c.name() + " (" + c.code() + ")");

@@ -5,6 +5,7 @@ CREATE TABLE wastage
     rpi          INTEGER     NOT NULL,
     quantity     INTEGER     NOT NULL,
     reported_by  INTEGER     NOT NULL,
+    category     INTEGER     NOT NULL,
     reason       TEXT        NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

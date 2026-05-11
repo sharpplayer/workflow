@@ -442,6 +442,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                         .set(WASTAGE.REASON, wastage.reason())
                         .set(WASTAGE.JOB_PHASE_ID, wastage.jobPhaseId())
                         .set(WASTAGE.RPI, wastage.rpi())
+                        .set(WASTAGE.CATEGORY, wastage.category())
                         .set(WASTAGE.REPORTED_BY, userId)
                         .returning(WASTAGE.ID, WASTAGE.CREATED_AT)
                         .fetchSingle()
@@ -1037,8 +1038,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         for (var nextPhase : phases) {
             JobStatus nextPhaseStatus = JobStatus.fromCode(
                     nextPhase.get(JOB_PART_PHASES.STATUS));
-            boolean nextPhaseComplete = (nextPhaseStatus == JobStatus.COMPLETED
-                    || nextPhaseStatus == JobStatus.MACHINING_COMPLETED);
+            boolean nextPhaseComplete = nextPhaseStatus == JobStatus.COMPLETED;
             jobPartComplete = jobPartComplete && nextPhaseComplete;
             if (!nextPhaseComplete) {
                 isNextPhaseMachine = (nextPhase.get(PHASE.USAGE)
@@ -1067,15 +1067,11 @@ public class DatabaseServiceImpl implements DatabaseService {
         if (completeCurrent && currentJobPartPhaseId != null) {
 
             int jobPartPhaseCompletedStatus = JobStatus.COMPLETED.getCode();
-            if (isMachinePhase && !isNextPhaseMachine) {
-                jobPartPhaseCompletedStatus = JobStatus.MACHINING_COMPLETED.getCode();
-            }
             innerDsl.update(JOB_PART_PHASES)
                     .set(JOB_PART_PHASES.STATUS, jobPartPhaseCompletedStatus)
                     .set(JOB_PART_PHASES.COMPLETED_AT, now)
                     .where(JOB_PART_PHASES.ID.eq(currentJobPartPhaseId))
-                    .and(JOB_PART_PHASES.STATUS.notIn(
-                            JobStatus.MACHINING_COMPLETED.getCode(),
+                    .and(JOB_PART_PHASES.STATUS.ne(
                             JobStatus.COMPLETED.getCode()))
                     .returningResult(JOB_PART_PHASES.JOB_PART_ID)
                     .fetchOne(JOB_PART_PHASES.JOB_PART_ID);

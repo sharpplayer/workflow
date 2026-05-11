@@ -210,8 +210,7 @@ export enum JobStatus {
   AWAITING = 9,
   STARTED = 10,
   AWAITING_PAYMENT = 11,
-  READY = 12,
-  MACHINING_COMPLETED = 13,
+  READY = 12
 }
 
 export enum ParamStatus {
@@ -277,8 +276,7 @@ export const JobStatusLabel: Record<JobStatus, string> = {
   [JobStatus.AWAITING]: "Awaiting",
   [JobStatus.STARTED]: "Started",
   [JobStatus.AWAITING_PAYMENT]: "Awaiting Payment",
-  [JobStatus.READY]: "Ready",
-  [JobStatus.MACHINING_COMPLETED]: "Completed",
+  [JobStatus.READY]: "Ready"
 };
 
 export interface WastageView {
@@ -297,6 +295,7 @@ export interface CreateWastage {
   jobPhaseId: number;
   rpi: number;
   quantity: number;
+  category: number;
   reportedBy: string;
   reason: string;
 }

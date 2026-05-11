@@ -3,6 +3,7 @@ package uk.co.matchboard.app.service;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.InvalidUserException;
 import uk.co.matchboard.app.functional.Result;
+import uk.co.matchboard.app.model.config.ConfigResponse;
 import uk.co.matchboard.app.model.wastage.CreateWastage;
 import uk.co.matchboard.app.model.wastage.WastageView;
 import uk.co.matchboard.app.model.wastage.Wastages;
@@ -10,10 +11,14 @@ import uk.co.matchboard.app.model.wastage.Wastages;
 @Service
 public class WastageServiceImpl implements WastageService {
 
+    public static final String CONFIG_WASTAGE_REASON = "WASTAGEREASON";
     private final DatabaseService databaseService;
+    private final ConfigurationService configurationService;
 
-    public WastageServiceImpl(DatabaseService databaseService) {
+    public WastageServiceImpl(DatabaseService databaseService,
+            ConfigurationService configurationService) {
         this.databaseService = databaseService;
+        this.configurationService = configurationService;
     }
 
     @Override
@@ -28,5 +33,10 @@ public class WastageServiceImpl implements WastageService {
     @Override
     public Result<Wastages> getWastage(int jobPhaseId) {
         return databaseService.getWastage(jobPhaseId).map(Wastages::new);
+    }
+
+    @Override
+    public Result<ConfigResponse> getWastageReasons() {
+        return configurationService.getConfigKeyValueList(CONFIG_WASTAGE_REASON);
     }
 }

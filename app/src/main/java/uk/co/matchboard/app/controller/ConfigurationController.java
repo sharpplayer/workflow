@@ -13,6 +13,8 @@ import uk.co.matchboard.app.service.AuxiliaryServiceImpl;
 import uk.co.matchboard.app.service.ConfigurationService;
 import uk.co.matchboard.app.service.UserService;
 import uk.co.matchboard.app.service.UserServiceImpl;
+import uk.co.matchboard.app.service.WastageService;
+import uk.co.matchboard.app.service.WastageServiceImpl;
 
 @RestController
 public class ConfigurationController {
@@ -23,11 +25,15 @@ public class ConfigurationController {
 
     private final UserService userService;
 
+    private final WastageService wastageService;
+
     public ConfigurationController(ConfigurationService configurationService,
-            AuxiliaryService auxiliaryService, UserService userService) {
+            AuxiliaryService auxiliaryService, UserService userService,
+            WastageService wastageService) {
         this.configurationService = configurationService;
         this.auxiliaryService = auxiliaryService;
         this.userService = userService;
+        this.wastageService = wastageService;
     }
 
     @GetMapping("config/{name}")
@@ -38,10 +44,10 @@ public class ConfigurationController {
             case AuxiliaryServiceImpl.CONFIG_MACHINE -> auxiliaryService.getMachines();
             case AuxiliaryServiceImpl.CONFIG_CUSTOMER -> auxiliaryService.getCustomers();
             case AuxiliaryServiceImpl.CONFIG_CARRIER -> auxiliaryService.getCarriers();
+            case WastageServiceImpl.CONFIG_WASTAGE_REASON -> wastageService.getWastageReasons();
             default -> {
 
-                if(configName.startsWith(UserServiceImpl.CONFIG_OPERATOR))
-                {
+                if (configName.startsWith(UserServiceImpl.CONFIG_OPERATOR)) {
                     yield userService.getOperators(configName);
                 }
                 yield configurationService.getConfig(configName);
