@@ -68,6 +68,7 @@
   position: relative;
   overflow: auto;
   background: var(--surface);
+  border-bottom: 1px solid var(--grid-line-strong);
 }
 
 .body-cell {
@@ -218,6 +219,19 @@
   overflow: hidden;
 }
 
+.rest-gutter-block.elapsed-period,
+.rest-block.elapsed-period {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(148, 163, 184, 0.42) 0,
+      rgba(148, 163, 184, 0.42) 8px,
+      rgba(248, 250, 252, 0.86) 8px,
+      rgba(248, 250, 252, 0.86) 16px
+    );
+  border-color: rgba(100, 116, 139, 0.45);
+}
+
 .rest-block span {
   position: absolute;
   top: 6px;
@@ -299,6 +313,93 @@
   border-color: var(--job-invalid-border);
 }
 
+.bucket-row {
+  display: grid;
+  grid-template-columns: var(--time-col-width) repeat(var(--machine-count), minmax(220px, 1fr));
+  background: var(--surface-alt);
+  min-height: 116px;
+}
+
+.bucket-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  font-weight: 700;
+  color: var(--text);
+  border-right: 1px solid var(--grid-line);
+}
+
+.machine-bucket {
+  min-height: 116px;
+  padding: 8px;
+  border-right: 1px solid var(--grid-line);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(148, 163, 184, 0.14) 0,
+      rgba(148, 163, 184, 0.14) 8px,
+      rgba(255, 255, 255, 0.82) 8px,
+      rgba(255, 255, 255, 0.82) 16px
+    );
+}
+
+.machine-bucket:last-child {
+  border-right: 0;
+}
+
+.machine-bucket.bucket-drop-target {
+  outline: 2px solid rgba(59, 130, 246, 0.75);
+  outline-offset: -4px;
+  background: rgba(219, 234, 254, 0.75);
+}
+
+.bucket-job {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  color: var(--job-text);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  cursor: grab;
+  user-select: none;
+}
+
+.bucket-job.dragging {
+  opacity: 0.55;
+}
+
+.bucket-job.invalid-sequence {
+  background: var(--job-invalid-bg);
+  border-color: var(--job-invalid-border);
+}
+
+.bucket-job__title {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.bucket-job__meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.bucket-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  border: 1px dashed #94a3b8;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .reset-strip {
   position: absolute;
   left: 0;
@@ -357,7 +458,8 @@
   }
 
   .schedule-header,
-  .schedule-body {
+  .schedule-body,
+  .bucket-row {
     grid-template-columns: var(--time-col-width) repeat(var(--machine-count), minmax(180px, 1fr));
   }
 
@@ -411,6 +513,12 @@
 .schedule-day-banner.exceptional {
   border-color: #e0b04f;
   background: #fff8e8;
+}
+
+.schedule-day-banner.past-date {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #7f1d1d;
 }
 
 .schedule-day-banner__copy {

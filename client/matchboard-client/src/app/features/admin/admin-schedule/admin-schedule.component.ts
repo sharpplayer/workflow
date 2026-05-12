@@ -4,6 +4,7 @@ import {
   ElementRef,
   HostListener,
   OnChanges,
+  OnDestroy,
   SimpleChanges,
   computed,
   inject,
@@ -36,6 +37,7 @@ interface RestPeriod {
   end: number;
   collapsed: boolean;
   collapsible: boolean;
+  kind?: 'rest' | 'elapsed';
 }
 
 interface RestPeriodVisual extends RestPeriod {
@@ -73,6 +75,8 @@ interface DragState {
   machineId: number;
   startY: number;
   originalVisibleMinute: number;
+  source: 'schedule' | 'bucket';
+  bucketJob?: ScheduledJob;
 }
 
 interface ResolvedScheduleDay {
@@ -87,6 +91,7 @@ interface ResolvedScheduleDay {
 interface MachineEntry {
   machine: MachineInput;
   jobs: ScheduledJob[];
+  bucketJobs: ScheduledJob[];
 }
 
 @Component({
@@ -123,6 +128,7 @@ interface MachineEntry {
       <div
         class="schedule-day-banner"
         [class.exceptional]="resolvedScheduleDay().isExceptional"
+        [class.past-date]="isPastScheduleDay()"
         role="status"
         aria-live="polite"
       >
@@ -209,17 +215,20 @@ interface MachineEntry {
             } @else {
               <div
                 class="rest-gutter-block"
+                [class.elapsed-period]="period.kind === 'elapsed'"
                 [style.top.px]="period.topPx"
                 [style.height.px]="period.heightPx"
               >
-                <button
-                  type="button"
-                  class="rest-toggle"
-                  (click)="toggleRestCollapsed(period.id)"
-                  [attr.aria-label]="'Collapse ' + period.name"
-                >
-                  ▾
-                </button>
+                @if (period.collapsible) {
+                  <button
+                    type="button"
+                    class="rest-toggle"
+                    (click)="toggleRestCollapsed(period.id)"
+                    [attr.aria-label]="'Collapse ' + period.name"
+                  >
+                    ▾
+                  </button>
+                }
 
                 <div class="rest-gutter-copy">
                   <div class="rest-gutter-name">{{ period.name }}</div>
@@ -235,6 +244,7 @@ interface MachineEntry {
         @for (entry of entries; track trackMachine($index, entry)) {
           <div
             class="machine-column body-cell machine-lane"
+            [attr.data-machine-id]="entry.machine.id"
             [class.machine-column--drop-before]="dragOverIndex === $index"
             [class.machine-column--drop-after]="dragOverIndex === $index + 1"
             (dragover)="onMachineColumnDragOver($event, $index)"
@@ -248,6 +258,7 @@ interface MachineEntry {
               @if (!period.collapsed) {
                 <div
                   class="rest-block"
+                  [class.elapsed-period]="period.kind === 'elapsed'"
                   [style.top.px]="period.topPx"
                   [style.height.px]="period.heightPx"
                 >
@@ -308,6 +319,44 @@ interface MachineEntry {
           </div>
         }
       </div>
+
+      @if (!isViewingExistingSchedule()) {
+        <div class="bucket-row">
+          <div class="time-column bucket-heading">Unscheduled</div>
+
+          @for (entry of entries; track trackMachine($index, entry)) {
+            <div
+              class="machine-column machine-bucket"
+              [attr.data-machine-id]="entry.machine.id"
+              [class.bucket-drop-target]="bucketDropTargetMachineIdSig() === entry.machine.id"
+            >
+              @if (entry.bucketJobs.length) {
+                @for (job of entry.bucketJobs; track trackJob($index, job)) {
+                  <div
+                    class="bucket-job"
+                    [class.dragging]="dragStateSig()?.uid === job.uid"
+                    [class.invalid-sequence]="job.isInvalidSequence"
+                    (mousedown)="startBucketDrag($event, job)"
+                    (click)="selectJob(job)"
+                  >
+                    <div class="bucket-job__title one-line">
+                      {{ jobRef(job.jobNumber) }} - {{ job.partNo }} of {{ job.jobParts }}
+                      (Step {{ job.stepNumber }} of {{ job.steps }})
+                    </div>
+                    <div class="bucket-job__meta one-line">
+                      {{ job.length }}x{{ job.width }}x{{ job.thickness }}
+                      <span class="job-sep">·</span>
+                      Quantity {{ job.quantity }}
+                    </div>
+                  </div>
+                }
+              } @else {
+                <div class="bucket-empty">Drop here</div>
+              }
+            </div>
+          }
+        </div>
+      }
     </div>
 
     <div class="schedule-actions">
@@ -315,6 +364,12 @@ interface MachineEntry {
         @if (hasInvalidJobs()) {
           <div class="schedule-actions__warning">
             Fix {{ invalidJobCount() }} invalid job {{ invalidJobCount() === 1 ? 'part' : 'parts' }} before submitting.
+          </div>
+        }
+
+        @if (isPastScheduleDay()) {
+          <div class="schedule-actions__warning">
+            Past schedule dates cannot be submitted.
           </div>
         }
 
@@ -333,7 +388,7 @@ interface MachineEntry {
 
       <button
         type="button"
-        [disabled]="hasInvalidJobs() || !hasSubmittableJobs() || submittingSig()"
+        [disabled]="hasInvalidJobs() || isPastScheduleDay() || !hasSubmittableJobs() || submittingSig()"
         (click)="submitSchedule()"
       >
         {{ submittingSig() ? 'Submitting...' : 'Submit schedule' }}
@@ -341,7 +396,7 @@ interface MachineEntry {
     </div>
   `,
 })
-export class AdminScheduleComponent implements OnChanges {
+export class AdminScheduleComponent implements OnChanges, OnDestroy {
   readonly machines = input.required<MachineInput[]>();
   readonly jobs = input.required<SchedulableJobPart[]>();
   readonly restTimes = input.required<RestTimesInput>();
@@ -362,11 +417,17 @@ export class AdminScheduleComponent implements OnChanges {
 
   readonly machineColumnDragIdSig = signal<number | null>(null);
   readonly machineDragOverIndexSig = signal<number | null>(null);
+  readonly bucketDropTargetMachineIdSig = signal<number | null>(null);
 
   private readonly preferredMachineOrderSig = signal<number[]>(this.loadPreferredMachineOrder());
   private readonly draggedJobsByMachineSig = signal<Record<number, ScheduledJob[]> | null>(null);
   private readonly overriddenJobsByMachineSig = signal<Record<number, ScheduledJob[]> | null>(null);
+  private readonly bucketJobsByMachineSig = signal<Record<number, ScheduledJob[]>>({});
   private readonly restCollapsedOverrideSig = signal<Record<string, boolean>>({});
+  private readonly nowSig = signal(moment());
+  private readonly nowTimer = window.setInterval(() => {
+    this.nowSig.set(moment());
+  }, 60_000);
 
   readonly recommendedScheduleDate = computed(() => this.resolveRecommendedScheduleDate());
 
@@ -376,7 +437,34 @@ export class AdminScheduleComponent implements OnChanges {
 
   readonly isViewingExistingSchedule = computed(() => !!this.initialScheduleDate());
 
-  readonly jobsByMachine = computed(() => {
+  readonly isPastScheduleDay = computed(() =>
+    this.isEditablePastDate(this.resolvedScheduleDay().date)
+  );
+
+  private readonly elapsedTodayPeriod = computed<RestPeriod | null>(() => {
+    if (this.isViewingExistingSchedule()) return null;
+
+    const now = this.nowSig();
+    const scheduleDate = this.resolvedScheduleDay().date;
+
+    if (!scheduleDate.isSame(now, 'day')) return null;
+
+    const end = this.clampMinute(now.hours() * 60 + now.minutes());
+
+    if (end <= 0) return null;
+
+    return {
+      id: 'elapsed-today',
+      name: 'Elapsed',
+      start: 0,
+      end,
+      collapsed: false,
+      collapsible: false,
+      kind: 'elapsed',
+    };
+  });
+
+  readonly rawJobsByMachine = computed(() => {
     const periods = this.restPeriods();
     const dragged = this.draggedJobsByMachineSig();
 
@@ -393,14 +481,33 @@ export class AdminScheduleComponent implements OnChanges {
     return this.baseJobsByMachine();
   });
 
+  readonly validatedScheduleState = computed(() => {
+    const scheduled = this.cloneJobMap(this.rawJobsByMachine());
+    const buckets = this.cloneJobMap(this.bucketJobsByMachineSig());
+
+    this.validateSequenceMap(scheduled);
+    this.validateSequenceMapWithBuckets(scheduled, buckets);
+
+    return { scheduled, buckets };
+  });
+
+  readonly jobsByMachine = computed(() => this.validatedScheduleState().scheduled);
+  readonly bucketJobsByMachine = computed(() => this.validatedScheduleState().buckets);
+
   readonly hasInvalidJobs = computed(() =>
-    Object.values(this.jobsByMachine())
+    [
+      ...Object.values(this.jobsByMachine()).flat(),
+      ...Object.values(this.bucketJobsByMachine()).flat(),
+    ]
       .flat()
       .some(job => job.isInvalidSequence)
   );
 
   readonly invalidJobCount = computed(() =>
-    Object.values(this.jobsByMachine())
+    [
+      ...Object.values(this.jobsByMachine()).flat(),
+      ...Object.values(this.bucketJobsByMachine()).flat(),
+    ]
       .flat()
       .filter(job => job.isInvalidSequence).length
   );
@@ -416,17 +523,22 @@ export class AdminScheduleComponent implements OnChanges {
     const recommended = this.recommendedScheduleDate();
     const effective = selected ?? recommended;
     const isOverride = !!selected;
+    const isPast = this.isEditablePastDate(effective);
 
     return {
       date: effective,
       dateLabel: this.formatDateLong(effective),
-      shortLabel: isOverride ? 'Designing schedule for selected day' : 'Designing schedule for',
-      reason: isOverride
+      shortLabel: isPast
+        ? 'Past schedule date'
+        : isOverride ? 'Designing schedule for selected day' : 'Designing schedule for',
+      reason: isPast
+        ? 'Past dates cannot be submitted.'
+        : isOverride
         ? this.buildSelectedDayReason(effective, recommended)
         : this.buildRecommendedDayReason(recommended),
-      isExceptional: isOverride
+      isExceptional: isPast || (isOverride
         ? this.isExceptionalDay(effective, recommended)
-        : this.isExceptionalRecommendedDay(recommended),
+        : this.isExceptionalRecommendedDay(recommended)),
       isOverride,
     };
   });
@@ -437,6 +549,10 @@ export class AdminScheduleComponent implements OnChanges {
     if ('initialScheduleDate' in changes) {
       this.applyInitialScheduleDate();
     }
+  }
+
+  ngOnDestroy(): void {
+    window.clearInterval(this.nowTimer);
   }
 
   private applyInitialScheduleDate(): void {
@@ -459,11 +575,15 @@ export class AdminScheduleComponent implements OnChanges {
   readonly restPeriods = computed(() => {
     const overrides = this.restCollapsedOverrideSig();
     const parsed = this.parsedRestPeriods();
+    const elapsedToday = this.elapsedTodayPeriod();
 
-    return parsed.map(period => ({
-      ...period,
-      collapsed: overrides[period.id] ?? period.collapsed,
-    }));
+    return [
+      ...parsed.map(period => ({
+        ...period,
+        collapsed: overrides[period.id] ?? period.collapsed,
+      })),
+      ...(elapsedToday ? [elapsedToday] : []),
+    ].sort((a, b) => a.start - b.start);
   });
 
   readonly restPeriodVisuals = computed<RestPeriodVisual[]>(() => {
@@ -549,6 +669,7 @@ export class AdminScheduleComponent implements OnChanges {
     return visibleMachines.map(machine => ({
       machine,
       jobs: jobsByMachine[machine.id] ?? [],
+      bucketJobs: this.bucketJobsByMachine()[machine.id] ?? [],
     }));
   });
 
@@ -717,6 +838,11 @@ export class AdminScheduleComponent implements OnChanges {
     return !selected.isSame(recommended, 'day') || this.isSaturday(selected) || this.isSunday(selected);
   }
 
+  private isEditablePastDate(date: Moment): boolean {
+    return !this.isViewingExistingSchedule()
+      && date.isBefore(this.nowSig().clone().startOf('day'), 'day');
+  }
+
   private isSaturday(date: Moment): boolean {
     return date.day() === 6;
   }
@@ -796,6 +922,36 @@ export class AdminScheduleComponent implements OnChanges {
       machineId: job.machineId,
       startY: event.clientY,
       originalVisibleMinute: this.getVisibleMinutesUntil(job.startMinute, this.restPeriods()),
+      source: 'schedule',
+      bucketJob: { ...job },
+    });
+  }
+
+  startBucketDrag(event: MouseEvent, job: ScheduledJob): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (job.locked) {
+      return;
+    }
+
+    const current = this.jobsByMachine();
+    const cloned: Record<number, ScheduledJob[]> = {};
+
+    for (const [machineId, jobs] of Object.entries(current)) {
+      cloned[+machineId] = jobs.map(j => ({ ...j })).filter(j => j.uid !== job.uid);
+    }
+
+    this.draggedJobsByMachineSig.set(cloned);
+    this.dragMovedSig.set(false);
+
+    this.dragStateSig.set({
+      uid: job.uid,
+      machineId: job.machineId,
+      startY: event.clientY,
+      originalVisibleMinute: 0,
+      source: 'bucket',
+      bucketJob: { ...job },
     });
   }
 
@@ -815,22 +971,75 @@ export class AdminScheduleComponent implements OnChanges {
     const list = [...(snapshot[drag.machineId] ?? [])];
     const idx = list.findIndex(j => j.uid === drag.uid);
 
-    if (idx === -1) return;
+    if (drag.source === 'schedule') {
+      const bucketMachineId = this.getBucketMachineIdAtPointer(event);
+      this.bucketDropTargetMachineIdSig.set(bucketMachineId === drag.machineId ? bucketMachineId : null);
 
-    const job = { ...list[idx] };
+      if (bucketMachineId === drag.machineId) {
+        snapshot[drag.machineId] = list.filter(j => j.uid !== drag.uid);
+        this.draggedJobsByMachineSig.set({ ...snapshot });
+        return;
+      }
+
+      if (idx === -1 && drag.bucketJob) {
+        list.push({ ...drag.bucketJob });
+      }
+    }
+
+    if (drag.source === 'bucket') {
+      this.bucketDropTargetMachineIdSig.set(null);
+      const laneMachineId = this.getLaneMachineIdAtPointer(event);
+
+      if (laneMachineId !== drag.machineId || !drag.bucketJob) {
+        snapshot[drag.machineId] = list.filter(j => j.uid !== drag.uid);
+        this.draggedJobsByMachineSig.set({ ...snapshot });
+        return;
+      }
+
+      const startMinute = this.getClockMinuteAtPointer(event, laneMachineId);
+
+      if (startMinute === null) {
+        snapshot[drag.machineId] = list.filter(j => j.uid !== drag.uid);
+        this.draggedJobsByMachineSig.set({ ...snapshot });
+        return;
+      }
+
+      if (idx === -1) {
+        list.push({
+          ...drag.bucketJob,
+          startMinute,
+          endMinute: startMinute,
+          topPx: 0,
+          heightPx: 0,
+        });
+      }
+    }
+
+    snapshot[drag.machineId] = list;
+
+    const currentList = [...list];
+    const currentIdx = currentList.findIndex(j => j.uid === drag.uid);
+
+    if (currentIdx === -1) return;
+
+    const job = { ...currentList[currentIdx] };
     const periods = this.restPeriods();
     const logicalRanges = this.logicalRestRanges();
 
-    const nextVisibleMinute = Math.max(
-      0,
-      Math.round(drag.originalVisibleMinute + delta / this.pixelsPerMinute)
+    const pointerStartMinute = drag.source === 'bucket'
+      ? this.getClockMinuteAtPointer(event, drag.machineId)
+      : null;
+    const rawStartMinute = pointerStartMinute ?? this.visibleMinuteToClockMinute(
+      Math.max(
+        0,
+        Math.round(drag.originalVisibleMinute + delta / this.pixelsPerMinute)
+      ),
+      periods
     );
-
-    const rawStartMinute = this.visibleMinuteToClockMinute(nextVisibleMinute, periods);
     const startMinute = this.adjustStart(rawStartMinute, logicalRanges);
 
-    const previewLane = [...list].map(j => ({ ...j }));
-    previewLane[idx] = { ...job, startMinute };
+    const previewLane = [...currentList].map(j => ({ ...j }));
+    previewLane[currentIdx] = { ...job, startMinute };
 
     const sortedPreviewLane = this.sortLaneJobs(previewLane, drag.uid);
     const previewIndex = sortedPreviewLane.findIndex(j => j.uid === job.uid);
@@ -847,26 +1056,49 @@ export class AdminScheduleComponent implements OnChanges {
     this.applyDurationMetrics(job);
     this.applyVisualMetrics(job, periods);
 
-    list[idx] = job;
-    snapshot[drag.machineId] = list;
+    currentList[currentIdx] = job;
+    snapshot[drag.machineId] = currentList;
 
     this.draggedJobsByMachineSig.set({ ...snapshot });
   }
 
-  @HostListener('document:mouseup')
-  onUp(): void {
+  @HostListener('document:mouseup', ['$event'])
+  onUp(event: MouseEvent): void {
     const drag = this.dragStateSig();
     const snapshot = this.draggedJobsByMachineSig();
 
     if (drag && snapshot) {
-      const updated = this.insertAndCascadeLane(snapshot, drag.machineId, drag.uid);
-      this.overriddenJobsByMachineSig.set(updated);
+      const bucketMachineId = this.getBucketMachineIdAtPointer(event);
+      const laneMachineId = this.getLaneMachineIdAtPointer(event);
+
+      if (drag.source === 'schedule' && bucketMachineId === drag.machineId) {
+        const job = drag.bucketJob ?? this.findJobInMap(this.jobsByMachine(), drag.uid);
+        const withoutJob = this.removeJobFromMap(snapshot, drag.uid);
+
+        if (job) {
+          this.addJobToBucket(job);
+        }
+
+        this.validateSequenceMap(withoutJob);
+        this.overriddenJobsByMachineSig.set(withoutJob);
+      } else if (drag.source === 'bucket' && laneMachineId === drag.machineId) {
+        const updated = this.insertAndCascadeLane(snapshot, drag.machineId, drag.uid);
+        this.removeJobFromBucket(drag.machineId, drag.uid);
+        this.overriddenJobsByMachineSig.set(updated);
+      } else if (drag.source === 'bucket') {
+        this.overriddenJobsByMachineSig.set(this.removeJobFromMap(snapshot, drag.uid));
+      } else {
+        const updated = this.insertAndCascadeLane(snapshot, drag.machineId, drag.uid);
+        this.overriddenJobsByMachineSig.set(updated);
+      }
+
       this.draggedJobsByMachineSig.set(null);
     } else {
       this.draggedJobsByMachineSig.set(null);
     }
 
     this.dragStateSig.set(null);
+    this.bucketDropTargetMachineIdSig.set(null);
 
     queueMicrotask(() => {
       this.dragMovedSig.set(false);
@@ -877,9 +1109,43 @@ export class AdminScheduleComponent implements OnChanges {
   onDocumentClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
 
-    if (!target?.closest('.job-card')) {
+    if (!target?.closest('.job-card') && !target?.closest('.bucket-job')) {
       this.selectedJobNumberSig.set(null);
     }
+  }
+
+  private getBucketMachineIdAtPointer(event: MouseEvent): number | null {
+    return this.getMachineIdAtPointer(event, '.machine-bucket');
+  }
+
+  private getLaneMachineIdAtPointer(event: MouseEvent): number | null {
+    return this.getMachineIdAtPointer(event, '.machine-lane');
+  }
+
+  private getMachineIdAtPointer(event: MouseEvent, selector: string): number | null {
+    const element = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+    const target = element?.closest(selector) as HTMLElement | null;
+    const machineId = Number(target?.dataset?.['machineId']);
+
+    return Number.isInteger(machineId) ? machineId : null;
+  }
+
+  private getClockMinuteAtPointer(event: MouseEvent, machineId: number): number | null {
+    const lane = this.elementRef.nativeElement.querySelector(
+      `.machine-lane[data-machine-id="${machineId}"]`
+    ) as HTMLElement | null;
+
+    if (!lane) return null;
+
+    const rect = lane.getBoundingClientRect();
+    const y = event.clientY - rect.top;
+
+    if (y < 0 || y > rect.height) return null;
+
+    return this.visibleMinuteToClockMinute(
+      Math.round(y / this.pixelsPerMinute),
+      this.restPeriods()
+    );
   }
 
   private resolveRecommendedScheduleDate(): Moment {
@@ -1001,6 +1267,58 @@ export class AdminScheduleComponent implements OnChanges {
     return { ...snapshot };
   }
 
+  private findJobInMap(map: Record<number, ScheduledJob[]>, uid: string): ScheduledJob | null {
+    for (const jobs of Object.values(map)) {
+      const job = jobs.find(j => j.uid === uid);
+
+      if (job) return { ...job };
+    }
+
+    return null;
+  }
+
+  private removeJobFromMap(
+    map: Record<number, ScheduledJob[]>,
+    uid: string
+  ): Record<number, ScheduledJob[]> {
+    const next: Record<number, ScheduledJob[]> = {};
+
+    for (const [machineId, jobs] of Object.entries(map)) {
+      next[+machineId] = jobs.filter(job => job.uid !== uid).map(job => ({ ...job }));
+    }
+
+    return next;
+  }
+
+  private addJobToBucket(job: ScheduledJob): void {
+    this.bucketJobsByMachineSig.update(current => {
+      const jobs = current[job.machineId] ?? [];
+
+      if (jobs.some(j => j.uid === job.uid)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [job.machineId]: [
+          ...jobs,
+          {
+            ...job,
+            topPx: 0,
+            heightPx: 0,
+          },
+        ],
+      };
+    });
+  }
+
+  private removeJobFromBucket(machineId: number, uid: string): void {
+    this.bucketJobsByMachineSig.update(current => ({
+      ...current,
+      [machineId]: (current[machineId] ?? []).filter(job => job.uid !== uid),
+    }));
+  }
+
   private sortLaneJobs(jobs: ScheduledJob[], priorityUid?: string): ScheduledJob[] {
     return [...jobs].sort((a, b) => {
       if (a.startMinute !== b.startMinute) {
@@ -1035,6 +1353,16 @@ export class AdminScheduleComponent implements OnChanges {
 
         return copy;
       });
+    }
+
+    return clone;
+  }
+
+  private cloneJobMap(map: Record<number, ScheduledJob[]>): Record<number, ScheduledJob[]> {
+    const clone: Record<number, ScheduledJob[]> = {};
+
+    for (const [machineId, jobs] of Object.entries(map)) {
+      clone[+machineId] = jobs.map(job => ({ ...job }));
     }
 
     return clone;
@@ -1075,6 +1403,43 @@ export class AdminScheduleComponent implements OnChanges {
           list[i].isInvalidSequence = true;
           list[i - 1].isInvalidSequence = true;
         }
+      }
+    });
+  }
+
+  private validateSequenceMapWithBuckets(
+    scheduledMap: Record<number, ScheduledJob[]>,
+    bucketMap: Record<number, ScheduledJob[]>
+  ): void {
+    const scheduled = Object.values(scheduledMap).flat();
+    const buckets = Object.values(bucketMap).flat();
+
+    for (const job of buckets) {
+      job.isInvalidSequence = false;
+    }
+
+    const bucketsByJobPart = new Map<number, ScheduledJob[]>();
+
+    for (const job of buckets) {
+      const list = bucketsByJobPart.get(job.jobPartId) ?? [];
+      list.push(job);
+      bucketsByJobPart.set(job.jobPartId, list);
+    }
+
+    bucketsByJobPart.forEach((bucketedSteps, jobPartId) => {
+      const minBucketedStep = Math.min(...bucketedSteps.map(job => job.stepNumber));
+      const blockedScheduled = scheduled.filter(job =>
+        job.jobPartId === jobPartId && job.stepNumber > minBucketedStep
+      );
+
+      if (!blockedScheduled.length) return;
+
+      for (const job of blockedScheduled) {
+        job.isInvalidSequence = true;
+      }
+
+      for (const job of bucketedSteps.filter(job => job.stepNumber === minBucketedStep)) {
+        job.isInvalidSequence = true;
       }
     });
   }
@@ -1326,7 +1691,12 @@ export class AdminScheduleComponent implements OnChanges {
   trackJob = (_: number, j: ScheduledJob) => j.uid;
 
   async submitSchedule(): Promise<void> {
-    if (this.hasInvalidJobs() || !this.hasSubmittableJobs() || this.submittingSig()) {
+    if (
+      this.hasInvalidJobs()
+      || this.isPastScheduleDay()
+      || !this.hasSubmittableJobs()
+      || this.submittingSig()
+    ) {
       return;
     }
 
