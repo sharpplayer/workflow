@@ -25,6 +25,7 @@ export interface ScheduledJobPhase {
 }
 
 export interface SchedulableJobPart {
+  operationId?: number;
   jobPartId: number;
   jobId: number;
   jobNumber: number;
@@ -45,6 +46,13 @@ export interface SchedulableJobPart {
   timeForPacksSeconds: number;
   steps: number;
   productId: number;
+  locked?: boolean;
+  plannedStart?: string | null;
+  plannedFinish?: string | null;
+  setupMinutes?: number;
+  plannedMinutes?: number;
+  breakMinutes?: number;
+  packMinutes?: number;
 }
 
 export interface SchedulableJobParts {
@@ -251,6 +259,7 @@ export interface ScheduledJobPartView {
   actualFinishParamId: number,
   jobId: number;
   jobPartId: number;
+  machineId: number;
   stepNumber: number;
   firstOffAt: string | null;
 }
@@ -399,6 +408,17 @@ export class JobService {
       })
     );
     return jobs.jobParts;
+  }
+
+  async getJobsForScheduleDate(date: string): Promise<ScheduledJobPartView[]> {
+    const jobs = await firstValueFrom(
+      this.http.get<ScheduledJobPartViews>(`${API_BASE_URL}/api/schedule`, {
+        params: { date },
+        withCredentials: true
+      })
+    );
+
+    return jobs.jobParts ?? [];
   }
 
   async getJobScheduledPhases(date: string | null, role: string): Promise<ScheduledJobPhases> {

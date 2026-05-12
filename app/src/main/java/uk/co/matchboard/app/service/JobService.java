@@ -33,6 +33,8 @@ public interface JobService {
 
     Result<ScheduledJobPartViews> getScheduleForMachine(String date, int machine);
 
+    Result<ScheduledJobPartViews> getScheduleForDate(String date);
+
     Result<Boolean> createSchedule(CreateSchedule schedule);
 
     OptionalResult<JobWithOnePart> nextJob(String role);

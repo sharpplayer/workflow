@@ -33,6 +33,7 @@ public record ScheduledJobPartView(
         int actualFinishParamId,
         int jobId,
         int jobPartId,
+        int machineId,
         int stepNumber,
         OffsetDateTime firstOffAt
 ) {

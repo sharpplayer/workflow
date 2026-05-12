@@ -5,7 +5,11 @@ import {
   RestTimesInput,
 } from '../admin-schedule/admin-schedule.component';
 import { ConfigService, MachineInput } from '../../../core/services/config.service';
-import { JobService, SchedulableJobPart } from '../../../core/services/job.service';
+import {
+  JobService,
+  ScheduledJobPartView,
+  SchedulableJobPart
+} from '../../../core/services/job.service';
 
 @Component({
   selector: 'admin-schedule-page',
@@ -58,8 +62,12 @@ export class AdminSchedulePageComponent implements OnInit {
         this.jobService.getJobSchedulableParts(),
       ]);
 
+      const lockedJobs = this.scheduleDate
+        ? await this.loadLockedSchedule(this.scheduleDate)
+        : [];
+
       this.machines = allMachines;
-      this.jobs = jobs;
+      this.jobs = [...lockedJobs, ...jobs];
       this.loading = false;
 
       this.cdr.detectChanges();
@@ -71,5 +79,54 @@ export class AdminSchedulePageComponent implements OnInit {
 
       this.cdr.detectChanges();
     }
+  }
+
+  private async loadLockedSchedule(
+    date: string
+  ): Promise<SchedulableJobPart[]> {
+    const scheduled = await this.jobService.getJobsForScheduleDate(date) ?? [];
+    const stepsByJobPart = new Map<number, number>();
+
+    for (const job of scheduled) {
+      stepsByJobPart.set(
+        job.jobPartId,
+        Math.max(stepsByJobPart.get(job.jobPartId) ?? 0, job.stepNumber)
+      );
+    }
+
+    return scheduled.map(job => this.toLockedJob(job, stepsByJobPart.get(job.jobPartId) ?? job.stepNumber));
+  }
+
+  private toLockedJob(job: ScheduledJobPartView, steps: number): SchedulableJobPart {
+    return {
+      operationId: job.operationId,
+      jobPartId: job.jobPartId,
+      jobId: job.jobId,
+      jobNumber: job.jobNumber,
+      product: job.productName,
+      oldName: job.productName,
+      machineId: job.machineId,
+      quantity: job.quantity,
+      stepNumber: job.stepNumber,
+      width: job.width,
+      length: job.length,
+      thickness: job.thickness,
+      partStatus: job.status,
+      jobStatus: job.status,
+      partNo: job.partNumber,
+      jobParts: job.jobParts,
+      dueDate: new Date(job.dueDate),
+      timeOnMachineSeconds: job.plannedMinutes * 60,
+      timeForPacksSeconds: job.packMinutes * 60,
+      steps,
+      productId: 0,
+      locked: true,
+      plannedStart: job.plannedStart,
+      plannedFinish: job.plannedFinish,
+      setupMinutes: job.setupMinutes,
+      plannedMinutes: job.plannedMinutes,
+      breakMinutes: job.breakMinutes,
+      packMinutes: job.packMinutes
+    };
   }
 }

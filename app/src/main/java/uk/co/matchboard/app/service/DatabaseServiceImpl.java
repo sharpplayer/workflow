@@ -1969,8 +1969,20 @@ public class DatabaseServiceImpl implements DatabaseService {
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 2.0))
     @Override
+    public Result<List<ScheduledJobPartView>> getScheduleForDate(LocalDate date) {
+        return getSchedule(null, date, date);
+    }
+
+    @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
+            backoff = @Backoff(delay = 500, multiplier = 2.0))
+    @Override
     public Result<List<ScheduledJobPartView>> getScheduleForMachine(int machineId,
             LocalDate fromDate,
+            LocalDate toDate) {
+        return getSchedule(machineId, fromDate, toDate);
+    }
+
+    private Result<List<ScheduledJobPartView>> getSchedule(Integer machineId, LocalDate fromDate,
             LocalDate toDate) {
         return TryUtils.tryCatch(() -> {
             System.out.println("IN:" + System.currentTimeMillis());
@@ -1978,8 +1990,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                     ? fromDate
                     : toDate.minusDays(3);
 
-            Condition condition = JOB_PART_OPERATION.MACHINE_ID.eq(machineId)
-                    .and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.between(effectiveFromDate, toDate));
+            Condition condition = JOB_PART_OPERATION.SCHEDULED_FOR_DATE.between(effectiveFromDate,
+                    toDate);
+            if (machineId != null) {
+                condition = condition.and(JOB_PART_OPERATION.MACHINE_ID.eq(machineId));
+            }
             if (fromDate == null) {
                 condition = condition.and(
                         JOB_PART_OPERATION.STATUS.in(JobStatus.SCHEDULED.getCode(),
@@ -2019,7 +2034,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB_PART_OPERATION.STATUS,
                             JOB_PART_OPERATION.START_JOB_PART_PARAM_ID,
                             JOB_PART_OPERATION.FIRST_OFF_JOB_PART_PARAM_ID,
-                            JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID
+                            JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID,
+                            JOB_PART_OPERATION.MACHINE_ID
                     )
                     .from(JOB_PART_OPERATION)
                     .join(JOB_PART)
@@ -2031,6 +2047,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .where(condition)
                     .orderBy(
                             JOB_PART_OPERATION.SCHEDULED_FOR_DATE.asc(),
+                            JOB_PART_OPERATION.MACHINE_ID.asc(),
                             JOB_PART_OPERATION.MACHINE_QUEUE_POSITION.asc(),
                             JOB.DUE.asc()
                     )
@@ -2072,6 +2089,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 rec.get(JOB_PART_OPERATION.FINISH_JOB_PART_PARAM_ID),
                 rec.get(JOB.ID),
                 rec.get(JOB_PART_OPERATION.JOB_PART_ID),
+                rec.get(JOB_PART_OPERATION.MACHINE_ID),
                 rec.get(JOB_PART_OPERATION.STEP_NUMBER),
                 rec.get(JOB_PART_OPERATION.FIRST_OFF_AT)
         );

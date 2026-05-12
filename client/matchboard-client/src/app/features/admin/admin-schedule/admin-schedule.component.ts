@@ -65,6 +65,7 @@ interface ScheduledJob extends SchedulableJobPart {
   breakMinutes: number;
 
   effectiveDuration: number;
+  locked?: boolean;
 }
 
 interface DragState {
@@ -139,25 +140,27 @@ interface MachineEntry {
           </div>
         </div>
 
-        <div class="schedule-day-banner__actions">
-          @if (selectedScheduleDateSig()) {
-            <button type="button" (click)="resetScheduleDate()">
-              Use recommended day
-            </button>
-          }
+        @if (!isViewingExistingSchedule()) {
+          <div class="schedule-day-banner__actions">
+            @if (selectedScheduleDateSig()) {
+              <button type="button" (click)="resetScheduleDate()">
+                Use recommended day
+              </button>
+            }
 
-          <mat-form-field appearance="fill" class="schedule-date-field">
-            <input
-              matInput
-              [matDatepicker]="picker"
-              [value]="selectedScheduleDateSig()"
-              (dateChange)="onScheduleDateChange($event.value)"
-              placeholder="Select schedule date"
-            />
-            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-            <mat-datepicker #picker></mat-datepicker>
-          </mat-form-field>
-        </div>
+            <mat-form-field appearance="fill" class="schedule-date-field">
+              <input
+                matInput
+                [matDatepicker]="picker"
+                [value]="selectedScheduleDateSig()"
+                (dateChange)="onScheduleDateChange($event.value)"
+                placeholder="Select schedule date"
+              />
+              <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+              <mat-datepicker #picker></mat-datepicker>
+            </mat-form-field>
+          </div>
+        }
       </div>
 
       <div class="schedule-header">
@@ -261,6 +264,7 @@ interface MachineEntry {
                 [class.invalid-sequence]="job.isInvalidSequence"
                 [class.dragging]="dragStateSig()?.uid === job.uid"
                 [class.has-reset]="job.setupMinutes > 0"
+                [class.locked-job]="job.locked"
                 [class.related-job]="isRelatedJob(job)"
                 [class.selected-job]="isSelectedJob(job)"
                 [style.top.px]="job.topPx"
@@ -329,7 +333,7 @@ interface MachineEntry {
 
       <button
         type="button"
-        [disabled]="hasInvalidJobs() || submittingSig()"
+        [disabled]="hasInvalidJobs() || !hasSubmittableJobs() || submittingSig()"
         (click)="submitSchedule()"
       >
         {{ submittingSig() ? 'Submitting...' : 'Submit schedule' }}
@@ -370,6 +374,8 @@ export class AdminScheduleComponent implements OnChanges {
   readonly submitErrorSig = signal<string | null>(null);
   readonly submitSuccessSig = signal<string | null>(null);
 
+  readonly isViewingExistingSchedule = computed(() => !!this.initialScheduleDate());
+
   readonly jobsByMachine = computed(() => {
     const periods = this.restPeriods();
     const dragged = this.draggedJobsByMachineSig();
@@ -397,6 +403,12 @@ export class AdminScheduleComponent implements OnChanges {
     Object.values(this.jobsByMachine())
       .flat()
       .filter(job => job.isInvalidSequence).length
+  );
+
+  readonly hasSubmittableJobs = computed(() =>
+    Object.values(this.jobsByMachine())
+      .flat()
+      .some(job => !job.locked)
   );
 
   readonly resolvedScheduleDay = computed<ResolvedScheduleDay>(() => {
@@ -765,6 +777,10 @@ export class AdminScheduleComponent implements OnChanges {
     event.preventDefault();
     event.stopPropagation();
 
+    if (job.locked) {
+      return;
+    }
+
     const current = this.jobsByMachine();
     const cloned: Record<number, ScheduledJob[]> = {};
 
@@ -900,9 +916,19 @@ export class AdminScheduleComponent implements OnChanges {
         ? map[machineId][map[machineId].length - 1]
         : null;
 
-      const durationInfo = this.getEffectiveDuration(job, previousJobOnMachine, machineId);
-      const start = this.adjustStart(cursor.get(machineId)!, logicalRanges);
-      const end = this.computeEnd(start, durationInfo.effectiveDuration, logicalRanges);
+      const lockedStart = job.locked ? this.getMinuteOfDay(job.plannedStart) : null;
+      const lockedEnd = job.locked ? this.getMinuteOfDay(job.plannedFinish) : null;
+      const durationInfo = job.locked
+        ? {
+            setupMinutes: job.setupMinutes ?? 0,
+            effectiveDuration: (job.setupMinutes ?? 0)
+              + (job.plannedMinutes ?? this.getPlannedMinutes(job))
+              + (job.packMinutes ?? this.getPackMinutes(job))
+              + (job.breakMinutes ?? 0)
+          }
+        : this.getEffectiveDuration(job, previousJobOnMachine, machineId);
+      const start = lockedStart ?? this.adjustStart(cursor.get(machineId)!, logicalRanges);
+      const end = lockedEnd ?? this.computeEnd(start, durationInfo.effectiveDuration, logicalRanges);
 
       const scheduled: ScheduledJob = {
         ...job,
@@ -917,16 +943,17 @@ export class AdminScheduleComponent implements OnChanges {
         setupMinutes: durationInfo.setupMinutes,
         plannedMinutes: this.getPlannedMinutes(job),
         packMinutes: this.getPackMinutes(job),
-        breakMinutes: 0,
+        breakMinutes: job.breakMinutes ?? 0,
 
         effectiveDuration: durationInfo.effectiveDuration,
+        locked: !!job.locked,
       };
 
       this.applyDurationMetrics(scheduled);
       this.applyVisualMetrics(scheduled, periods);
 
       map[machineId].push(scheduled);
-      cursor.set(machineId, end);
+      cursor.set(machineId, Math.max(cursor.get(machineId)!, end));
     });
 
     this.validateSequenceMap(map);
@@ -1299,7 +1326,7 @@ export class AdminScheduleComponent implements OnChanges {
   trackJob = (_: number, j: ScheduledJob) => j.uid;
 
   async submitSchedule(): Promise<void> {
-    if (this.hasInvalidJobs() || this.submittingSig()) {
+    if (this.hasInvalidJobs() || !this.hasSubmittableJobs() || this.submittingSig()) {
       return;
     }
 
@@ -1312,6 +1339,7 @@ export class AdminScheduleComponent implements OnChanges {
 
       const jobParts: CreateScheduledJobPart[] = Object.values(this.jobsByMachine())
         .flat()
+        .filter(job => !job.locked)
         .map((job, index) => {
           const plannedStartAt = this.toPlannedDateTime(scheduledDate, job.startMinute);
           const plannedFinishAt = this.toPlannedDateTime(scheduledDate, job.endMinute);
@@ -1350,5 +1378,14 @@ export class AdminScheduleComponent implements OnChanges {
       .startOf('day')
       .add(minuteOfDay, 'minutes')
       .toISOString();
+  }
+
+  private getMinuteOfDay(value: string | Date | null | undefined): number | null {
+    if (!value) return null;
+
+    const parsed = moment(value);
+    if (!parsed.isValid()) return null;
+
+    return this.clampMinute(parsed.hours() * 60 + parsed.minutes());
   }
 }

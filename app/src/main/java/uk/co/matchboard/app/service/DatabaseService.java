@@ -100,6 +100,8 @@ public interface DatabaseService {
             LocalDate fromDate,
             LocalDate toDate);
 
+    Result<List<ScheduledJobPartView>> getScheduleForDate(LocalDate date);
+
     OptionalResult<JobWithOnePart> completePhasesAndStart(List<Integer> phasesToMarkDone,
             int jobPartId, Integer activePhaseId);
 

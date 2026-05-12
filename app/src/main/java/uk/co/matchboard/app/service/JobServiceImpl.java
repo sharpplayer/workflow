@@ -192,6 +192,13 @@ public class JobServiceImpl implements JobService {
                 .map(ScheduledJobPartViews::new);
     }
 
+    @Override
+    public Result<ScheduledJobPartViews> getScheduleForDate(String date) {
+        return TryUtils.tryCatch(() -> LocalDate.parse(date))
+                .flatMap(databaseService::getScheduleForDate)
+                .map(ScheduledJobPartViews::new);
+    }
+
     private record DateRange(LocalDate from, LocalDate to) {
 
     }

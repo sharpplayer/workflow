@@ -79,6 +79,9 @@ public class JobController {
         } else if (machineId != null) {
             return jobService.getScheduleForMachine(date, machineId)
                     .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+        } else if (date != null && role == null) {
+            return jobService.getScheduleForDate(date)
+                    .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
         }
         return jobService.getSchedule(date, role)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
