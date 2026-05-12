@@ -84,6 +84,16 @@ public class JobController {
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
+    @GetMapping("/schedules")
+    public ResponseEntity<?> getSchedules(
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam int limit
+    ) {
+        return jobService.getSchedules(fromDate, toDate, limit)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
     @PostMapping("/schedule")
     public ResponseEntity<?> createSchedule(@RequestBody CreateSchedule schedule) {
         return jobService.createSchedule(schedule)

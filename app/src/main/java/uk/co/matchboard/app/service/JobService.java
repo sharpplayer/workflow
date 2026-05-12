@@ -11,6 +11,7 @@ import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.PhotoView;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
+import uk.co.matchboard.app.model.job.ScheduleViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateJob;
@@ -27,6 +28,8 @@ public interface JobService {
     Result<SchedulableJobParts> getSchedulable();
 
     Result<ScheduledJobPhases> getSchedule(String date, String role);
+
+    Result<ScheduleViews> getSchedules(String fromDate, String toDate, int limit);
 
     Result<ScheduledJobPartViews> getScheduleForMachine(String date, int machine);
 

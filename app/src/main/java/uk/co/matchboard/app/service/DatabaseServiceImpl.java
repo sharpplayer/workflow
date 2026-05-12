@@ -94,6 +94,7 @@ import uk.co.matchboard.app.model.job.ParamStatus;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduleForRole;
 import uk.co.matchboard.app.model.job.ScheduleSummary;
+import uk.co.matchboard.app.model.job.ScheduleView;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.job.UpdateJob;
@@ -664,6 +665,62 @@ public class DatabaseServiceImpl implements DatabaseService {
         ).flatMap(r -> r ? Result.of(true)
                 : Result.failure(new InvalidParamException(paramId, jobNumber, jobPart, phaseNumber,
                         config)));
+    }
+
+    @Override
+    public Result<List<ScheduleView>> getSchedules(LocalDate from, LocalDate to, int limit) {
+        return TryUtils.tryCatch(() -> {
+            if (limit <= 0) {
+                return List.of();
+            }
+
+            int machineCount = Math.max(getMachineList().size(), 1);
+            int effectiveLimit = Math.max(limit, machineCount);
+            int fetchLimit = effectiveLimit + machineCount;
+            LocalDate effectiveTo = to == null ? LocalDate.now() : to;
+
+            Condition condition = JOB_PART_OPERATION.SCHEDULED_FOR_DATE.isNotNull();
+            if (from != null) {
+                condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.ge(from));
+            }
+            condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.le(effectiveTo));
+
+            List<ScheduleView> schedules = outerDsl
+                    .selectDistinct(
+                            JOB_PART_OPERATION.SCHEDULED_FOR_DATE,
+                            JOB_PART_OPERATION.MACHINE_ID,
+                            MACHINES.NAME
+                    )
+                    .from(JOB_PART_OPERATION)
+                    .join(MACHINES)
+                    .on(MACHINES.ID.eq(JOB_PART_OPERATION.MACHINE_ID))
+                    .where(condition)
+                    .orderBy(
+                            JOB_PART_OPERATION.SCHEDULED_FOR_DATE.desc(),
+                            JOB_PART_OPERATION.MACHINE_ID.asc()
+                    )
+                    .limit(fetchLimit)
+                    .fetch(r -> new ScheduleView(
+                            r.get(JOB_PART_OPERATION.SCHEDULED_FOR_DATE),
+                            r.get(JOB_PART_OPERATION.MACHINE_ID),
+                            r.get(MACHINES.NAME)
+                    ));
+
+            if (schedules.size() <= effectiveLimit) {
+                return schedules;
+            }
+
+            LocalDate splitDate = schedules.get(effectiveLimit).date();
+            List<ScheduleView> completeDates = schedules.stream()
+                    .filter(schedule -> schedule.date().isAfter(splitDate))
+                    .toList();
+
+            return completeDates.isEmpty()
+                    ? schedules.stream()
+                            .filter(schedule -> schedule.date().equals(schedules.getFirst().date()))
+                            .toList()
+                    : completeDates;
+        });
     }
 
     private static JobView getJobView(JobRecord jobRecord, DSLContext dsl) {

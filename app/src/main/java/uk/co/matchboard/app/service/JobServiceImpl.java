@@ -42,6 +42,7 @@ import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.PhotoView;
 import uk.co.matchboard.app.model.job.SchedulableJobParts;
 import uk.co.matchboard.app.model.job.ScheduleSummary;
+import uk.co.matchboard.app.model.job.ScheduleViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPartParam;
 import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
@@ -163,6 +164,16 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
+    public Result<ScheduleViews> getSchedules(String fromDate, String toDate, int limit) {
+        Result<LocalDate> from = parseOptionalDate(fromDate);
+        Result<LocalDate> to = parseOptionalDate(toDate);
+
+        return Result.combine(from, to, (f, t) -> new DateRange(f, t))
+                .flatMap(range -> databaseService.getSchedules(range.from(), range.to(), limit))
+                .map(ScheduleViews::new);
+    }
+
+    @Override
     public Result<ScheduledJobPartViews> getScheduleForMachine(String date, int machine) {
         Result<LocalDate> toDate;
         if (date == null) {
@@ -179,6 +190,14 @@ public class JobServiceImpl implements JobService {
                             return databaseService.getScheduleForMachine(machine, fromDate, d);
                         })
                 .map(ScheduledJobPartViews::new);
+    }
+
+    private record DateRange(LocalDate from, LocalDate to) {
+
+    }
+
+    private Result<LocalDate> parseOptionalDate(String date) {
+        return date == null ? Result.of(null) : TryUtils.tryCatch(() -> LocalDate.parse(date));
     }
 
     private Result<LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>>> getScheduleParamsFor(

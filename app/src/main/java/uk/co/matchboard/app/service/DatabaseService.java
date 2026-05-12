@@ -22,6 +22,7 @@ import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.SchedulableJobPart;
 import uk.co.matchboard.app.model.job.ScheduleForRole;
+import uk.co.matchboard.app.model.job.ScheduleView;
 import uk.co.matchboard.app.model.job.ScheduledJobPartView;
 import uk.co.matchboard.app.model.job.UpdateJob;
 import uk.co.matchboard.app.model.product.CreatePhase;
@@ -131,4 +132,6 @@ public interface DatabaseService {
 
     Result<Boolean> updateParam(int paramId, long jobNumber, int jobPart,  int phaseNumber, String config,
             String filename);
+
+    Result<List<ScheduleView>> getSchedules(LocalDate from, LocalDate to, int limit);
 }

@@ -301,6 +301,16 @@ export interface CreateWastage {
   reason: string;
 }
 
+export interface ScheduleView {
+  date: string;
+  machineId : number;
+  machine: string;
+}
+
+export interface ScheduleViews {
+  schedules: ScheduleView[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class JobService {
 
@@ -399,6 +409,26 @@ export class JobService {
         withCredentials: true
       })
     );
+  }
+
+  async getSchedules(fromDate: string | null, toDate: string | null, limit: number): Promise<ScheduleView[]> {
+    const params: Record<string, string> = { limit: limit.toString() };
+
+    if (fromDate) {
+      params.fromDate = fromDate;
+    }
+    if (toDate) {
+      params.toDate = toDate;
+    }
+
+    const schedules = await firstValueFrom(
+      this.http.get<ScheduleViews>(`${API_BASE_URL}/api/schedules`, {
+        params,
+        withCredentials: true
+      })
+    );
+
+    return schedules.schedules;
   }
 
   async submitSchedule(jobParts: CreateScheduledJobPart[]) {
