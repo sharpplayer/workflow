@@ -1737,7 +1737,9 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
       this.submitSuccessSig.set('Schedule submitted.');
     } catch (error) {
       console.error('Failed to submit schedule', error);
-      this.submitErrorSig.set('Failed to submit schedule.');
+      this.submitErrorSig.set(
+        error instanceof Error ? error.message : 'Failed to submit schedule.'
+      );
     } finally {
       this.submittingSig.set(false);
     }

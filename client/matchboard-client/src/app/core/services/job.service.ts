@@ -452,10 +452,14 @@ export class JobService {
   }
 
   async submitSchedule(jobParts: CreateScheduledJobPart[]) {
-    return await firstValueFrom(
-      this.http.post<boolean>(`${API_BASE_URL}/api/schedule`, { jobParts },
-        { withCredentials: true })
-    );
+    try {
+      return await firstValueFrom(
+        this.http.post<boolean>(`${API_BASE_URL}/api/schedule`, { jobParts },
+          { withCredentials: true })
+      );
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Failed to submit schedule.'));
+    }
 
   }
 

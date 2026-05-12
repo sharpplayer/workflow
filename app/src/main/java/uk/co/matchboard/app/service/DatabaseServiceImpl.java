@@ -65,6 +65,7 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import uk.co.matchboard.app.exception.DataException;
+import uk.co.matchboard.app.exception.DuplicateScheduleException;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidParamException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
@@ -2210,6 +2211,23 @@ public class DatabaseServiceImpl implements DatabaseService {
             Set<Integer> updatedJobs = new HashSet<>();
             Map<Integer, List<PhaseData>> jobPartPhases = new HashMap<>();
             Map<Integer, Product> products = new HashMap<>();
+            List<LocalDate> scheduledDates = jobPartIds.stream()
+                    .map(CreateScheduledJobPart::scheduledDate)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+
+            for (LocalDate scheduledDate : scheduledDates) {
+                boolean scheduleExists = innerDsl.fetchExists(
+                        innerDsl.selectOne()
+                                .from(JOB_PART_OPERATION)
+                                .where(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.eq(scheduledDate))
+                );
+
+                if (scheduleExists) {
+                    throw new DuplicateScheduleException(scheduledDate);
+                }
+            }
 
             for (CreateScheduledJobPart jobPart : jobPartIds) {
                 MachinePhaseSignoffParams signOffParams = new MachinePhaseSignoffParams();
