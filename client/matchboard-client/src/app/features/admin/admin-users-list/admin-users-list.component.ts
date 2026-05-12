@@ -8,10 +8,6 @@ import { User, UserService } from '../../../core/services/user.service';
   imports: [CommonModule],
   template: `
     <div class="list-container">
-      <div class="list-header">
-        <button type="button" (click)="create.emit()">Create User</button>
-      </div>
-
       @if (loading()) {
         <div>Loading users...</div>
       } @else if (error()) {
@@ -23,19 +19,15 @@ import { User, UserService } from '../../../core/services/user.service';
               <th>Username</th>
               <th>Roles</th>
               <th>Enabled</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             @for (user of users(); track user.username) {
-              <tr>
+              <tr (click)="edit.emit(user)">
                 <td>{{ user.username }}</td>
                 <td>{{ user.roles.join(', ') }}</td>
                 <td [class.status-yes]="user.enabled"
                     [class.status-no]="!user.enabled">{{ user.enabled ? 'Yes' : 'No' }}</td>
-                <td>
-                  <button type="button" (click)="edit.emit(user)">Edit</button>
-                </td>
               </tr>
             }
           </tbody>
@@ -51,7 +43,6 @@ export class AdminUsersListComponent {
   private readonly userService = inject(UserService);
 
   readonly edit = output<User>();
-  readonly create = output<void>();
 
   readonly users = this.userService.users;
   readonly loading = signal(true);

@@ -108,6 +108,32 @@ export const adminRoutes: Routes = [
 
       // USERS
       {
+        path: 'users/new',
+        component: AdminUsersComponent,
+        canDeactivate: [unsavedChangesGuard],
+        data: {
+          title: 'Users',
+          breadcrumb: 'Users / New',
+          subnav: [
+            { label: 'List', link: '/admin/users' },
+            { label: 'New', link: '/admin/users/new' }
+          ]
+        }
+      },
+      {
+        path: 'users/:username',
+        component: AdminUsersComponent,
+        canDeactivate: [unsavedChangesGuard],
+        data: {
+          title: 'Users',
+          breadcrumb: 'Users / Edit',
+          subnav: [
+            { label: 'List', link: '/admin/users' },
+            { label: 'Edit', link: '' }
+          ]
+        }
+      },
+      {
         path: 'users',
         component: AdminUsersComponent,
         canDeactivate: [unsavedChangesGuard],
@@ -115,7 +141,8 @@ export const adminRoutes: Routes = [
           title: 'Users',
           breadcrumb: 'Users / Manage',
           subnav: [
-            { label: 'List', link: '/admin/users' }
+            { label: 'List', link: '/admin/users' },
+            { label: 'New', link: '/admin/users/new' }
           ]
         }
       },
