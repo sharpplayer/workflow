@@ -69,6 +69,7 @@ import uk.co.matchboard.app.exception.DataException;
 import uk.co.matchboard.app.exception.InvalidJobException;
 import uk.co.matchboard.app.exception.InvalidParamException;
 import uk.co.matchboard.app.exception.InvalidSignOffException;
+import uk.co.matchboard.app.exception.PhaseNotCompleteException;
 import uk.co.matchboard.app.functional.OptionalResult;
 import uk.co.matchboard.app.functional.Result;
 import uk.co.matchboard.app.functional.TryUtils;
@@ -1014,26 +1015,32 @@ public class DatabaseServiceImpl implements DatabaseService {
             Integer currentJobPartPhaseId,
             int currentPhaseNo,
             Integer currentPhaseMachineId,
-            OffsetDateTime now) {
+            OffsetDateTime now) throws PhaseNotCompleteException {
 
         Integer nextJobPartPhaseId = null;
         int nextJobPartPhaseNumber = 0;
         boolean isNextPhaseMachine = false;
 
         var phases = innerDsl.select(JOB_PART_PHASES.fields())
-                .select(PHASE.USAGE, PHASE.MACHINE_IDS, JOB_PART_PHASES.STATUS)
+                .select(PHASE.USAGE, PHASE.MACHINE_IDS, PHASE.DESCRIPTION, JOB_PART_PHASES.STATUS)
                 .from(JOB_PART_PHASES)
                 .join(PHASE).on(JOB_PART_PHASES.PHASE_ID.eq(PHASE.ID))
                 .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
-                .and(JOB_PART_PHASES.PHASE_NUMBER.gt(
-                        startNext ? currentPhaseNo : currentPhaseNo - 1))
                 .orderBy(JOB_PART_PHASES.PHASE_NUMBER)
                 .fetch();
 
         boolean jobPartComplete = true;
+        int expectedNextPhase = startNext ? currentPhaseNo : currentPhaseNo - 1;
         for (var nextPhase : phases) {
             JobStatus nextPhaseStatus = JobStatus.fromCode(
                     nextPhase.get(JOB_PART_PHASES.STATUS));
+            if (nextPhase.get(JOB_PART_PHASES.PHASE_NUMBER) < expectedNextPhase
+                    && currentPhaseMachineId != null
+                    && Arrays.asList(nextPhase.get(PHASE.MACHINE_IDS))
+                    .contains(currentPhaseMachineId)
+            ) {
+                throw new PhaseNotCompleteException(nextPhase.get(PHASE.DESCRIPTION));
+            }
             boolean nextPhaseComplete = nextPhaseStatus == JobStatus.COMPLETED;
             jobPartComplete = jobPartComplete && nextPhaseComplete;
             if (!nextPhaseComplete) {
@@ -1521,7 +1528,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                             || currentStatus == JobStatus.STARTED
                             || currentStatus == JobStatus.COMPLETED) {
                         throw new DataException(
-                                "Cannot update job " + job.jobId() + " because it is " + currentStatus);
+                                "Cannot update job " + job.jobId() + " because it is "
+                                        + currentStatus);
                     }
 
                     Long jobNumber = innerDsl.update(JOB)
@@ -1551,7 +1559,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.in(
                                         innerDsl.select(JOB_PART_PHASES.ID)
                                                 .from(JOB_PART_PHASES)
-                                                .where(JOB_PART_PHASES.JOB_PART_ID.in(existingPartIds))
+                                                .where(JOB_PART_PHASES.JOB_PART_ID.in(
+                                                        existingPartIds))
                                 ))
                                 .execute();
 
