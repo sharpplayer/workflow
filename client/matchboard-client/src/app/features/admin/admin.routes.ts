@@ -7,7 +7,7 @@ import { AdminSchedulePageComponent } from './admin-schedule-page/admin-schedule
 import { adminGuard } from '../../core/guards/auth.guards';
 import { unsavedChangesGuard } from './admin.guards';
 import { AdminJobListComponent } from './admin-job-list/admin-job-list.component';
-import { ScheduleListComponent } from '../job/schedule-list/schedule-list.component';
+import { AdminScheduleListComponent } from './admin-schedule-list/admin-schedule-list.component';
 
 export const adminRoutes: Routes = [
   {
@@ -76,7 +76,7 @@ export const adminRoutes: Routes = [
         children: [
           {
             path: '',
-            component: ScheduleListComponent
+            component: AdminScheduleListComponent
           },
           {
             path: 'new',

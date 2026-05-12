@@ -677,13 +677,14 @@ public class DatabaseServiceImpl implements DatabaseService {
             int machineCount = Math.max(getMachineList().size(), 1);
             int effectiveLimit = Math.max(limit, machineCount);
             int fetchLimit = effectiveLimit + machineCount;
-            LocalDate effectiveTo = to == null ? LocalDate.now() : to;
 
             Condition condition = JOB_PART_OPERATION.SCHEDULED_FOR_DATE.isNotNull();
             if (from != null) {
                 condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.ge(from));
             }
-            condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.le(effectiveTo));
+            if (to != null) {
+                condition = condition.and(JOB_PART_OPERATION.SCHEDULED_FOR_DATE.le(to));
+            }
 
             List<ScheduleView> schedules = outerDsl
                     .selectDistinct(

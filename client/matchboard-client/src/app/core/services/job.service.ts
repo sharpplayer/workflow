@@ -415,10 +415,10 @@ export class JobService {
     const params: Record<string, string> = { limit: limit.toString() };
 
     if (fromDate) {
-      params.fromDate = fromDate;
+      params['fromDate'] = fromDate;
     }
     if (toDate) {
-      params.toDate = toDate;
+      params['toDate'] = toDate;
     }
 
     const schedules = await firstValueFrom(
