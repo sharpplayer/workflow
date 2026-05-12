@@ -11,7 +11,6 @@ import { JobService, JobStatus, JobStatusLabel, JobView } from '../../../core/se
     <table>
       <thead>
         <tr>
-          <th>ID</th>
           <th>Job Number</th>
           <th>Parts</th>
           <th>Due</th>
@@ -22,11 +21,11 @@ import { JobService, JobStatus, JobStatusLabel, JobView } from '../../../core/se
       <tbody>
         @if (loading()) {
           <tr>
-            <td colspan="6" class="status-row">Loading jobs...</td>
+            <td colspan="5" class="status-row">Loading jobs...</td>
           </tr>
         } @else if (jobs().length === 0) {
           <tr>
-            <td colspan="6" class="status-row">No jobs found.</td>
+            <td colspan="5" class="status-row">No jobs found.</td>
           </tr>
         } @else {
           @for (job of jobs(); track job.id) {
@@ -34,7 +33,6 @@ import { JobService, JobStatus, JobStatusLabel, JobView } from '../../../core/se
               (click)="selectJob(job)"
               [class.selected]="selectedJob()?.id === job.id"
             >
-              <td>{{ job.id }}</td>
               <td>{{ job.number }}</td>
               <td>{{ job.parts }}</td>
               <td>{{ job.due | date: 'dd/MM/yyyy' }}</td>
