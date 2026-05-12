@@ -213,6 +213,13 @@ export class AdminJobComponent {
         return this.editSnapshot() !== this.cleanSnapshot();
     }
 
+    hasPendingChanges(): boolean {
+        const params = this.lastParamsSelected();
+        if (!params || this.getValidationErrors(params).length > 0) return false;
+
+        return this.hasUnsavedChanges();
+    }
+
     private markClean(): void {
         this.cleanSnapshot.set(this.editSnapshot());
     }
@@ -326,6 +333,9 @@ export class AdminJobComponent {
                 value: crossJobParamValueMap.get(p.phaseParamId) ?? p.value
             }));
         }
+
+        console.log(params)
+        console.log(jobPartParams)
 
         const rows = await this.buildPhaseParamRows(phases.phases, params, jobPartParams);
 
@@ -535,7 +545,7 @@ export class AdminJobComponent {
                     phaseParamId: dueDateParam.phaseParamId,
                     message: 'Please enter a valid due date.'
                 });
-            } else if (selected < today) {
+            } else if (this.crossJobParams().jobId === 0 && selected < today) {
                 errors.push({
                     phaseParamId: dueDateParam.phaseParamId,
                     message: 'Due date cannot be in the past.'
@@ -616,7 +626,7 @@ export class AdminJobComponent {
         this.validationErrors.set([]);
         this.hasResults = true;
         this.pendingEditHydration = false;
-        queueMicrotask(() => this.markClean());
+        this.markClean();
     }
 
     isPrimitive(config: string) {

@@ -22,7 +22,7 @@ import {
     JobStatus,
     JobStatusLabel
 } from '../../../core/services/job.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
 import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
 
@@ -167,6 +167,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
 
     private jobService = inject(JobService);
     private route = inject(ActivatedRoute);
+    private router = inject(Router);
 
     crossJobParams = signal<CrossJobParameters>({
         jobId: 0,
@@ -197,8 +198,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
             params: job.params,
             phases: job.phases
         })),
-        selectedPartClientId: this.selectedPart()?.clientId ?? null,
-        builderDirty: this.jobBuilder?.hasUnsavedChanges?.() ?? false
+        builderDirty: this.selectedPart() ? (this.jobBuilder?.hasPendingChanges?.() ?? false) : false
     }));
 
     ngAfterViewInit(): void {
@@ -224,7 +224,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     private canDiscardBuilderChanges(): boolean {
-        return !this.jobBuilder?.hasUnsavedChanges?.()
+        return !this.selectedPart()
+            || !this.jobBuilder?.hasPendingChanges?.()
             || confirm('You have unsaved changes. Continue without saving them?');
     }
 
@@ -252,6 +253,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
                 status: job.status
             });
 
+            console.log(job)
             this.jobs.set(job.parts.map(part => this.mapJobPartToSelected(part)));
             this.selectedPart.set(null);
             queueMicrotask(() => this.markClean());
@@ -261,6 +263,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     private mapJobPartToSelected(part: JobPart): ProductSelectedWithMap {
+        console.log("WWW")
+        console.log(part.params)
         const params = [
             ...(part.params ?? []).map((p): PhaseParamSelected => ({
                 phaseId: p.phaseId,
@@ -410,6 +414,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     onCancel() {
         this.selectedPart.set(null);
         this.jobBuilder.reset();
+        queueMicrotask(() => this.markClean());
     }
 
     selectPart(job: ProductSelectedWithMap) {
@@ -504,7 +509,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     async onSaveJob() {
         if (!this.canSaveJob()) return;
 
-        if (this.jobBuilder?.hasUnsavedChanges?.()) {
+        if (this.selectedPart() && this.jobBuilder?.hasPendingChanges?.()) {
             alert('Please add/update or cancel the current part before saving the job.');
             return;
         }
@@ -529,6 +534,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
             });
 
             queueMicrotask(() => this.markClean());
+            await this.router.navigate(['/admin/jobs']);
         } catch (err) {
             console.error('Job save failed', err);
         }
