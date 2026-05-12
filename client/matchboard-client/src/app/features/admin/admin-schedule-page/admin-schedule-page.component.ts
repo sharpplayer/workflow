@@ -1,4 +1,5 @@
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import {
   AdminScheduleComponent,
   RestTimesInput,
@@ -25,6 +26,7 @@ import { JobService, SchedulableJobPart } from '../../../core/services/job.servi
       <app-admin-schedule
         [machines]="machines"
         [jobs]="jobs"
+        [initialScheduleDate]="scheduleDate"
         [restTimes]="restTimes">
       </app-admin-schedule>
     }
@@ -34,9 +36,11 @@ export class AdminSchedulePageComponent implements OnInit {
   private readonly configService = inject(ConfigService);
   private readonly jobService = inject(JobService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly route = inject(ActivatedRoute);
 
   machines: MachineInput[] = [];
   jobs: SchedulableJobPart[] = [];
+  scheduleDate: string | null = null;
 
   loading = true;
   error: string | null = null;
@@ -47,6 +51,8 @@ export class AdminSchedulePageComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
+      this.scheduleDate = this.route.snapshot.paramMap.get('date');
+
       const [allMachines, jobs] = await Promise.all([
         this.configService.getMachineList(),
         this.jobService.getJobSchedulableParts(),

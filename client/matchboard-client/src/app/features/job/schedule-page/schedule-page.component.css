@@ -1,0 +1,26 @@
+.schedule-page {
+  min-height: 100dvh;
+  background: #f6f7fb;
+  padding: 1rem;
+}
+
+.job-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.logout-button {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #4a90e2;
+  color: #ffffff;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background-color: #357abd;
+}

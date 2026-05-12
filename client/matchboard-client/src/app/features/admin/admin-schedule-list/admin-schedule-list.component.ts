@@ -1,11 +1,12 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { JobService, ScheduleView } from '../../../core/services/job.service';
 
 @Component({
   selector: 'admin-schedule-list',
   standalone: true,
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, RouterLink],
   template: `
     <table>
       <thead>
@@ -26,8 +27,19 @@ import { JobService, ScheduleView } from '../../../core/services/job.service';
         } @else {
           @for (schedule of schedules(); track schedule.date + '-' + schedule.machineId) {
             <tr>
-              <td>{{ schedule.date | date: 'dd/MM/yyyy' }}</td>
-              <td>{{ schedule.machine }}</td>
+              <td>
+                <a [routerLink]="['/admin/schedule', schedule.date]">
+                  {{ schedule.date | date: 'dd/MM/yyyy' }}
+                </a>
+              </td>
+              <td>
+                <a
+                  [routerLink]="['/admin/schedule', schedule.date, 'machine', schedule.machineId]"
+                  [queryParams]="{ machine: schedule.machine }"
+                >
+                  {{ schedule.machine }}
+                </a>
+              </td>
             </tr>
           }
         }

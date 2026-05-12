@@ -29,6 +29,16 @@ tbody tr:nth-child(odd) {
   background-color: #ffffff;
 }
 
+a {
+  color: #1f6fbf;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
 .status-row {
   color: #555;
   text-align: center;

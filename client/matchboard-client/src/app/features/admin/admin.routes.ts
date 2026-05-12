@@ -8,6 +8,7 @@ import { adminGuard } from '../../core/guards/auth.guards';
 import { unsavedChangesGuard } from './admin.guards';
 import { AdminJobListComponent } from './admin-job-list/admin-job-list.component';
 import { AdminScheduleListComponent } from './admin-schedule-list/admin-schedule-list.component';
+import { AdminScheduleMachineComponent } from './admin-schedule-machine/admin-schedule-machine.component';
 
 export const adminRoutes: Routes = [
   {
@@ -84,6 +85,22 @@ export const adminRoutes: Routes = [
             data: {
               title: 'New Schedule',
               breadcrumb: 'Schedule / New'
+            }
+          },
+          {
+            path: ':date',
+            component: AdminSchedulePageComponent,
+            data: {
+              title: 'Schedule',
+              breadcrumb: 'Schedule / View'
+            }
+          },
+          {
+            path: ':date/machine/:machineId',
+            component: AdminScheduleMachineComponent,
+            data: {
+              title: 'Schedule',
+              breadcrumb: 'Schedule / Machine'
             }
           }
         ]

@@ -3,6 +3,8 @@ import {
   Component,
   ElementRef,
   HostListener,
+  OnChanges,
+  SimpleChanges,
   computed,
   inject,
   input,
@@ -335,10 +337,11 @@ interface MachineEntry {
     </div>
   `,
 })
-export class AdminScheduleComponent {
+export class AdminScheduleComponent implements OnChanges {
   readonly machines = input.required<MachineInput[]>();
   readonly jobs = input.required<SchedulableJobPart[]>();
   readonly restTimes = input.required<RestTimesInput>();
+  readonly initialScheduleDate = input<string | null>(null);
   readonly jobService = inject(JobService);
 
   readonly pixelsPerMinute = 2;
@@ -417,6 +420,24 @@ export class AdminScheduleComponent {
   });
 
   private readonly elementRef = inject(ElementRef<HTMLElement>);
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if ('initialScheduleDate' in changes) {
+      this.applyInitialScheduleDate();
+    }
+  }
+
+  private applyInitialScheduleDate(): void {
+    const date = this.initialScheduleDate();
+    if (!date) {
+      return;
+    }
+
+    const parsed = moment(date, UK_DATE_FORMATS.storage, true);
+    if (parsed.isValid()) {
+      this.selectedScheduleDateSig.set(parsed.startOf('day'));
+    }
+  }
 
   private readonly parsedRestPeriods = computed(() => {
     const value = this.restTimes()?.times ?? '';

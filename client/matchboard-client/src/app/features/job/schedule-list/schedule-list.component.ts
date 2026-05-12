@@ -64,6 +64,10 @@ import { AuthService } from '../../../core/services/auth.service';
   ],
   template: `
     <div class="schedule-list-container">
+      @if (machineName()) {
+        <h2>{{ machineName() }}</h2>
+      }
+
       <table>
         <thead>
           <tr>
@@ -257,6 +261,8 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   JobStatus = JobStatus;
 
   machineId = input<number | null>(null);
+  date = input<string | null>(null);
+  machineName = input<string | null>(null);
 
   private deviceService = inject(DeviceService);
   private jobService = inject(JobService);
@@ -372,6 +378,8 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   }
 
   async ngOnInit(): Promise<void> {
+    this.syncDateInput();
+
     if (this.hasMachineIdInput()) {
       await this.loadSchedule();
       return;
@@ -381,7 +389,14 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   }
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
-    if ('machineId' in changes && !changes['machineId'].firstChange) {
+    if ('date' in changes && !changes['date'].firstChange) {
+      this.syncDateInput();
+    }
+
+    if (
+      ('machineId' in changes && !changes['machineId'].firstChange)
+      || ('date' in changes && !changes['date'].firstChange)
+    ) {
       if (this.hasMachineIdInput()) {
         await this.loadSchedule();
       }
@@ -431,7 +446,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     this.loading.set(true);
 
     try {
-      const jobs = await this.jobService.getJobsForMachine(machineId);
+      const jobs = await this.jobService.getJobsForMachine(machineId, this.buildDateStringOrNull());
 
       this.jobs.set(jobs);
     } catch (err) {
@@ -443,9 +458,20 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     }
   }
 
-  private buildDateString(): string {
-    const date = this.selectedDate() ?? moment();
-    return date.format(UK_DATE_FORMATS.storage);
+  private buildDateStringOrNull(): string | null {
+    const date = this.selectedDate();
+    return date == null ? null : date.format(UK_DATE_FORMATS.storage);
+  }
+
+  private syncDateInput(): void {
+    const date = this.date();
+    if (!date) {
+      this.selectedDate.set(null);
+      return;
+    }
+
+    const parsed = moment(date, UK_DATE_FORMATS.storage, true);
+    this.selectedDate.set(parsed.isValid() ? parsed : null);
   }
 
   formatUkDate(value: string | null): string {
