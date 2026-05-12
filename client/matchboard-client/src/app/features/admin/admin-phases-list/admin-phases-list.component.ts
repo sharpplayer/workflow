@@ -87,7 +87,7 @@ export interface PhasesSelected {
           [class.collapsed-section]="!tableExpanded()"
         >
           @for (jp of editablePhases(); track jp.phase.id) {
-            <tr cdkDrag [class.marked-for-delete]="jp.selectedForDelete">
+            <tr cdkDrag [cdkDragDisabled]="readOnly()" [class.marked-for-delete]="jp.selectedForDelete">
               <td class="drag-cell">
                 <span
                   class="drag-handle"
@@ -103,6 +103,7 @@ export interface PhasesSelected {
                 <input
                   type="checkbox"
                   [checked]="!!jp.selectedForDelete"
+                  [disabled]="readOnly()"
                   (change)="toggleDeleteSelection(jp, $any($event.target).checked)"
                   aria-label="Select phase for deletion"
                 />
@@ -115,6 +116,7 @@ export interface PhasesSelected {
                   class="special-instruction"
                   rows="2"
                   [value]="jp.specialInstruction"
+                  [readonly]="readOnly()"
                   (input)="updateSpecialInstruction(jp, $any($event.target).value)"
                 ></textarea>
               </td>
@@ -150,18 +152,20 @@ export interface PhasesSelected {
               }
             </td>
             <td colspan="2" class="add-phase-row">
-              <button type="button" (click)="addPhase()">Add Phase</button>
+              @if (!readOnly()) {
+                <button type="button" (click)="addPhase()">Add Phase</button>
+              }
               <button
                 type="button"
                 (click)="deleteSelectedPhases()"
-                [disabled]="selectedDeleteCount() === 0"
+                [disabled]="readOnly() || selectedDeleteCount() === 0"
               >
                 Delete Selected
               </button>
               <button
                 type="button"
                 (click)="savePhases()"
-                [disabled]="!hasUnsavedChanges()"
+                [disabled]="readOnly() || !hasUnsavedChanges()"
               >
                 Update Product
               </button>
@@ -189,6 +193,7 @@ export class AdminPhasesListComponent {
 
   readonly productId = input.required<number>();
   readonly machineFilter = input.required<number[]>();
+  readonly readOnly = input(false);
   readonly phasesSelected = output<PhasesSelected>();
 
   protected readonly isModalOpen = signal(false);
@@ -241,6 +246,7 @@ export class AdminPhasesListComponent {
   }
 
   addPhase(): void {
+    if (this.readOnly()) return;
     this.isModalOpen.set(true);
   }
 
@@ -273,6 +279,8 @@ export class AdminPhasesListComponent {
   }
 
   updateSpecialInstruction(jp: JobPhase, value: string): void {
+    if (this.readOnly()) return;
+
     this.editablePhases.update(phases =>
       phases.map(p => (p === jp ? { ...p, specialInstruction: value } : p))
     );
@@ -281,12 +289,16 @@ export class AdminPhasesListComponent {
   }
 
   toggleDeleteSelection(jp: JobPhase, checked: boolean): void {
+    if (this.readOnly()) return;
+
     this.editablePhases.update(phases =>
       phases.map(p => (p === jp ? { ...p, selectedForDelete: checked } : p))
     );
   }
 
   deleteSelectedPhases(): void {
+    if (this.readOnly()) return;
+
     this.editablePhases.update(phases =>
       phases
         .filter(p => !p.selectedForDelete)
@@ -302,6 +314,8 @@ export class AdminPhasesListComponent {
   }
 
   savePhases(): void {
+    if (this.readOnly()) return;
+
     const phasesToSave = this.editablePhases().map(jp => ({
       ...jp.phase,
       order: jp.order
@@ -316,6 +330,8 @@ export class AdminPhasesListComponent {
   }
 
   drop(event: CdkDragDrop<JobPhase[]>): void {
+    if (this.readOnly()) return;
+
     if (event.previousIndex === event.currentIndex) {
       return;
     }

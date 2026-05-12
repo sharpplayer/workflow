@@ -29,6 +29,7 @@ import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
 export interface ProductSelectedWithMap extends ProductSave {
     clientId: string;
     paramMap: Map<number, string>;
+    status: JobStatus;
     selectedForDelete?: boolean;
 }
 
@@ -107,6 +108,7 @@ export interface CrossJobParameters {
                                 <input
                                     type="checkbox"
                                     [checked]="!!job.selectedForDelete"
+                                    [disabled]="isReadOnly()"
                                     (click)="$event.stopPropagation()"
                                     (change)="togglePartDeleteSelection(job, $any($event.target).checked)"
                                     aria-label="Select job part for deletion"
@@ -135,7 +137,7 @@ export interface CrossJobParameters {
                         <button
                             type="button"
                             (click)="deleteSelectedParts()"
-                            [disabled]="selectedDeleteCount() === 0"
+                            [disabled]="isReadOnly() || selectedDeleteCount() === 0"
                         >
                             Delete Selected
                         </button>
@@ -148,6 +150,7 @@ export interface CrossJobParameters {
     <admin-job-page
         [crossJobParams]="crossJobParams()"
         [selectedPart]="selectedPart()"
+        [readOnly]="isReadOnly()"
         (productSave)="onProductSave($event)"
         (crossJobParamsChanged)="onCrossJobParams($event)"
         (cancel)="onCancel()"
@@ -187,6 +190,13 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     selectedDeleteCount = computed(() =>
         this.jobs().filter(job => job.selectedForDelete).length
     );
+
+    isReadOnly = computed(() => {
+        const params = this.crossJobParams();
+        return params.jobId > 0
+            && params.status !== JobStatus.SAVED
+            && params.status !== JobStatus.SCHEDULABLE;
+    });
 
     @ViewChild(AdminJobComponent)
     jobBuilder!: AdminJobComponent;
@@ -253,7 +263,6 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
                 status: job.status
             });
 
-            console.log(job)
             this.jobs.set(job.parts.map(part => this.mapJobPartToSelected(part)));
             this.selectedPart.set(null);
             queueMicrotask(() => this.markClean());
@@ -263,8 +272,6 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     private mapJobPartToSelected(part: JobPart): ProductSelectedWithMap {
-        console.log("WWW")
-        console.log(part.params)
         const params = [
             ...(part.params ?? []).map((p): PhaseParamSelected => ({
                 phaseId: p.phaseId,
@@ -320,6 +327,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
                 order: 1
             })),
             paramMap,
+            status: part.status,
             selectedForDelete: false
         };
     }
@@ -365,6 +373,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     });
 
     canSaveJob = computed(() => {
+        if (this.isReadOnly()) return false;
+
         const jobs = this.jobs();
         const selected = this.selectedPart();
 
@@ -387,6 +397,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
             params: save.params,
             phases: save.phases,
             paramMap,
+            status: originalPart?.status ?? JobStatus.SAVED,
             selectedForDelete: false
         };
 
@@ -424,12 +435,15 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     togglePartDeleteSelection(job: ProductSelectedWithMap, checked: boolean): void {
+        if (this.isReadOnly()) return;
+
         this.jobs.update(jobs =>
             jobs.map(j => (j.clientId === job.clientId ? { ...j, selectedForDelete: checked } : j))
         );
     }
 
     deleteSelectedParts(): void {
+        if (this.isReadOnly()) return;
         if (!this.canDiscardBuilderChanges()) return;
 
         const selectedIds = new Set(
@@ -462,6 +476,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     onCrossJobParams(crossJobParamsChange: CrossJobParameters) {
+        if (this.isReadOnly()) return;
+
         this.crossJobParams.set(crossJobParamsChange);
 
         // Update only truly shared fields on existing parts.
@@ -587,6 +603,10 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     }
 
     getSchedulableDisplay(job: ProductSelectedWithMap): string {
+        if (job.status !== JobStatus.SAVED && job.status !== JobStatus.SCHEDULABLE) {
+            return JobStatusLabel[job.status];
+        }
+
         if (!this.crossJobParams().paymentConfirmed && !this.crossJobParams().callOff) {
             return 'Unpaid';
         }

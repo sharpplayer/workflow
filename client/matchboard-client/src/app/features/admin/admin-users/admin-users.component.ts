@@ -12,28 +12,23 @@ import { AdminUsersListComponent } from "../admin-users-list/admin-users-list.co
     imports: [CommonModule, AdminUsersListComponent, AdminUserComponent],
     template: `
      <div class="user-container">
-        <admin-users-list 
+        @if (mode() === 'list') {
+          <admin-users-list
             (edit)="selectUser($event)">
-        </admin-users-list>
-
-        <div class="backdrop" *ngIf="showModal()" (click)="closeModal()"></div>
-
-        @if(showModal()){
-            <admin-user
-                [roles]="roles()"
-                [initialData]="selectedUser()"
-                (saved)="closeModal()"
-                (cancelled)="closeModal()">
-            </admin-user>
+          </admin-users-list>
+        } @else {
+          <admin-user
+            [roles]="roles()"
+            [initialData]="selectedUser()"
+            (saved)="returnToList()"
+            (cancelled)="returnToList()">
+          </admin-user>
         }
     </div>
   `,
     styles: [`
-        .backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.4);
-            z-index: 1000;
+        .user-container {
+            max-width: 960px;
         }
     `]
 })
@@ -45,7 +40,7 @@ export class AdminUsersComponent implements OnInit {
 
     roles = signal<ConfigItem[]>([]);
     selectedUser = signal<UserForm | null>(null);
-    showModal = signal(false);
+    mode = signal<'list' | 'new' | 'edit'>('list');
 
     async ngOnInit(): Promise<void> {
         await this.loadRoles();
@@ -76,7 +71,7 @@ export class AdminUsersComponent implements OnInit {
 
     openCreate() {
         this.selectedUser.set(null);
-        this.showModal.set(true);
+        this.mode.set('new');
     }
 
     openEdit(user: User) {
@@ -88,7 +83,7 @@ export class AdminUsersComponent implements OnInit {
             enabled: user.enabled
         });
 
-        this.showModal.set(true);
+        this.mode.set('edit');
     }
 
     selectUser(user: User) {
@@ -110,12 +105,9 @@ export class AdminUsersComponent implements OnInit {
         void this.router.navigate(['/admin/users']);
     }
     
-    closeModal() {
-        this.showModal.set(false);
+    returnToList() {
         this.selectedUser.set(null);
-
-        if (this.route.snapshot.routeConfig?.path !== 'users') {
-            void this.router.navigate(['/admin/users']);
-        }
+        this.mode.set('list');
+        void this.router.navigate(['/admin/users']);
     }
 }

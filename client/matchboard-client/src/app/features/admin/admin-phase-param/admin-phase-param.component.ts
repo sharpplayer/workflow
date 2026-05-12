@@ -109,6 +109,7 @@ export interface PhaseParamSelected {
               <mat-form-field appearance="fill" class="param-field">
                 <mat-select
                   [ngModel]="param.value"
+                  [disabled]="readOnly()"
                   (ngModelChange)="onValueChange(param.phaseParamId, $event)"
                 >
                   @for (opt of param.options; track opt.key) {
@@ -138,12 +139,13 @@ export interface PhaseParamSelected {
                     [appendTo]="'body'"
                     placeholder="Select or type..."
                     [ngModel]="param.value"
+                    [disabled]="readOnly()"
                     (ngModelChange)="onNgSelectChange(param.phaseParamId, $event)"
                   >
                   </ng-select>
                 </div>
 
-                @if (param.editable) {
+                @if (param.editable && !readOnly()) {
                   <button
                     mat-icon-button
                     type="button"
@@ -158,6 +160,7 @@ export interface PhaseParamSelected {
               <mat-form-field appearance="fill" class="param-field">
                 <mat-select
                   [ngModel]="param.value"
+                  [disabled]="readOnly()"
                   (ngModelChange)="onValueChange(param.phaseParamId, $event)"
                 >
                   @for (opt of param.options; track opt.key) {
@@ -170,6 +173,7 @@ export interface PhaseParamSelected {
             } @else if (param.type === 'boolean') {
               <mat-checkbox
                 [ngModel]="param.value === 'true'"
+                [disabled]="readOnly()"
                 (ngModelChange)="onValueChange(param.phaseParamId, $event, 'boolean')"
               >
               </mat-checkbox>
@@ -179,11 +183,12 @@ export interface PhaseParamSelected {
                   matInput
                   [matDatepicker]="picker"
                   [value]="param.value ? parseDate(param.value) : null"
+                  [disabled]="readOnly()"
                   (dateChange)="onDateChange(param.phaseParamId, $event.value)"
                   placeholder="Select a date"
                 />
 
-                @if (param.optional) {
+                @if (param.optional && !readOnly()) {
                   <button
                     matSuffix
                     mat-icon-button
@@ -196,7 +201,7 @@ export interface PhaseParamSelected {
                   </button>
                 }
 
-                <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker-toggle matSuffix [for]="picker" [disabled]="readOnly()"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
               </mat-form-field>
             } @else if (param.type === 'int') {
@@ -206,6 +211,7 @@ export interface PhaseParamSelected {
                   type="number"
                   step="1"
                   [ngModel]="param.value"
+                  [readonly]="readOnly()"
                   (ngModelChange)="onValueChange(param.phaseParamId, $event, 'int')"
                 />
               </mat-form-field>
@@ -215,6 +221,7 @@ export interface PhaseParamSelected {
                   matInput
                   type="text"
                   [ngModel]="param.value"
+                  [readonly]="readOnly()"
                   (ngModelChange)="onValueChange(param.phaseParamId, $event)"
                 />
               </mat-form-field>
@@ -251,6 +258,7 @@ export class AdminPhaseParamComponent {
 
   phaseParams = input<PhaseParamData[]>([]);
   validationErrors = input<PhaseParamValidationError[]>([]);
+  readOnly = input(false);
 
   paramsSelected = output<PhaseParamSelected[]>();
 
@@ -287,6 +295,8 @@ export class AdminPhaseParamComponent {
   }
 
   onValueChange(id: number, value: string | boolean, type?: string): void {
+    if (this.readOnly()) return;
+
     this.filteredParams.update(params =>
       params.map(p => {
         if (p.phaseParamId !== id) return p;
@@ -314,6 +324,8 @@ export class AdminPhaseParamComponent {
   }
 
   onDateChange(id: number, date: Moment | null): void {
+    if (this.readOnly()) return;
+
     this.filteredParams.update(params =>
       params.map(p =>
         p.phaseParamId === id
@@ -330,6 +342,8 @@ export class AdminPhaseParamComponent {
   }
 
   onNgSelectChange(id: number, key: string | null): void {
+    if (this.readOnly()) return;
+
     this.filteredParams.update(params =>
       params.map(p =>
         p.phaseParamId === id
@@ -351,10 +365,13 @@ export class AdminPhaseParamComponent {
   }
 
   clearDate(id: number): void {
+    if (this.readOnly()) return;
     this.onDateChange(id, null);
   }
 
   addItem(param: PhaseParamData): void {
+    if (this.readOnly()) return;
+
     const configName = param.paramConfig?.toLowerCase();
 
     if (configName === 'carrier') {

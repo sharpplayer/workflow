@@ -158,7 +158,7 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
             <admin-products-list
                 #productsList
                 [selectedProductInput]="selectedPart()?.product ?? null"
-                [locked]="!!selectedPart()"
+                [locked]="!!selectedPart() || readOnly()"
                 (productSelected)="onProductSelected($event)"
                 (hasResults)="hasResults = $event"
                 (selectionCleared)="manualSelectedProduct.set(null)"
@@ -168,20 +168,24 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
                 <admin-phases-list
                     [productId]="(selectedPart()?.product ?? manualSelectedProduct())!.id"
                     [machineFilter]="(selectedPart()?.product ?? manualSelectedProduct())!.machineIds"
+                    [readOnly]="readOnly()"
                     (phasesSelected)="phaseSelected($event)"
                 />
 
                 <admin-phase-param
                     [phaseParams]="phaseParamsToShow()"
                     [validationErrors]="validationErrors()"
+                    [readOnly]="readOnly()"
                     (paramsSelected)="paramsSelected($event)"
                 />
 
                 <div class="actions">
                     <button (click)="cancelAdd()">Cancel</button>
-                    <button [disabled]="!canAddProduct()" (click)="addProduct()">
-                        {{ buttonText() }}
-                    </button>
+                    @if (!readOnly()) {
+                        <button [disabled]="!canAddProduct()" (click)="addProduct()">
+                            {{ buttonText() }}
+                        </button>
+                    }
                 </div>
             }
         </div>
@@ -238,6 +242,7 @@ export class AdminJobComponent {
     });
 
     selectedPart = input<ProductSave | null>(null);
+    readOnly = input(false);
 
     effectiveSelectedProduct = computed(() => {
         const part = this.selectedPart();
@@ -284,6 +289,7 @@ export class AdminJobComponent {
     }
 
     async onProductSelected(product: ProductView): Promise<void> {
+        if (this.readOnly()) return;
         if (this.effectiveSelectedProduct()?.id === product.id) return;
         if (!this.canDiscardChanges()) return;
 
@@ -334,9 +340,6 @@ export class AdminJobComponent {
             }));
         }
 
-        console.log(params)
-        console.log(jobPartParams)
-
         const rows = await this.buildPhaseParamRows(phases.phases, params, jobPartParams);
 
         this.phaseParamsToShow.set(rows);
@@ -352,6 +355,8 @@ export class AdminJobComponent {
     }
 
     paramsSelected(params: PhaseParamSelected[]): void {
+        if (this.readOnly()) return;
+
         this.lastParamsSelected.set(params);
 
         const errors = this.getValidationErrors(params);
@@ -391,6 +396,8 @@ export class AdminJobComponent {
     }
 
     addProduct(): void {
+        if (this.readOnly()) return;
+
         const product = this.effectiveSelectedProduct();
         const params = this.lastParamsSelected()?.slice() ?? [];
 

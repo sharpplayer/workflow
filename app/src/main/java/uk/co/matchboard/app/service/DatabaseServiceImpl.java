@@ -55,7 +55,6 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Record1;
-import org.jooq.Record2;
 import org.jooq.Row1;
 import org.jooq.SelectOnConditionStep;
 import org.jooq.Table;
@@ -732,8 +731,56 @@ public class DatabaseServiceImpl implements DatabaseService {
                 customer = c.code();
             }
         }
+
+        int status = getEffectiveJobStatus(dsl, jobRecord.getId(), jobRecord.getStatus());
+
         return new JobView(jobRecord.getId(), jobRecord.getNumber(), jobRecord.getParts(),
-                jobRecord.getDue(), customer, jobRecord.getStatus());
+                jobRecord.getDue(), customer, status);
+    }
+
+    private static int getEffectiveJobStatus(DSLContext dsl, int jobId, int storedStatus) {
+        List<Integer> partStatuses = dsl.select(JOB_PART.STATUS)
+                .from(JOB_PART)
+                .where(JOB_PART.JOB_ID.eq(jobId))
+                .fetch(JOB_PART.STATUS);
+
+        return getEffectiveJobStatus(partStatuses, storedStatus);
+    }
+
+    private static int getEffectiveJobStatus(List<Integer> partStatuses, int storedStatus) {
+        if (partStatuses.isEmpty()) {
+            return storedStatus;
+        }
+
+        if (partStatuses.stream().anyMatch(status -> status == JobStatus.STARTED.getCode())) {
+            return JobStatus.STARTED.getCode();
+        }
+
+        if (partStatuses.stream().allMatch(status -> status == JobStatus.COMPLETED.getCode())) {
+            return JobStatus.COMPLETED.getCode();
+        }
+
+        if (partStatuses.stream().anyMatch(status -> status == JobStatus.COMPLETED.getCode())) {
+            return JobStatus.PARTIALLY_COMPLETED.getCode();
+        }
+
+        if (partStatuses.stream().allMatch(status -> status == JobStatus.SCHEDULED.getCode())) {
+            return JobStatus.SCHEDULED.getCode();
+        }
+
+        if (partStatuses.stream().anyMatch(status -> status == JobStatus.SCHEDULED.getCode())) {
+            return JobStatus.PARTIALLY_SCHEDULED.getCode();
+        }
+
+        if (partStatuses.stream().allMatch(status -> status == JobStatus.SCHEDULABLE.getCode())) {
+            return JobStatus.SCHEDULABLE.getCode();
+        }
+
+        if (partStatuses.stream().anyMatch(status -> status == JobStatus.SCHEDULABLE.getCode())) {
+            return JobStatus.PARTIALLY_SCHEDULABLE.getCode();
+        }
+
+        return storedStatus;
     }
 
     private List<Machine> getMachineList() {
@@ -1087,7 +1134,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .orderBy(JOB_PART_PHASES.PHASE_NUMBER)
                 .fetch();
 
-        boolean jobPartComplete = true;
         int expectedNextPhase = startNext ? currentPhaseNo : currentPhaseNo - 1;
         for (var nextPhase : phases) {
             JobStatus nextPhaseStatus = JobStatus.fromCode(
@@ -1100,7 +1146,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                 throw new PhaseNotCompleteException(nextPhase.get(PHASE.DESCRIPTION));
             }
             boolean nextPhaseComplete = nextPhaseStatus == JobStatus.COMPLETED;
-            jobPartComplete = jobPartComplete && nextPhaseComplete;
             if (!nextPhaseComplete) {
                 isNextPhaseMachine = (nextPhase.get(PHASE.USAGE)
                         & ProductServiceImpl.USAGE_PER_MACHINE) > 0;
@@ -1137,28 +1182,30 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .returningResult(JOB_PART_PHASES.JOB_PART_ID)
                     .fetchOne(JOB_PART_PHASES.JOB_PART_ID);
 
-            if (jobPartComplete) {
+            boolean allPhasesComplete = !innerDsl.fetchExists(
+                    innerDsl.selectOne()
+                            .from(JOB_PART_PHASES)
+                            .where(JOB_PART_PHASES.JOB_PART_ID.eq(jobPartId))
+                            .and(JOB_PART_PHASES.STATUS.ne(JobStatus.COMPLETED.getCode()))
+            );
+
+            if (allPhasesComplete) {
                 Integer jobId = innerDsl.update(JOB_PART)
                         .set(JOB_PART.STATUS, JobStatus.COMPLETED.getCode())
                         .set(JOB_PART.COMPLETED_AT, now)
-                        .where(JOB_PART.ID.eq(currentJobPartPhaseId))
+                        .where(JOB_PART.ID.eq(jobPartId))
                         .returningResult(JOB_PART.JOB_ID)
                         .fetchOne(JOB_PART.JOB_ID);
 
-                int completedStatus = JobStatus.COMPLETED.getCode();
-                boolean jobComplete = !innerDsl.fetchExists(
-                        innerDsl.selectOne()
-                                .from(JOB_PART)
-                                .where(JOB_PART.JOB_ID.eq(jobPartId))
-                                .and(JOB_PART.STATUS.ne(completedStatus))
-                );
-
-                if (jobComplete) {
-                    innerDsl.update(JOB)
-                            .set(JOB.STATUS, completedStatus)
-                            .set(JOB.COMPLETED_AT, now)
-                            .where(JOB.ID.eq(jobId))
-                            .execute();
+                if (jobId != null) {
+                    updateJobStatus(jobId, innerDsl);
+                    if (getEffectiveJobStatus(innerDsl, jobId, JobStatus.COMPLETED.getCode())
+                            == JobStatus.COMPLETED.getCode()) {
+                        innerDsl.update(JOB)
+                                .set(JOB.COMPLETED_AT, now)
+                                .where(JOB.ID.eq(jobId))
+                                .execute();
+                    }
                     return new PhaseSummary(jobId, null, null, 0);
                 }
             }
@@ -1217,13 +1264,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .returningResult(JOB_PART.JOB_ID)
                     .fetchOne(JOB_PART.JOB_ID);
 
-            innerDsl.update(JOB)
-                    .set(JOB.STARTED_AT,
-                            DSL.coalesce(JOB.STARTED_AT, now))
-                    .set(JOB.STATUS, JobStatus.STARTED.getCode())
-                    .where(JOB.ID.eq(jobId))
-                    .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
-                    .execute();
+            if (jobId != null) {
+                innerDsl.update(JOB)
+                        .set(JOB.STARTED_AT,
+                                DSL.coalesce(JOB.STARTED_AT, now))
+                        .where(JOB.ID.eq(jobId))
+                        .and(JOB.STATUS.ne(JobStatus.COMPLETED.getCode()))
+                        .execute();
+
+                updateJobStatus(jobId, innerDsl);
+            }
         }
 
         return new PhaseSummary(jobId, jobPartId, nextJobPartPhaseId, nextJobPartPhaseNumber);
@@ -1581,7 +1631,9 @@ public class DatabaseServiceImpl implements DatabaseService {
                         throw new DataException("Failed to update Job, no row found");
                     }
 
-                    JobStatus currentStatus = JobStatus.fromCode(existingJob.getStatus());
+                    JobStatus currentStatus = JobStatus.fromCode(
+                            getEffectiveJobStatus(innerDsl, job.jobId(), existingJob.getStatus())
+                    );
                     if (currentStatus == JobStatus.SCHEDULED
                             || currentStatus == JobStatus.STARTED
                             || currentStatus == JobStatus.COMPLETED) {
@@ -2279,31 +2331,21 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     private static void updateJobStatus(Integer jobId, DSLContext innerDsl) {
-        Record2<Integer, Integer> counts = innerDsl
-                .select(
-                        DSL.count(),
-                        DSL.count().filterWhere(
-                                JOB_PART.STATUS.eq(JobStatus.SCHEDULED.getCode())
-                        )
-                )
-                .from(JOB_PART)
-                .where(JOB_PART.JOB_ID.eq(jobId))
-                .fetchOne();
+        Integer storedStatus = innerDsl.select(JOB.STATUS)
+                .from(JOB)
+                .where(JOB.ID.eq(jobId))
+                .fetchOne(JOB.STATUS);
 
-        if (counts == null) {
-            throw new DataException(
-                    "Failed to count job part statuses ");
+        if (storedStatus == null) {
+            throw new DataException("Failed to find job status for job " + jobId);
         }
 
-        int totalParts = counts.value1();
-        int scheduledParts = counts.value2();
+        List<Integer> partStatuses = innerDsl.select(JOB_PART.STATUS)
+                .from(JOB_PART)
+                .where(JOB_PART.JOB_ID.eq(jobId))
+                .fetch(JOB_PART.STATUS);
 
-        Integer newStatus =
-                scheduledParts == totalParts
-                        ? JobStatus.SCHEDULED.getCode()
-                        : scheduledParts > 0
-                                ? JobStatus.PARTIALLY_SCHEDULED.getCode()
-                                : JobStatus.SCHEDULABLE.getCode();
+        int newStatus = getEffectiveJobStatus(partStatuses, storedStatus);
 
         innerDsl.update(JOB)
                 .set(JOB.STATUS, newStatus)
@@ -2375,6 +2417,11 @@ public class DatabaseServiceImpl implements DatabaseService {
                         jobParts.add(getJobPart(innerDsl, partRecord));
                     }
 
+                    int status = getEffectiveJobStatus(
+                            jobParts.stream().map(JobPart::status).toList(),
+                            jobRecord.getStatus()
+                    );
+
                     return Optional.of(new Job(
                             jobRecord.getId(),
                             jobRecord.getNumber(),
@@ -2383,7 +2430,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             jobRecord.getCarrierId(),
                             jobRecord.getCallOff(),
                             jobParts,
-                            jobRecord.getStatus(),
+                            status,
                             jobRecord.getPaymentConfirmed()
                     ));
                 })));
