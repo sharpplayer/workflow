@@ -35,6 +35,7 @@ import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateSchedule;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobActivityViews;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobStatus;
 import uk.co.matchboard.app.model.job.JobViews;
@@ -53,6 +54,8 @@ import uk.co.matchboard.app.model.product.PhaseSignOff;
 
 @Service
 public class JobServiceImpl implements JobService {
+
+    private static final int SCHEDULE_LOOKBACK_DAYS = 3;
 
     public enum RoleMatch {
         NOT_THIS_ROLE,
@@ -187,7 +190,8 @@ public class JobServiceImpl implements JobService {
                             if (date != null) {
                                 fromDate = d;
                             }
-                            return databaseService.getScheduleForMachine(machine, fromDate, d);
+                            return databaseService.getScheduleForMachine(machine, fromDate, d,
+                                    SCHEDULE_LOOKBACK_DAYS);
                         })
                 .map(ScheduledJobPartViews::new);
     }
@@ -263,6 +267,15 @@ public class JobServiceImpl implements JobService {
     public Result<Boolean> createSchedule(CreateSchedule schedule) {
         return databaseService.createSchedule(schedule.jobParts(),
                 this::evaluator);
+    }
+
+    @Override
+    public Result<JobActivityViews> getJobActivity() {
+        return databaseService.getJobActivity(
+                        LocalDate.now(ZoneOffset.UTC).plusDays(1),
+                        SCHEDULE_LOOKBACK_DAYS
+                )
+                .map(JobActivityViews::new);
     }
 
     private ConfigValuePair evaluator(PhaseParamEvaluatorInput phaseParamEvaluatorInput) {

@@ -189,6 +189,27 @@ interface JobViews {
   jobs: JobView[];
 }
 
+export interface JobActivityView {
+  operationId: number;
+  jobId: number;
+  jobNumber: number;
+  jobPartId: number;
+  partNumber: number;
+  jobParts: number;
+  scheduledForDate: string;
+  plannedStartAt: string | null;
+  plannedFinishAt: string | null;
+  actualStartAt: string | null;
+  actualFinishAt: string | null;
+  status: JobStatus;
+  activePhaseName: string | null;
+  activePhaseStatus: JobStatus | null;
+}
+
+interface JobActivityViews {
+  activity: JobActivityView[];
+}
+
 export interface CreateScheduledJobPart {
   jobId: number;
   jobPartId: number;
@@ -372,6 +393,17 @@ export class JobService {
     );
 
     return jobs.jobs;
+  }
+
+  async getJobActivity(): Promise<JobActivityView[]> {
+    const activity = await firstValueFrom(
+      this.http.get<JobActivityViews>(
+        `${API_BASE_URL}/api/jobs/activity`,
+        { withCredentials: true }
+      )
+    );
+
+    return activity.activity;
   }
 
   async nextJob(role: string): Promise<JobWithOnePart | null> {

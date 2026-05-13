@@ -17,6 +17,7 @@ import uk.co.matchboard.app.model.job.CreateJobPart;
 import uk.co.matchboard.app.model.job.CreateJobPartPhase;
 import uk.co.matchboard.app.model.job.CreateScheduledJobPart;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobActivityView;
 import uk.co.matchboard.app.model.job.JobPartParam;
 import uk.co.matchboard.app.model.job.JobView;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
@@ -88,6 +89,8 @@ public interface DatabaseService {
 
     Result<List<SchedulableJobPart>> getSchedulable();
 
+    Result<List<JobActivityView>> getJobActivity(LocalDate toDate, int lookbackDays);
+
     Result<Boolean> createSchedule(List<CreateScheduledJobPart> jobPartIds,
             Function<PhaseParamEvaluatorInput, ConfigValuePair> evaluator);
 
@@ -98,7 +101,8 @@ public interface DatabaseService {
 
     Result<List<ScheduledJobPartView>> getScheduleForMachine(int machineId,
             LocalDate fromDate,
-            LocalDate toDate);
+            LocalDate toDate,
+            int lookbackDays);
 
     Result<List<ScheduledJobPartView>> getScheduleForDate(LocalDate date);
 

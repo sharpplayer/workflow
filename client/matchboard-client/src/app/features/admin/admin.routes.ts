@@ -7,6 +7,7 @@ import { AdminSchedulePageComponent } from './admin-schedule-page/admin-schedule
 import { adminGuard } from '../../core/guards/auth.guards';
 import { unsavedChangesGuard } from './admin.guards';
 import { AdminJobListComponent } from './admin-job-list/admin-job-list.component';
+import { AdminJobActivityComponent } from './admin-job-activity/admin-job-activity.component';
 import { AdminScheduleListComponent } from './admin-schedule-list/admin-schedule-list.component';
 import { AdminScheduleMachineComponent } from './admin-schedule-machine/admin-schedule-machine.component';
 
@@ -26,6 +27,7 @@ export const adminRoutes: Routes = [
           breadcrumb: 'Jobs / List',
           subnav: [
             { label: 'List', link: '/admin/jobs' },
+            { label: 'Activity', link: '/admin/jobs/activity' },
             { label: 'New', link: '/admin/jobs/new' }
           ]
         },
@@ -33,6 +35,19 @@ export const adminRoutes: Routes = [
           {
             path: '',
             component: AdminJobListComponent
+          },
+          {
+            path: 'activity',
+            component: AdminJobActivityComponent,
+            data: {
+              title: 'Job Activity',
+              breadcrumb: 'Jobs / Activity',
+              subnav: [
+                { label: 'List', link: '/admin/jobs' },
+                { label: 'Activity', link: '/admin/jobs/activity' },
+                { label: 'New', link: '/admin/jobs/new' }
+              ]
+            }
           },
           {
             path: 'new',
@@ -43,6 +58,7 @@ export const adminRoutes: Routes = [
               breadcrumb: 'Jobs / New',
               subnav: [
                 { label: 'List', link: '/admin/jobs' },
+                { label: 'Activity', link: '/admin/jobs/activity' },
                 { label: 'New', link: '/admin/jobs/new' }
               ]
             }
@@ -56,6 +72,7 @@ export const adminRoutes: Routes = [
               breadcrumb: 'Jobs / Edit',
               subnav: [
                 { label: 'List', link: '/admin/jobs' },
+                { label: 'Activity', link: '/admin/jobs/activity' },
                 { label: 'Edit', link: '' }
               ]
             }

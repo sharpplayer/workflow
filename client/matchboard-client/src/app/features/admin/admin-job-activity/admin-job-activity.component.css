@@ -1,0 +1,157 @@
+.activity-panel {
+  position: relative;
+}
+
+.activity-panel.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.active-phase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fullscreen-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.fullscreen-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.fullscreen-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.fullscreen-icon::before,
+.fullscreen-icon::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-color: #ffffff;
+  border-style: solid;
+}
+
+.fullscreen-icon::before {
+  top: 0;
+  left: 0;
+  border-width: 2px 0 0 2px;
+}
+
+.fullscreen-icon::after {
+  right: 0;
+  bottom: 0;
+  border-width: 0 2px 2px 0;
+}
+
+.fullscreen-icon--shrink::before {
+  top: 2px;
+  left: 2px;
+  border-width: 0 2px 2px 0;
+}
+
+.fullscreen-icon--shrink::after {
+  right: 2px;
+  bottom: 2px;
+  border-width: 2px 0 0 2px;
+}
+
+.table-scroll {
+  overflow: auto;
+}
+
+.activity-panel.fullscreen .table-scroll {
+  flex: 1;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+thead {
+  background-color: #4a90e2;
+  color: white;
+}
+
+thead th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 1rem;
+}
+
+tbody td {
+  padding: 10px 15px;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+.timing-status {
+  display: inline-flex;
+  align-items: center;
+  min-width: 92px;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.timing-status--late-finish {
+  background: #b71c1c;
+  color: #ffffff;
+}
+
+.timing-status--late-start {
+  background: #e65100;
+  color: #ffffff;
+}
+
+.timing-status--waiting {
+  background: #c6d8c3;
+  color: #1b5e20;
+}
+
+.timing-status--active {
+  background: #1b5e20;
+  color: #ffffff;
+}
+
+.status-row {
+  text-align: center;
+  color: #555;
+}
+
+.error {
+  color: #b00020;
+  margin-bottom: 1rem;
+}

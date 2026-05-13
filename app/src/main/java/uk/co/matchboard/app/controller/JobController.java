@@ -61,7 +61,13 @@ public class JobController {
                         () -> ResponseEntity.noContent().build());
     }
 
-    @GetMapping("/jobs/{jobId}")
+    @GetMapping("/jobs/activity")
+    public ResponseEntity<?> getJobActivity() {
+        return jobService.getJobActivity()
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
+    }
+
+    @GetMapping("/jobs/{jobId:\\d+}")
     public ResponseEntity<?> getJob(@PathVariable int jobId) {
         return jobService.findJob(jobId)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);

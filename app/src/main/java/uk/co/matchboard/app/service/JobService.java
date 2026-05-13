@@ -7,6 +7,7 @@ import uk.co.matchboard.app.model.config.ConfigValuePair;
 import uk.co.matchboard.app.model.job.CreateJob;
 import uk.co.matchboard.app.model.job.CreateSchedule;
 import uk.co.matchboard.app.model.job.Job;
+import uk.co.matchboard.app.model.job.JobActivityViews;
 import uk.co.matchboard.app.model.job.JobViews;
 import uk.co.matchboard.app.model.job.JobWithOnePart;
 import uk.co.matchboard.app.model.job.PhotoView;
@@ -42,6 +43,8 @@ public interface JobService {
     OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion);
 
     Result<JobViews> getJobs(Long toNumber, int count);
+
+    Result<JobActivityViews> getJobActivity();
 
     OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi);
 

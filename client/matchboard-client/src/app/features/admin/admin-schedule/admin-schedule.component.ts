@@ -458,8 +458,8 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
       name: 'Elapsed',
       start: 0,
       end,
-      collapsed: false,
-      collapsible: false,
+      collapsed: true,
+      collapsible: true,
       kind: 'elapsed',
     };
   });
@@ -574,15 +574,25 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
 
   readonly restPeriods = computed(() => {
     const overrides = this.restCollapsedOverrideSig();
-    const parsed = this.parsedRestPeriods();
     const elapsedToday = this.elapsedTodayPeriod();
-
-    return [
-      ...parsed.map(period => ({
+    const adjustedElapsed = elapsedToday
+      ? {
+          ...elapsedToday,
+          collapsed: overrides[elapsedToday.id] ?? elapsedToday.collapsed,
+        }
+      : null;
+    const parsed = this.parsedRestPeriods()
+      .map(period => ({
         ...period,
         collapsed: overrides[period.id] ?? period.collapsed,
-      })),
-      ...(elapsedToday ? [elapsedToday] : []),
+      }));
+    const adjustedParsed = adjustedElapsed
+      ? this.removeElapsedOverlap(parsed, adjustedElapsed)
+      : parsed;
+
+    return [
+      ...adjustedParsed,
+      ...(adjustedElapsed ? [adjustedElapsed] : []),
     ].sort((a, b) => a.start - b.start);
   });
 
@@ -800,10 +810,21 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
 
   onScheduleDateChange(date: Moment | null): void {
     this.selectedScheduleDateSig.set(date ? date.clone().startOf('day') : null);
+    this.resetSchedulePlacement();
   }
 
   resetScheduleDate(): void {
     this.selectedScheduleDateSig.set(null);
+    this.resetSchedulePlacement();
+  }
+
+  private resetSchedulePlacement(): void {
+    this.draggedJobsByMachineSig.set(null);
+    this.overriddenJobsByMachineSig.set(null);
+    this.dragStateSig.set(null);
+    this.bucketDropTargetMachineIdSig.set(null);
+    this.submitErrorSig.set(null);
+    this.submitSuccessSig.set(null);
   }
 
   private buildRecommendedDayReason(date: Moment): string {
@@ -849,6 +870,25 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
 
   private isSunday(date: Moment): boolean {
     return date.day() === 0;
+  }
+
+  private removeElapsedOverlap(periods: RestPeriod[], elapsed: RestPeriod): RestPeriod[] {
+    return periods
+      .map(period => {
+        if (period.end <= elapsed.end) {
+          return null;
+        }
+
+        if (period.start < elapsed.end) {
+          return {
+            ...period,
+            start: elapsed.end,
+          };
+        }
+
+        return period;
+      })
+      .filter((period): period is RestPeriod => period !== null && period.start < period.end);
   }
 
   private formatDateLong(date: Moment): string {
