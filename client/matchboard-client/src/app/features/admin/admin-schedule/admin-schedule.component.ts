@@ -1285,12 +1285,13 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     for (let i = 0; i < sortedLane.length; i++) {
       const prev = i > 0 ? sortedLane[i - 1] : null;
       const curr = sortedLane[i];
+      const durationInfo = this.getEffectiveDuration(curr, prev, machineId);
 
       const desiredStart = this.adjustStart(curr.startMinute, logicalRanges);
-      const minStart = prev ? this.adjustStart(prev.endMinute, logicalRanges) : desiredStart;
+      const minStart = prev
+        ? this.adjustStart(prev.endMinute - durationInfo.setupMinutes, logicalRanges)
+        : desiredStart;
       const nextStart = prev ? Math.max(desiredStart, minStart) : desiredStart;
-
-      const durationInfo = this.getEffectiveDuration(curr, prev, machineId);
 
       curr.startMinute = nextStart;
       curr.endMinute = this.computeEnd(curr.startMinute, durationInfo.effectiveDuration, logicalRanges);
@@ -1439,7 +1440,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
       list.sort((a, b) => a.stepNumber - b.stepNumber);
 
       for (let i = 1; i < list.length; i++) {
-        if (list[i].startMinute < list[i - 1].endMinute) {
+        if (this.getManufacturingStartMinute(list[i]) < list[i - 1].endMinute) {
           list[i].isInvalidSequence = true;
           list[i - 1].isInvalidSequence = true;
         }
@@ -1518,6 +1519,10 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     nonBreakMinutes: number
   ): number {
     return Math.max(0, (endMinute - startMinute) - nonBreakMinutes);
+  }
+
+  private getManufacturingStartMinute(job: ScheduledJob): number {
+    return this.clampMinute(job.startMinute + job.setupMinutes);
   }
 
   private getEffectiveDuration(
