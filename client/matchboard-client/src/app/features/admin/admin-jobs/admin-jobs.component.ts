@@ -25,6 +25,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { PhaseParamSelected } from '../admin-phase-param/admin-phase-param.component';
 import { JobPhase } from '../admin-phases-list/admin-phases-list.component';
+import { PromptService } from '../../../core/services/prompt.service';
 
 export interface ProductSelectedWithMap extends ProductSave {
     clientId: string;
@@ -171,6 +172,7 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
     private jobService = inject(JobService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
+    private promptService = inject(PromptService);
 
     crossJobParams = signal<CrossJobParameters>({
         jobId: 0,
@@ -233,10 +235,15 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         this.cleanSnapshot.set(this.dirtySnapshot());
     }
 
-    private canDiscardBuilderChanges(): boolean {
-        return !this.selectedPart()
-            || !this.jobBuilder?.hasPendingChanges?.()
-            || confirm('You have unsaved changes. Continue without saving them?');
+    private canDiscardBuilderChanges(): Promise<boolean> {
+        if (!this.selectedPart() || !this.jobBuilder?.hasPendingChanges?.()) {
+            return Promise.resolve(true);
+        }
+
+        return this.promptService.confirm(
+            'You have unsaved changes. Continue without saving them?',
+            'Unsaved changes'
+        );
     }
 
 
@@ -428,8 +435,8 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         queueMicrotask(() => this.markClean());
     }
 
-    selectPart(job: ProductSelectedWithMap) {
-        if (!this.canDiscardBuilderChanges()) return;
+    async selectPart(job: ProductSelectedWithMap): Promise<void> {
+        if (!await this.canDiscardBuilderChanges()) return;
 
         this.selectedPart.set(job);
     }
@@ -442,9 +449,9 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         );
     }
 
-    deleteSelectedParts(): void {
+    async deleteSelectedParts(): Promise<void> {
         if (this.isReadOnly()) return;
-        if (!this.canDiscardBuilderChanges()) return;
+        if (!await this.canDiscardBuilderChanges()) return;
 
         const selectedIds = new Set(
             this.jobs()
@@ -526,7 +533,10 @@ export class AdminJobsComponent implements OnInit, AfterViewInit {
         if (!this.canSaveJob()) return;
 
         if (this.selectedPart() && this.jobBuilder?.hasPendingChanges?.()) {
-            alert('Please add/update or cancel the current part before saving the job.');
+            await this.promptService.alert(
+                'Please add/update or cancel the current part before saving the job.',
+                'Current part has changes'
+            );
             return;
         }
 

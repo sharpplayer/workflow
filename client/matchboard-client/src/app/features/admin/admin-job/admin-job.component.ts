@@ -12,6 +12,7 @@ import {
 } from '../admin-phase-param/admin-phase-param.component';
 import { CrossJobParameters } from '../admin-jobs/admin-jobs.component';
 import { ParamStatus } from '../../../core/services/job.service';
+import { PromptService } from '../../../core/services/prompt.service';
 
 export interface ProductSave {
     mode: 'add' | 'update';
@@ -194,6 +195,7 @@ export const PHASE_PARAM_MAP: Map<number, PhaseParam> = new Map([
 })
 export class AdminJobComponent {
     private configService = inject(ConfigService);
+    private promptService = inject(PromptService);
 
     manualSelectedProduct = signal<ProductView | null>(null);
     phaseParamsToShow = signal<PhaseParamData[]>([]);
@@ -291,7 +293,7 @@ export class AdminJobComponent {
     async onProductSelected(product: ProductView): Promise<void> {
         if (this.readOnly()) return;
         if (this.effectiveSelectedProduct()?.id === product.id) return;
-        if (!this.canDiscardChanges()) return;
+        if (!await this.canDiscardChanges()) return;
 
         this.manualSelectedProduct.set(product);
         this.phaseParamsToShow.set([]);
@@ -436,9 +438,15 @@ export class AdminJobComponent {
         this.lastParamsSelected.set(job.params.map(p => ({ ...p })));
     }
 
-    private canDiscardChanges(): boolean {
-        return !this.hasUnsavedChanges()
-            || confirm('You have unsaved changes. Continue without saving them?');
+    private canDiscardChanges(): Promise<boolean> {
+        if (!this.hasUnsavedChanges()) {
+            return Promise.resolve(true);
+        }
+
+        return this.promptService.confirm(
+            'You have unsaved changes. Continue without saving them?',
+            'Unsaved changes'
+        );
     }
 
     private async buildPhaseParamRows(

@@ -21,6 +21,7 @@ import { NgSelectModule } from '@ng-select/ng-select';
 import { ConfigItem, ConfigService } from '../../../core/services/config.service';
 import { AdminCarrierComponent, CarrierFormModel } from '../admin-carrier/admin-carrier.component';
 import { ParamStatus } from '../../../core/services/job.service';
+import { PromptService } from '../../../core/services/prompt.service';
 
 export interface PhaseParamValidationError {
   phaseParamId: number;
@@ -255,6 +256,7 @@ export interface PhaseParamSelected {
 })
 export class AdminPhaseParamComponent {
   private configService = inject(ConfigService);
+  private promptService = inject(PromptService);
 
   phaseParams = input<PhaseParamData[]>([]);
   validationErrors = input<PhaseParamValidationError[]>([]);
@@ -426,7 +428,7 @@ export class AdminPhaseParamComponent {
       this.closeCarrierModal();
     } catch (err) {
       console.error('Failed to add new carrier item', err);
-      alert('Failed to add new item');
+      await this.promptService.alert('Failed to add new item');
     } finally {
       this.savingCarrier.set(false);
     }

@@ -1,4 +1,6 @@
 import { CanDeactivateFn } from '@angular/router';
+import { inject } from '@angular/core';
+import { PromptService } from '../../core/services/prompt.service';
 
 export interface DirtyComponent {
   isDirty: () => boolean;
@@ -7,5 +9,10 @@ export interface DirtyComponent {
 export const unsavedChangesGuard: CanDeactivateFn<DirtyComponent> = (component) => {
   if (typeof component.isDirty !== 'function') return true;
 
-  return !component.isDirty() || confirm('You have unsaved changes. Leave anyway?');
+  if (!component.isDirty()) return true;
+
+  return inject(PromptService).confirm(
+    'You have unsaved changes. Leave anyway?',
+    'Unsaved changes'
+  );
 };

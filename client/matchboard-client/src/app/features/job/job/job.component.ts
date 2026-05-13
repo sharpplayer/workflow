@@ -31,6 +31,7 @@ import { JobPhaseParamComponent } from '../job-phase-param/job-phase-param.compo
 import { DeviceService } from '../../../core/services/device.service';
 import { WastageComponent } from '../wastage/wastage.component';
 import { ConfigService, MachineInput } from '../../../core/services/config.service';
+import { PromptService } from '../../../core/services/prompt.service';
 
 type ParamValueState = 'disabled' | 'required' | 'complete' | 'neutral';
 
@@ -378,6 +379,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   readonly jobService = inject(JobService);
   readonly deviceService = inject(DeviceService);
   private readonly configService = inject(ConfigService);
+  private readonly promptService = inject(PromptService);
 
   readonly paramValues = signal<Record<number, string>>({});
   readonly paramStatuses = signal<Record<number, ParamStatus>>({});
@@ -636,7 +638,10 @@ export class JobComponent implements OnChanges, AfterViewInit {
       };
     } else {
       if (!this.arePhaseParamsFilled(currentJob, phase, event.param.pack, event.param.machineId)) {
-        alert('Please fill in all row parameters before signoff.');
+        await this.promptService.alert(
+          'Please fill in all row parameters before signoff.',
+          'Missing parameters'
+        );
         return;
       }
 
