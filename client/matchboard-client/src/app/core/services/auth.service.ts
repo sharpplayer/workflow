@@ -153,6 +153,7 @@ export class AuthService {
     username?: string;
     role?: string;
     rpi?: boolean;
+    submit?: (loginResult: LoginResult) => Promise<void>;
   }): Promise<LoginResult | null> {
     const result$ = new Subject<LoginResult | null>();
 
@@ -234,14 +235,25 @@ export class AuthService {
       ref.setInput('showCancel', true);
       ref.setInput('rpi', params.rpi ?? false)
 
-      ref.instance.loginSubmit.subscribe((loginResult: LoginResult) => {
-        result$.next(loginResult);
+      ref.instance.loginSubmit.subscribe(async (loginResult: LoginResult) => {
+        if (params.submit) {
+          try {
+            await params.submit(loginResult);
+            result$.next(loginResult);
+            cleanup();
+          } catch (err) {
+            ref.setInput('authError', this.getErrorMessage(err, 'Signoff failed.'));
+          }
+
+          return;
+        }
 
         if (loginResult.passwordReset) {
           showReset(loginResult.username, 'password');
         } else if (loginResult.pinReset) {
           showReset(loginResult.username, 'pin');
         } else {
+          result$.next(loginResult);
           cleanup();
         }
       });

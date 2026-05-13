@@ -352,23 +352,20 @@ export class ScheduleListComponent implements OnInit, OnChanges {
     event: { param: JobPartParam; username?: string; role?: string }
   ): Promise<void> {
     try {
-      const loginResult = await this.authService.open({
+      await this.authService.open({
         username: event.username,
         role: event.role,
-        rpi: rpi
-      });
+        rpi: rpi,
+        submit: async loginResult => {
+          await this.jobService.signOff(loginResult, {
+            [event.param.partParamId]: {
+              value: loginResult.username, paramStatus: ParamStatus.MATCHING
+            }
+          }, job.operationId);
 
-      if (!loginResult) {
-        return;
-      }
-
-      await this.jobService.signOff(loginResult, {
-        [event.param.partParamId]: {
-          value: loginResult.username, paramStatus: ParamStatus.MATCHING
+          await this.loadSchedule();
         }
-      }, job.operationId);
-
-      await this.loadSchedule();
+      });
     } catch (err) {
       console.error(err);
       this.error.set(
