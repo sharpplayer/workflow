@@ -148,17 +148,19 @@ interface MachineEntry {
 
         @if (!isViewingExistingSchedule()) {
           <div class="schedule-day-banner__actions">
-            @if (selectedScheduleDateSig()) {
-              <button type="button" (click)="resetScheduleDate()">
-                Use recommended day
-              </button>
-            }
+            <button
+              type="button"
+              [disabled]="isRecommendedScheduleDate()"
+              (click)="resetScheduleDate()"
+            >
+              Use recommended day
+            </button>
 
             <mat-form-field appearance="fill" class="schedule-date-field">
               <input
                 matInput
                 [matDatepicker]="picker"
-                [value]="selectedScheduleDateSig()"
+                [value]="scheduleDatePickerValue()"
                 (dateChange)="onScheduleDateChange($event.value)"
                 placeholder="Select schedule date"
               />
@@ -430,6 +432,12 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
   }, 60_000);
 
   readonly recommendedScheduleDate = computed(() => this.resolveRecommendedScheduleDate());
+  readonly scheduleDatePickerValue = computed(() =>
+    this.selectedScheduleDateSig() ?? this.recommendedScheduleDate()
+  );
+  readonly isRecommendedScheduleDate = computed(() =>
+    this.scheduleDatePickerValue().isSame(this.recommendedScheduleDate(), 'day')
+  );
 
   readonly submittingSig = signal(false);
   readonly submitErrorSig = signal<string | null>(null);
@@ -1191,7 +1199,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
   private resolveRecommendedScheduleDate(): Moment {
     let candidate = moment().startOf('day').add(1, 'day');
 
-    while (candidate.day() === 0) {
+    while (this.isSaturday(candidate) || this.isSunday(candidate)) {
       candidate = candidate.clone().add(1, 'day');
     }
 

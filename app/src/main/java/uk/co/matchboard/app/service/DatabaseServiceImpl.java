@@ -127,7 +127,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     private static final int GENERATED_PARAM_ID = -1;
     public static final int RPI_LEFT_OFFSET = 10000000;
 
-    private static List<Machine> MACHINES_LIST;
+    private static LinkedHashMap<Integer, Machine> MACHINES_BY_ID;
 
     private static LinkedHashMap<Integer, Customer> CUSTOMERS_MAP;
 
@@ -785,18 +785,7 @@ public class DatabaseServiceImpl implements DatabaseService {
     }
 
     private List<Machine> getMachineList() {
-        if (MACHINES_LIST == null) {
-            System.out.println("Refreshing machines");
-            MACHINES_LIST = outerDsl.selectFrom(MACHINES)
-                    .orderBy(MACHINES.ID.asc())
-                    .fetch(record -> new Machine(
-                            record.get(MACHINES.ID),
-                            record.get(MACHINES.NAME),
-                            record.get(MACHINES.SETUP_SECONDS)
-                    ));
-
-        }
-        return MACHINES_LIST;
+        return new ArrayList<>(getMachinesById(outerDsl).values());
     }
 
     @Retryable(retryFor = TransientDataAccessException.class, maxAttempts = 5,
@@ -893,8 +882,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                 return product;
             });
-            MACHINES_LIST = null;
-            System.out.println("Clearing machines");
+            MACHINES_BY_ID = null;
             return result;
         });
     }
@@ -1138,28 +1126,25 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .fetch();
 
         int expectedNextPhase = startNext ? currentPhaseNo : currentPhaseNo - 1;
+        String currentPhaseMachineName = getMachineName(innerDsl, currentPhaseMachineId);
         for (var nextPhase : phases) {
-
-            System.out.println("****************************************************************");
             JobStatus nextPhaseStatus = JobStatus.fromCode(
                     nextPhase.get(JOB_PART_PHASES.STATUS));
-            System.out.println(
-                    nextPhase.get(PHASE.DESCRIPTION) + ":" + nextPhaseStatus.name() + " Machine:"
-                            + Arrays.asList(nextPhase.get(PHASE.MACHINE_IDS))
-                            .contains(currentPhaseMachineId));
             if (nextPhase.get(JOB_PART_PHASES.PHASE_NUMBER) <= expectedNextPhase) {
                 if (currentPhaseMachineId != null
                         && Arrays.asList(nextPhase.get(PHASE.MACHINE_IDS))
                         .contains(currentPhaseMachineId)) {
                     if (nextPhaseStatus == JobStatus.AWAITING) {
-                        throw new PhaseNotCompletedException(nextPhase.get(PHASE.DESCRIPTION));
+                        throw new PhaseNotCompletedException(nextPhase.get(PHASE.DESCRIPTION),
+                                "started", currentPhaseMachineName);
                     } else if (nextPhaseStatus != JobStatus.COMPLETED
                             && hasOutstandingMachineAwaitParam(
                             innerDsl,
                             nextPhase.get(JOB_PART_PHASES.ID),
                             currentPhaseMachineId
                     )) {
-                        throw new PhaseNotCompletedException(nextPhase.get(PHASE.DESCRIPTION));
+                        throw new PhaseNotCompletedException(nextPhase.get(PHASE.DESCRIPTION),
+                                "completed", currentPhaseMachineName);
                     }
                 }
                 continue;
@@ -1256,6 +1241,15 @@ public class DatabaseServiceImpl implements DatabaseService {
                 .and(condition)
                 .execute();
 
+        if (currentJobPartPhaseId != null && !currentJobPartPhaseId.equals(checkPhase)) {
+            innerDsl.update(JOB_PART_PHASES)
+                    .set(JOB_PART_PHASES.STARTED_AT, now)
+                    .set(JOB_PART_PHASES.STATUS, JobStatus.STARTED.getCode())
+                    .where(JOB_PART_PHASES.ID.eq(currentJobPartPhaseId))
+                    .and(JOB_PART_PHASES.STATUS.eq(JobStatus.READY.getCode()))
+                    .execute();
+        }
+
         boolean isMachinePhase = isMachinePhase(currentJobPartPhaseId, innerDsl);
         if (!isMachinePhase && isNextPhaseMachine) {
             innerDsl
@@ -1299,12 +1293,47 @@ public class DatabaseServiceImpl implements DatabaseService {
         return new PhaseSummary(jobId, jobPartId, nextJobPartPhaseId, nextJobPartPhaseNumber);
     }
 
+    private static String getMachineName(DSLContext innerDsl, Integer machineId) {
+        if (machineId == null) {
+            return "machine";
+        }
+
+        Machine machine = getMachinesById(innerDsl).get(machineId);
+
+        return machine == null ? "machine " + machineId : machine.name();
+    }
+
+    private static LinkedHashMap<Integer, Machine> getMachinesById(DSLContext dsl) {
+        if (MACHINES_BY_ID == null) {
+            MACHINES_BY_ID = dsl.selectFrom(MACHINES)
+                    .orderBy(MACHINES.ID.asc())
+                    .fetchMap(
+                            MACHINES.ID,
+                            record -> new Machine(
+                                    record.get(MACHINES.ID),
+                                    record.get(MACHINES.NAME),
+                                    record.get(MACHINES.SETUP_SECONDS)
+                            )
+                    )
+                    .entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(
+                            Entry::getKey,
+                            Entry::getValue,
+                            (first, second) -> first,
+                            LinkedHashMap::new
+                    ));
+        }
+
+        return MACHINES_BY_ID;
+    }
+
     private static boolean hasOutstandingMachineAwaitParam(
             DSLContext innerDsl,
             int jobPartPhaseId,
             int machineId
     ) {
-        boolean value = innerDsl.fetchExists(
+        return innerDsl.fetchExists(
                 innerDsl.selectOne()
                         .from(JOB_PART_PARAMS)
                         .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(jobPartPhaseId))
@@ -1318,7 +1347,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                                         .or(DSL.trim(JOB_PART_PARAMS.VALUE).eq(""))
                         )
         );
-        return value;
     }
 
     private static JobStatus getStatusConsideringAwait(

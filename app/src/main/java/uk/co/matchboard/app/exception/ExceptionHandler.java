@@ -13,19 +13,25 @@ public class ExceptionHandler {
 
     public static ResponseEntity<?> toResponse(Exception ex) {
 
-        return switch (ex) {
-            case DuplicateUserException e -> ResponseEntity
+        if (ex instanceof DuplicateUserException e) {
+            return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("DUPLICATE_USER", e.getMessage()));
+        }
 
-            case InvalidUserException e -> ResponseEntity
+        if (ex instanceof InvalidUserException e) {
+            return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(new ErrorResponse("UNAUTHORIZED", e.getMessage()));
+        }
 
-            case ValidationException e -> ResponseEntity
-                    .status(HttpStatus.BAD_REQUEST)
-                    .body(new ErrorResponse("VALIDATION_ERROR", e.getMessage()));
+        ValidationException validationException = findValidationException(ex);
 
+        if (validationException != null) {
+            return validationResponse(validationException);
+        }
+
+        return switch (ex) {
             case TransientDataAccessException e -> {
                 LOGGER.error("Transient DB error: {}", e.getMessage(), e);
                 yield ResponseEntity
@@ -50,5 +56,29 @@ public class ExceptionHandler {
                                 "An unexpected error occurred"));
             }
         };
+    }
+
+    private static ValidationException findValidationException(Throwable ex) {
+        Throwable current = ex;
+
+        while (current != null) {
+            if (current instanceof ValidationException validationException) {
+                return validationException;
+            }
+
+            current = current.getCause();
+        }
+
+        return null;
+    }
+
+    private static ResponseEntity<?> validationResponse(ValidationException ex) {
+        String message = ex instanceof Throwable throwable
+                ? throwable.getMessage()
+                : "Validation failed";
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("VALIDATION_ERROR", message));
     }
 }

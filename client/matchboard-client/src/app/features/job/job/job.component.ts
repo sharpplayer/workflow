@@ -643,52 +643,43 @@ export class JobComponent implements OnChanges, AfterViewInit {
       paramValueMap = this.buildParamValueMap(currentJob);
     }
 
-    const loginResult = await this.authService.open({
+    await this.authService.open({
       username: event.username,
-      role: event.role
+      role: event.role,
+      submit: async loginResult => {
+        const usernameValue = loginResult.username ?? event.username ?? '';
+        const trimmedUsername = usernameValue.trim();
+
+        if (!trimmedUsername) {
+          throw new Error('Unable to determine operator username for signoff.');
+        }
+
+        const fullParamMap: Record<number, ParamSignOff> = {
+          ...paramValueMap,
+          [event.param.partParamId]: {
+            value: trimmedUsername,
+            paramStatus: ParamStatus.MATCHING
+          }
+        };
+
+        const updatedJob = await this.jobService.signOff(loginResult, fullParamMap);
+
+        if (updatedJob) {
+          this.paramValues.update(values => ({
+            ...values,
+            [event.param.partParamId]: trimmedUsername
+          }));
+
+          this.paramStatuses.update(statuses => ({
+            ...statuses,
+            [event.param.partParamId]: ParamStatus.MATCHING
+          }));
+
+          this.jobUpdated.emit(updatedJob);
+          this.cdr.detectChanges();
+        }
+      }
     });
-
-    if (!loginResult) {
-      return;
-    }
-
-    const usernameValue = loginResult.username ?? event.username ?? '';
-    const trimmedUsername = usernameValue.trim();
-
-    if (!trimmedUsername) {
-      alert('Unable to determine operator username for signoff.');
-      return;
-    }
-
-    const fullParamMap: Record<number, ParamSignOff> = {
-      ...paramValueMap,
-      [event.param.partParamId]: {
-        value: trimmedUsername,
-        paramStatus: ParamStatus.MATCHING
-      }
-    };
-
-    try {
-      const updatedJob = await this.jobService.signOff(loginResult, fullParamMap);
-
-      if (updatedJob) {
-        this.paramValues.update(values => ({
-          ...values,
-          [event.param.partParamId]: trimmedUsername
-        }));
-
-        this.paramStatuses.update(statuses => ({
-          ...statuses,
-          [event.param.partParamId]: ParamStatus.MATCHING
-        }));
-
-        this.jobUpdated.emit(updatedJob);
-        this.cdr.detectChanges();
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
-      alert(message);
-    }
   }
 
   onParamValueChanged(event: { param: JobPartParam; value: string }): void {
