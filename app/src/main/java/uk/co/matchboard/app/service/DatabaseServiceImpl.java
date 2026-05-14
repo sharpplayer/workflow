@@ -1058,6 +1058,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 //                }
 
                 boolean canCompletePhase = true;
+                boolean hasCompletionSignOff = false;
                 for (Entry<Integer, ParamSignOff> entry : signOffParams.entrySet()) {
                     Integer paramId = entry.getKey();
                     ParamSignOff rawValue = entry.getValue();
@@ -1071,13 +1072,17 @@ public class DatabaseServiceImpl implements DatabaseService {
                             .returning()
                             .fetchOne();
 
+                    if (record != null && !record.getConfig().startsWith("AWAIT(")) {
+                        hasCompletionSignOff = true;
+                    }
+
                     canCompletePhase = canCompletePhase && record != null
                             && (!record.getConfig().startsWith("AWAIT(")
                             || record.getValue() != null);
                 }
 
                 Integer currentJobPartPhaseId = phaseIds.iterator().next();
-                boolean phaseComplete = canCompletePhase && !innerDsl.fetchExists(
+                boolean phaseComplete = hasCompletionSignOff && canCompletePhase && !innerDsl.fetchExists(
                         innerDsl.selectOne()
                                 .from(JOB_PART_PARAMS)
                                 .where(JOB_PART_PARAMS.JOB_PART_PHASE_ID.eq(currentJobPartPhaseId))
@@ -1094,7 +1099,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                         phaseComplete || operationId != null, currentJobPartPhaseId,
                         rows.getFirst().get(JOB_PART_PHASES.PHASE_NUMBER), machineId, now);
                 return new JobWithOnePartSelection(jobId,
-                        rows.getFirst().get(JOB_PART_PHASES.JOB_PART_ID), currentJobPartPhaseId,
+                        rows.getFirst().get(JOB_PART_PHASES.JOB_PART_ID),
+                        phaseComplete ? currentJobPartPhaseId : null,
                         phaseComplete ? null : currentJobPartPhaseId);
             }
             return new JobWithOnePartSelection(jobId,
@@ -2403,6 +2409,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 OffsetDateTime now = OffsetDateTime.now();
                 int position = 100;
                 Set<Integer> updatedJobs = new HashSet<>();
+                Set<Integer> initialisedJobParts = new HashSet<>();
                 Map<Integer, List<PhaseData>> jobPartPhases = new HashMap<>();
                 Map<Integer, Product> products = new HashMap<>();
 
@@ -2533,6 +2540,11 @@ public class DatabaseServiceImpl implements DatabaseService {
 
                     if (signOffParams.isSignOffRequired()) {
                         createScheduleItem(jobPart, innerDsl, position, signOffParams, newParams);
+                    }
+
+                    if (initialisedJobParts.add(jobPart.jobPartId())) {
+                        processPhaseChanges(innerDsl, jobPart.jobPartId(), false, true,
+                                null, 0, null, now);
                     }
                 }
 

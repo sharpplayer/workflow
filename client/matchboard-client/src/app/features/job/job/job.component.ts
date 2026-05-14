@@ -167,7 +167,6 @@ type PhasePackGroup = {
           <div class="job-top-actions">
             <button type="button" (click)="logout()">Log Out</button>
             <button type="button" (click)="onSchedule()">Schedule</button>
-            <button type="button" (click)="onNextJob()">Next Job</button>
           </div>
         </div>
 
@@ -392,7 +391,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
   readonly photoUploading = signal(false);
 
   readonly jobUpdated = output<JobWithOnePart>();
-  readonly nextJob = output<void>();
 
   @ViewChildren('phaseBlock')
   phaseBlocks!: QueryList<ElementRef<HTMLElement>>;
@@ -683,6 +681,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
           this.jobUpdated.emit(updatedJob);
           this.cdr.detectChanges();
         }
+
       }
     });
   }
@@ -1024,10 +1023,6 @@ export class JobComponent implements OnChanges, AfterViewInit {
     }
 
     this.closeWastageDialog();
-  }
-
-  onNextJob(): void {
-    this.nextJob.emit();
   }
 
   hasPackColumn(job: JobWithOnePart, phase: JobPartPhase): boolean {

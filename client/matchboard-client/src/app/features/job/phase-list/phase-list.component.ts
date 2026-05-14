@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { JobService, JobStatus, JobStatusLabel, ScheduledJobPhase } from '../../../core/services/job.service';
 
 @Component({
@@ -33,7 +33,13 @@ template: `
     <tbody>
       @if (phases().length > 0) {
         @for (phase of phases(); track trackPhase($index, phase); let i = $index) {
-          <tr>
+          <tr
+            class="phase-row"
+            tabindex="0"
+            (click)="selectPhase(phase)"
+            (keydown.enter)="selectPhase(phase)"
+            (keydown.space)="selectPhase(phase); $event.preventDefault()"
+          >
             <td>{{ i + 1 }}</td>
             <td>{{ getJobRef(phase.jobNumber) }}</td>
             <td>{{ phase.partNumber }} of {{ phase.jobParts }}</td>
@@ -62,6 +68,7 @@ template: `
 export class PhaseListComponent {
   readonly role = input.required<string>();
   readonly date = input<string | null>(null);
+  readonly phaseSelected = output<ScheduledJobPhase>();
 
   private readonly jobService = inject(JobService);
 
@@ -87,6 +94,10 @@ export class PhaseListComponent {
   }
 
   trackPhase(index: number, phase: ScheduledJobPhase): string {
-    return `${phase.jobNumber}:${phase.phaseNumber}`;
+    return `${phase.jobId}:${phase.jobPartId}:${phase.jobPartPhaseId}`;
+  }
+
+  selectPhase(phase: ScheduledJobPhase): void {
+    this.phaseSelected.emit(phase);
   }
 }

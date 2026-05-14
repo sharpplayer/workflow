@@ -149,6 +149,7 @@ public class JobServiceImpl implements JobService {
                         .map(group -> {
                             ScheduledJobPartParam r = group.getFirst();
                             return new ScheduledJobPhase(
+                                    r.jobId(),
                                     r.jobNumber(),
                                     r.jobParts(),
                                     r.jobPartId(),
@@ -158,6 +159,7 @@ public class JobServiceImpl implements JobService {
                                     r.quantity(),
                                     r.status(),
                                     r.phaseDescription(),
+                                    r.jobPartPhaseId(),
                                     r.phaseNumber(),
                                     r.specialInstruction(),
                                     r.phaseStatus()
@@ -352,6 +354,12 @@ public class JobServiceImpl implements JobService {
                     nextJobKey.jobPartId(), null, nextPhaseId);
         });
 
+    }
+
+    @Override
+    public OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId,
+            Integer activePhaseId) {
+        return databaseService.getJobWithOnePart(jobId, jobPartId, null, activePhaseId);
     }
 
     private boolean isPhaseStarted(JobStatus phaseStatus) {

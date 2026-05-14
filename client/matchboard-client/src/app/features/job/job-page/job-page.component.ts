@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { JobComponent } from '../job/job.component';
 import { PhaseListComponent } from '../phase-list/phase-list.component';
-import { JobService, JobWithOnePart } from '../../../core/services/job.service';
+import { JobService, JobWithOnePart, ScheduledJobPhase } from '../../../core/services/job.service';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -13,17 +13,19 @@ import { AuthService } from '../../../core/services/auth.service';
     @if (role()) {
       <div class="full-screen-center">
         @if (!currentJob()) {
-          <phase-list [role]="role()"></phase-list>
-          <div>
+          <div class="schedule-page-header">
             <button type="button" (click)="logout()">Log Out</button>
-            <button type="button" (click)="nextJob()">Next</button>
           </div>
+
+          <phase-list
+            [role]="role()"
+            (phaseSelected)="openScheduledPhase($event)"
+          ></phase-list>
         } @else {
           <job
             [job]="currentJob()!"
             (schedule)="showPhaseList()"
-            (jobUpdated)="onJobUpdated($event)"
-            (nextJob)="nextJob()">
+            (jobUpdated)="onJobUpdated($event)">
           </job>
         }
       </div>
@@ -52,8 +54,13 @@ export class JobPageComponent {
     await this.authService.logoutAll();
   }
 
-  async nextJob(): Promise<void> {
-    const job = await this.jobService.nextJob(this.role());
+  async openScheduledPhase(phase: ScheduledJobPhase): Promise<void> {
+    const job = await this.jobService.getJobWithOnePart(
+      phase.jobId,
+      phase.jobPartId,
+      phase.jobPartPhaseId
+    );
+
     this.currentJob.set(job);
   }
 
@@ -62,6 +69,11 @@ export class JobPageComponent {
   }
 
   onJobUpdated(job: JobWithOnePart): void {
+    if (job.completedPhase != null) {
+      this.showPhaseList();
+      return;
+    }
+
     this.currentJob.set(job);
   }
 }

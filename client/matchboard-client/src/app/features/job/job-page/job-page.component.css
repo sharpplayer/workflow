@@ -42,6 +42,20 @@
   float: none;
 }
 
+.schedule-page-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px 0;
+  box-sizing: border-box;
+}
+
+.schedule-page-header button {
+  margin: 0;
+  float: none;
+}
+
 .job-summary-grid {
   display: grid;
   grid-template-columns: 220px 1fr;

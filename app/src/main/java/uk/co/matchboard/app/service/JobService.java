@@ -40,6 +40,9 @@ public interface JobService {
 
     OptionalResult<JobWithOnePart> nextJob(String role);
 
+    OptionalResult<JobWithOnePart> getJobWithOnePart(int jobId, int jobPartId,
+            Integer activePhaseId);
+
     OptionalResult<JobWithOnePart> signOff(PhaseSignOff completion);
 
     Result<JobViews> getJobs(Long toNumber, int count);

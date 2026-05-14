@@ -10,6 +10,7 @@ export interface ScheduledJobPhases {
 }
 
 export interface ScheduledJobPhase {
+  jobId: number;
   jobNumber: number;
   jobParts: number;
   jobPartId: number;
@@ -19,6 +20,7 @@ export interface ScheduledJobPhase {
   quantity: number;
   status: number;
   phaseDescription: string;
+  jobPartPhaseId: number;
   phaseNumber: number;
   specialInstruction: string;
   phaseStatus: number;
@@ -143,6 +145,7 @@ export interface JobWithOnePart {
   partNumber: number;
   parts: number;
   product: Product;
+  completedPhase: number | null;
   activePhase: number | null;
 }
 
@@ -412,6 +415,28 @@ export class JobService {
         `${API_BASE_URL}/api/jobs/next`,
         {
           params: { role },
+          withCredentials: true
+        }
+      )
+    );
+  }
+
+  async getJobWithOnePart(
+    jobId: number,
+    jobPartId: number,
+    activePhaseId?: number
+  ): Promise<JobWithOnePart | null> {
+    const params: Record<string, number> = {};
+
+    if (activePhaseId != null) {
+      params['activePhaseId'] = activePhaseId;
+    }
+
+    return await firstValueFrom(
+      this.http.get<JobWithOnePart | null>(
+        `${API_BASE_URL}/api/jobs/${jobId}/parts/${jobPartId}`,
+        {
+          params,
           withCredentials: true
         }
       )

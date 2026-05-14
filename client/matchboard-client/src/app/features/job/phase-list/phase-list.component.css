@@ -47,6 +47,15 @@ tbody tr:hover {
   background-color: #e6f2ff;
 }
 
+.phase-row {
+  cursor: pointer;
+}
+
+.phase-row:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: -2px;
+}
+
 .nowrap {
   white-space: nowrap;
 }

@@ -73,6 +73,17 @@ public class JobController {
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse);
     }
 
+    @GetMapping("/jobs/{jobId:\\d+}/parts/{jobPartId:\\d+}")
+    public ResponseEntity<?> getJobWithOnePart(
+            @PathVariable int jobId,
+            @PathVariable int jobPartId,
+            @RequestParam(required = false) Integer activePhaseId
+    ) {
+        return jobService.getJobWithOnePart(jobId, jobPartId, activePhaseId)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
+                        () -> ResponseEntity.noContent().build());
+    }
+
     @GetMapping("/schedule")
     public ResponseEntity<?> getSchedule(
             @RequestParam(required = false) String date,
