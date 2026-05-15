@@ -128,6 +128,14 @@ public class JobController {
                         () -> ResponseEntity.noContent().build());
     }
 
+    @PostMapping("/jobs/{jobId}/part/{jobPartId}/pallet/{pallet}")
+    public ResponseEntity<?> createPallet(@PathVariable int jobId, @PathVariable int jobPartId,
+            @PathVariable String pallet) {
+        return jobService.createPallet(jobId, jobPartId, pallet)
+                .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
+                        () -> ResponseEntity.noContent().build());
+    }
+
     @PostMapping("/jobs/{jobNumber}/part/{jobPart}/phase/{phase}/param/{paramId}")
     public ResponseEntity<?> uploadPhoto(
             @PathVariable int jobNumber,

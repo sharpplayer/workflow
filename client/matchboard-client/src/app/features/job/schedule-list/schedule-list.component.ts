@@ -228,14 +228,12 @@ import { AuthService } from '../../../core/services/auth.service';
               RPI
               <input
                 type="text"
-                inputmode="numeric"
-                pattern="[0-9]*"
                 autocomplete="off"
                 autocorrect="off"
                 autocapitalize="off"
                 spellcheck="false"
                 class="rpi-input"
-                [ngModel]="rpiNumber() ?? ''"
+                [ngModel]="rpiNumber()"
                 (ngModelChange)="onRpiChange($event)"
               />
             </label>
@@ -244,7 +242,7 @@ import { AuthService } from '../../../core/services/auth.service';
               <button type="button" (click)="closeRpiForm()">Cancel</button>
               <button
                 type="button"
-                [disabled]="rpiNumber() == null"
+                [disabled]="!rpiNumber().trim()"
                 (click)="saveRpiForm(rpiJob)"
               >
                 Save
@@ -279,7 +277,7 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   error = signal('');
 
   rpiDialogJob = signal<ScheduledJobPartView | null>(null);
-  rpiNumber = signal<number | null>(null);
+  rpiNumber = signal('');
 
   buildSignoffParam(partParamId: number): JobPartParam {
     return {
@@ -311,31 +309,30 @@ export class ScheduleListComponent implements OnInit, OnChanges {
   }
 
   onRpiChange(value: string): void {
-    const cleaned = value.replace(/\D/g, '');
-    this.rpiNumber.set(cleaned ? Number(cleaned) : null);
+    this.rpiNumber.set(value);
   }
 
   openRpiForm(job: ScheduledJobPartView): void {
     this.error.set('');
-    this.rpiNumber.set(null);
+    this.rpiNumber.set('');
     this.rpiDialogJob.set(job);
   }
 
   closeRpiForm(): void {
-    this.rpiNumber.set(null);
+    this.rpiNumber.set('');
     this.rpiDialogJob.set(null);
   }
 
   async saveRpiForm(job: ScheduledJobPartView): Promise<void> {
     const rpi = this.rpiNumber();
 
-    if (rpi == null) {
+    if (!rpi.trim()) {
       this.error.set('RPI is required.');
       return;
     }
 
     try {
-      await this.jobService.createRpi(job.jobId, job.jobPartId, rpi);
+      await this.jobService.createRpi(job.jobId, job.jobPartId, rpi.trim());
       this.closeRpiForm();
       await this.loadSchedule();
     } catch (err) {

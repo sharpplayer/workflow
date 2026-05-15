@@ -8,6 +8,8 @@ public record ScheduledJobPhase(int jobId, long jobNumber, int jobParts, int job
                                 int phaseNumber,
                                 String specialInstruction,
                                 int phaseStatus,
+                                Integer machineId,
+                                String machineName,
                                 OffsetDateTime plannedStartAt,
                                 OffsetDateTime actualStartAt) {
 

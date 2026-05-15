@@ -272,6 +272,7 @@ export class AdminPhaseComponent implements OnInit {
   readonly INPUT_JOB_CREATE = 1;
   readonly INPUT_JOB_SCHEDULE = 2;
   readonly INPUT_PHASE_RUN = 3;
+  readonly INPUT_PHASE_COMPLETE = 4;
 
   readonly USAGE_FROM_CALL_OFF = 1;
   readonly USAGE_TO_CALL_OFF = 2;
@@ -280,6 +281,7 @@ export class AdminPhaseComponent implements OnInit {
   readonly USAGE_PER_PRODUCT_PACK = 16;
   readonly USAGE_PER_RPI_LEFT_RIGHT = 32;
   readonly USAGE_CROSS_JOB = 64;
+  readonly USAGE_PER_PALLET = 128;
 
   protected productService = inject(ProductService);
   protected configService = inject(ConfigService);
@@ -307,7 +309,8 @@ export class AdminPhaseComponent implements OnInit {
   readonly inputOptions = [
     { label: 'JC', value: this.INPUT_JOB_CREATE },
     { label: 'JS', value: this.INPUT_JOB_SCHEDULE },
-    { label: 'PR', value: this.INPUT_PHASE_RUN }
+    { label: 'PR', value: this.INPUT_PHASE_RUN },
+    { label: 'PC', value: this.INPUT_PHASE_COMPLETE }
   ];
 
   readonly usageOptions = [
@@ -316,7 +319,8 @@ export class AdminPhaseComponent implements OnInit {
     { label: 'Per RPI Phase', value: this.USAGE_PER_RPI },
     { label: 'Per Product Pack Phase', value: this.USAGE_PER_PRODUCT_PACK },
     { label: 'Per RPI Left/Right Phase', value: this.USAGE_PER_RPI_LEFT_RIGHT },
-    { label: 'Cross Job Phase', value: this.USAGE_CROSS_JOB }
+    { label: 'Cross Job Phase', value: this.USAGE_CROSS_JOB },
+    { label: 'Per Pallet Phase', value: this.USAGE_PER_PALLET }
   ];
 
   ngOnInit(): void {

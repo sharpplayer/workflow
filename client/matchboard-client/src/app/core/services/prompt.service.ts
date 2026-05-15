@@ -35,17 +35,35 @@ export class PromptService {
       mode: 'confirm',
       okText,
       cancelText
-    });
+    }).then(result => result === true);
+  }
+
+  input(
+    message: string,
+    title = 'Input',
+    okText = 'OK',
+    cancelText = 'Cancel',
+    value = ''
+  ): Promise<string | null> {
+    return this.open({
+      title,
+      message,
+      mode: 'input',
+      okText,
+      cancelText,
+      value
+    }).then(result => typeof result === 'string' ? result : null);
   }
 
   private async open(params: {
     title: string;
     message: string;
-    mode: 'alert' | 'confirm';
+    mode: 'alert' | 'confirm' | 'input';
     okText: string;
     cancelText?: string;
-  }): Promise<boolean> {
-    const result$ = new Subject<boolean>();
+    value?: string;
+  }): Promise<boolean | string> {
+    const result$ = new Subject<boolean | string>();
     const container = document.createElement('div');
     container.style.cssText = `
       position: fixed !important;
@@ -68,6 +86,7 @@ export class PromptService {
     ref.setInput('mode', params.mode);
     ref.setInput('okText', params.okText);
     ref.setInput('cancelText', params.cancelText ?? 'No');
+    ref.setInput('inputValue', params.value ?? '');
 
     const cleanup = (): void => {
       this.appRef.detachView(ref.hostView);

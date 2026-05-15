@@ -51,6 +51,8 @@ public interface JobService {
 
     OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, String rpi);
 
+    OptionalResult<JobWithOnePart> createPallet(int jobId, int jobPartId, String pallet);
+
     Result<ConfigValuePair> createPhoto(int jobNumber, int jobPart, MultipartFile photo,
             int paramId, int phase);
 

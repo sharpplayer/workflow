@@ -227,6 +227,33 @@ button:disabled {
   color: #fff;
 }
 
+.pack-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.add-pallet-button {
+  width: 1.35rem;
+  height: 1.35rem;
+  min-width: 1.35rem;
+  padding: 0;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 4px;
+  background: #166534;
+  color: #fff;
+  float: none;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.add-pallet-button:hover:not(:disabled) {
+  background: #15803d;
+}
+
 .phase-param-header-row th.signoff-empty {
   background: #000;
 }

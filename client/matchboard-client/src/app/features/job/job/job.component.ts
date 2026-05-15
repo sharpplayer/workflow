@@ -40,6 +40,7 @@ type PhasePackGroup = {
   label: string;
   params: JobPartParam[];
   machineId: number | null;
+  completion: boolean;
 };
 
 @Component({
@@ -228,7 +229,22 @@ type PhasePackGroup = {
                       }
 
                       @if (hasPackColumn(currentJob, phase)) {
-                        <th class="pack-column">Pack</th>
+                        <th class="pack-column">
+                          <span class="pack-header">
+                            <span>{{ getPackColumnTitle(phase) }}</span>
+                            @if (isPalletPhase(phase) && isPhaseActive(phase)) {
+                              <button
+                                type="button"
+                                class="add-pallet-button"
+                                title="Add pallet"
+                                aria-label="Add pallet"
+                                (click)="addPallet(currentJob); $event.stopPropagation()"
+                              >
+                                +
+                              </button>
+                            }
+                          </span>
+                        </th>
                       }
 
                       @for (param of getDisplayNonSignParamsForPhase(currentJob, phase); track $index) {
@@ -373,6 +389,10 @@ type PhasePackGroup = {
   styleUrl: './job.component.css'
 })
 export class JobComponent implements OnChanges, AfterViewInit {
+  private readonly INPUT_PHASE_RUN = 3;
+  private readonly INPUT_PHASE_COMPLETE = 4;
+  private readonly USAGE_PER_PALLET = 128;
+
   private readonly authService = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
   readonly jobService = inject(JobService);
@@ -743,12 +763,19 @@ export class JobComponent implements OnChanges, AfterViewInit {
 
   getNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     return this.getParamsForPhase(job, phase)
+      .filter(param => !this.isPhaseCompleteParam(param))
       .filter(param => !param.config?.startsWith('SIGN('));
   }
 
   getSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     return this.getParamsForPhase(job, phase)
+      .filter(param => !this.isPhaseCompleteParam(param))
       .filter(param => !!param.config?.startsWith('SIGN('));
+  }
+
+  getCompletionParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
+    return this.getParamsForPhase(job, phase)
+      .filter(param => this.isPhaseCompleteParam(param));
   }
 
   getPackGroupsForPhase(job: JobWithOnePart, phase: JobPartPhase): PhasePackGroup[] {
@@ -756,23 +783,31 @@ export class JobComponent implements OnChanges, AfterViewInit {
     const groupMap = new Map<string, PhasePackGroup>();
 
     for (const param of params) {
-      const machineId = param.machineId ?? null;
-      const pack = param.pack ?? null;
+      const completion = this.isPhaseCompleteParam(param);
+      const machineId = completion ? null : (param.machineId ?? null);
+      const pack = completion ? null : (param.pack ?? null);
       const key = this.getMachinePackGroupKey(machineId, pack);
 
       if (!groupMap.has(key)) {
         groupMap.set(key, {
           machineId,
           pack,
-          label: this.formatPackLabel(pack),
-          params: []
+          label: completion ? 'Complete' : this.formatPackLabel(pack),
+          params: [],
+          completion
         });
       }
 
       groupMap.get(key)!.params.push(param);
     }
 
-    return Array.from(groupMap.values());
+    return Array.from(groupMap.values()).sort((a, b) => {
+      if (a.completion !== b.completion) {
+        return a.completion ? 1 : -1;
+      }
+
+      return 0;
+    });
   }
 
   private formatPackLabel(pack: string | number | null): string {
@@ -780,27 +815,13 @@ export class JobComponent implements OnChanges, AfterViewInit {
       return '';
     }
 
-    const num = Number(pack);
-
-    if (isNaN(num)) {
-      return String(pack);
-    }
-
-    if (num <= 999) {
-      return `${num}`;
-    }
-
-    if (num > 10_000_000) {
-      return `${num % 10_000_000} R`;
-    }
-
-    return `${num} L`;
+    return String(pack);
   }
 
   getDisplayNonSignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     const params = this.getNonSignParamsForPhase(job, phase);
 
-    if (params.length === 0) {
+    if (params.length === 0 && this.getCompletionParamsForPhase(job, phase).length === 0) {
       return [this.placeholderParam];
     }
 
@@ -814,7 +835,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   getDisplaySignParamsForPhase(job: JobWithOnePart, phase: JobPartPhase): JobPartParam[] {
     const params = this.getSignParamsForPhase(job, phase);
 
-    if (params.length === 0) {
+    if (params.length === 0 && this.getCompletionParamsForPhase(job, phase).length === 0) {
       return [this.placeholderParam];
     }
 
@@ -830,6 +851,11 @@ export class JobComponent implements OnChanges, AfterViewInit {
     phase: JobPartPhase,
     group: PhasePackGroup
   ): JobPartParam[] {
+    if (group.completion) {
+      return this.getCompletionParamsForPhase(job, phase)
+        .filter(param => !param.config?.startsWith('SIGN('));
+    }
+
     const columns = this.getDisplayNonSignParamsForPhase(job, phase);
 
     return columns.map(column => {
@@ -849,6 +875,11 @@ export class JobComponent implements OnChanges, AfterViewInit {
     phase: JobPartPhase,
     group: PhasePackGroup
   ): JobPartParam[] {
+    if (group.completion) {
+      return this.getCompletionParamsForPhase(job, phase)
+        .filter(param => !!param.config?.startsWith('SIGN('));
+    }
+
     const columns = this.getDisplaySignParamsForPhase(job, phase);
 
     return columns.map(column => {
@@ -935,7 +966,8 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return this.getEditableParamsForPhase(job, phase)
       .filter(param =>
         (param.pack ?? null) === (pack ?? null) &&
-        (param.machineId ?? null) === (machineId ?? null)
+        (param.machineId ?? null) === (machineId ?? null) &&
+        param.input === this.INPUT_PHASE_RUN
       )
       .every(param => {
         const value = values[param.partParamId];
@@ -958,7 +990,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return (
       this.isPhaseActive(phase) &&
       !param.config?.startsWith('SIGN(') &&
-      param.input === 3
+      param.input === this.INPUT_PHASE_RUN
     );
   }
 
@@ -1026,7 +1058,7 @@ export class JobComponent implements OnChanges, AfterViewInit {
   }
 
   hasPackColumn(job: JobWithOnePart, phase: JobPartPhase): boolean {
-    return this.getPackGroupsForPhase(job, phase)
+    return this.isPalletPhase(phase) || this.getPackGroupsForPhase(job, phase)
       .some(group => group.pack !== null && group.pack !== undefined);
   }
 
@@ -1034,8 +1066,52 @@ export class JobComponent implements OnChanges, AfterViewInit {
     return (phase.phaseUsage & 8) > 0;
   }
 
+  isPalletPhase(phase: JobPartPhase): boolean {
+    return (phase.phaseUsage & this.USAGE_PER_PALLET) > 0;
+  }
+
+  getPackColumnTitle(phase: JobPartPhase): string {
+    return this.isPalletPhase(phase) ? 'Pallet' : 'Pack';
+  }
+
+  async addPallet(job: JobWithOnePart): Promise<void> {
+    const pallet = await this.promptService.input(
+      'Enter a pallet name.',
+      'Add Pallet',
+      'Add',
+      'Cancel'
+    );
+
+    const normalized = pallet?.trim().toUpperCase() ?? '';
+    if (!normalized) {
+      return;
+    }
+
+    try {
+      const updatedJob = await this.jobService.createPallet(
+        job.id,
+        job.part.jobPartId,
+        normalized
+      );
+
+      if (updatedJob) {
+        this.jobUpdated.emit(updatedJob);
+      }
+    } catch (err) {
+      console.error(err);
+      await this.promptService.alert(
+        err instanceof Error ? err.message : 'Failed to create pallet.',
+        'Add Pallet Failed'
+      );
+    }
+  }
+
   private isAwaitParam(param: JobPartParam): boolean {
     return !!param.config?.startsWith('AWAIT(');
+  }
+
+  private isPhaseCompleteParam(param: JobPartParam): boolean {
+    return param.input === this.INPUT_PHASE_COMPLETE;
   }
 
   private isAwaitParamPending(param: JobPartParam): boolean {

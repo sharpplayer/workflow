@@ -134,6 +134,9 @@ public interface DatabaseService {
 
     Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, String rpi);
 
+    Result<Boolean> createPallet(int jobId, String pallet,
+            Function<PhaseParamEvaluatorInput, ConfigValuePair> evaluator);
+
     OptionalResult<String> getParamValue(int paramId);
 
     Result<Boolean> updateParam(int paramId, long jobNumber, int jobPart,  int phaseNumber, String config,

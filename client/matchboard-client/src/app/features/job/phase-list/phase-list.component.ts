@@ -12,6 +12,9 @@ template: `
       <col style="width: 200px">
       <col style="width: 100px">
       <col style="width: 150px">
+      @if (showMachineColumn()) {
+        <col style="width: 120px">
+      }
       <col style="width: 200px">
       <col style="width: 100px">
       @if (showRequiredByColumn()) {
@@ -25,6 +28,9 @@ template: `
         <th>Product</th>
         <th>Quantity</th>
         <th>Phase</th>
+        @if (showMachineColumn()) {
+          <th>Machine</th>
+        }
         <th>Special Instruction</th>
         <th>Status</th>
         @if (showRequiredByColumn()) {
@@ -49,6 +55,9 @@ template: `
             </td>
             <td>{{ phase.quantity }}</td>
             <td>{{ phase.phaseDescription }}</td>
+            @if (showMachineColumn()) {
+              <td>{{ phase.machineName }}</td>
+            }
             <td>{{ phase.specialInstruction }}</td>
             <td>{{ statusLabel(phase.phaseStatus) }}</td>
             @if (showRequiredByColumn()) {
@@ -79,6 +88,9 @@ export class PhaseListComponent {
   showRequiredByColumn = computed(() =>
     this.phases().some(phase => this.shouldShowRequiredBy(phase))
   );
+  showMachineColumn = computed(() =>
+    this.phases().some(phase => !!phase.machineName)
+  );
 
   constructor() {
     effect(async () => {
@@ -100,7 +112,7 @@ export class PhaseListComponent {
   }
 
   trackPhase(index: number, phase: ScheduledJobPhase): string {
-    return `${phase.jobId}:${phase.jobPartId}:${phase.jobPartPhaseId}`;
+    return `${phase.jobId}:${phase.jobPartId}:${phase.jobPartPhaseId}:${phase.machineId ?? 'none'}`;
   }
 
   selectPhase(phase: ScheduledJobPhase): void {
@@ -116,7 +128,9 @@ export class PhaseListComponent {
   }
 
   emptyColspan(): number {
-    return this.showRequiredByColumn() ? 8 : 7;
+    return 7
+      + (this.showMachineColumn() ? 1 : 0)
+      + (this.showRequiredByColumn() ? 1 : 0);
   }
 
   private shouldShowRequiredBy(phase: ScheduledJobPhase): boolean {

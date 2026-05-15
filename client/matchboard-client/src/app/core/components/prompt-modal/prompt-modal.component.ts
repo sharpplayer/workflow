@@ -1,23 +1,37 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-prompt-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="prompt-card" role="dialog" aria-modal="true">
       <h2>{{ title }}</h2>
       <p>{{ message }}</p>
 
+      @if (mode === 'input') {
+        <input
+          class="prompt-input"
+          type="text"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          [(ngModel)]="inputValue"
+          (keydown.enter)="resolveInput()"
+        />
+      }
+
       <div class="prompt-actions">
-        @if (mode === 'confirm') {
+        @if (mode === 'confirm' || mode === 'input') {
           <button type="button" class="secondary" (click)="resolved.emit(false)">
             {{ cancelText }}
           </button>
         }
 
-        <button type="button" class="primary" (click)="resolved.emit(true)">
+        <button type="button" class="primary" (click)="mode === 'input' ? resolveInput() : resolved.emit(true)">
           {{ okText }}
         </button>
       </div>
@@ -44,6 +58,17 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
       font-size: 14px;
       line-height: 1.45;
       white-space: pre-line;
+    }
+
+    .prompt-input {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 14px;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font: inherit;
+      text-transform: uppercase;
     }
 
     .prompt-actions {
@@ -80,9 +105,14 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 export class PromptModalComponent {
   @Input() title = '';
   @Input() message = '';
-  @Input() mode: 'alert' | 'confirm' = 'alert';
+  @Input() mode: 'alert' | 'confirm' | 'input' = 'alert';
   @Input() okText = 'OK';
   @Input() cancelText = 'No';
+  @Input() inputValue = '';
 
-  @Output() resolved = new EventEmitter<boolean>();
+  @Output() resolved = new EventEmitter<boolean | string>();
+
+  resolveInput(): void {
+    this.resolved.emit(this.inputValue.trim());
+  }
 }

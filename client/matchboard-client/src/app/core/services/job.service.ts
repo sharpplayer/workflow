@@ -24,6 +24,8 @@ export interface ScheduledJobPhase {
   phaseNumber: number;
   specialInstruction: string;
   phaseStatus: number;
+  machineId: number | null;
+  machineName: string | null;
   plannedStartAt: string | null;
   actualStartAt: string | null;
 }
@@ -530,11 +532,11 @@ export class JobService {
     return (jobNumber % 1000).toString().padStart(3, '0');
   }
 
-  async createRpi(jobId: number, jobPartId: number, rpi: number) {
+  async createRpi(jobId: number, jobPartId: number, rpi: string) {
     try {
       let job = await firstValueFrom(
         this.http.post<JobWithOnePart | null>(
-          `${API_BASE_URL}/api/jobs/${jobId}/part/${jobPartId}/rpi/${rpi}`,
+          `${API_BASE_URL}/api/jobs/${jobId}/part/${jobPartId}/rpi/${encodeURIComponent(rpi)}`,
           {},
           { withCredentials: true }
         )
@@ -542,6 +544,20 @@ export class JobService {
       return job; // success
     } catch (err) {
       throw new Error(this.getErrorMessage(err, 'Signoff failed.'));
+    }
+  }
+
+  async createPallet(jobId: number, jobPartId: number, pallet: string): Promise<JobWithOnePart | null> {
+    try {
+      return await firstValueFrom(
+        this.http.post<JobWithOnePart | null>(
+          `${API_BASE_URL}/api/jobs/${jobId}/part/${jobPartId}/pallet/${encodeURIComponent(pallet)}`,
+          {},
+          { withCredentials: true }
+        )
+      );
+    } catch (err) {
+      throw new Error(this.getErrorMessage(err, 'Failed to create pallet.'));
     }
   }
 

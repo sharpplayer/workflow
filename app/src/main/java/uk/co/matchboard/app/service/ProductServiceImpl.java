@@ -50,6 +50,7 @@ public class ProductServiceImpl implements ProductService {
     public static final Integer USAGE_PER_PRODUCT_PACK = 16;
     public static final Integer USAGE_PER_RPI_LEFT_RIGHT = 32;
     public static final Integer USAGE_CROSS_JOB = 64;
+    public static final Integer USAGE_PER_PALLET = 128;
 
     private record PhaseParamKey(int id, int order) {
 

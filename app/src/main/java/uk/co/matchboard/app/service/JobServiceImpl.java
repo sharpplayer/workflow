@@ -49,6 +49,7 @@ import uk.co.matchboard.app.model.job.ScheduledJobPartViews;
 import uk.co.matchboard.app.model.job.ScheduledJobPhase;
 import uk.co.matchboard.app.model.job.ScheduledJobPhases;
 import uk.co.matchboard.app.model.job.UpdateJob;
+import uk.co.matchboard.app.model.product.Machine;
 import uk.co.matchboard.app.model.product.PhaseParamEvaluatorInput;
 import uk.co.matchboard.app.model.product.PhaseSignOff;
 
@@ -70,7 +71,8 @@ public class JobServiceImpl implements JobService {
 
     private record ScheduleParamsForRole(
             LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>> groups,
-            Map<Integer, ScheduleSummary> scheduleSummary) {
+            Map<Integer, ScheduleSummary> scheduleSummary,
+            Map<Integer, String> machineNames) {
 
     }
 
@@ -147,12 +149,13 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<ScheduledJobPhases> getSchedule(String date, String role) {
         return getScheduleParamsFor(date).map(
-                params -> params.groups().values().stream().filter(group -> group.stream().anyMatch(r ->
+                params -> params.groups().entrySet().stream().filter(entry -> entry.getValue().stream().anyMatch(r ->
                                 r.paramConfig() != null
                                         && isForRole(r.paramConfig(), role)
                                         && isPhaseRunInput(r.paramInput())
                         ))
-                        .map(group -> {
+                        .map(entry -> {
+                            List<ScheduledJobPartParam> group = entry.getValue();
                             ScheduledJobPartParam r = group.getFirst();
                             ScheduleSummary s = params.scheduleSummary().get(r.jobPartId());
                             return new ScheduledJobPhase(
@@ -170,6 +173,8 @@ public class JobServiceImpl implements JobService {
                                     r.phaseNumber(),
                                     r.specialInstruction(),
                                     r.phaseStatus(),
+                                    entry.getKey().machineId(),
+                                    getMachineName(entry.getKey().machineId(), params.machineNames()),
                                     s == null ? null : s.minPlannedTime(),
                                     s == null ? null : s.minActualStartTime()
                             );
@@ -234,9 +239,11 @@ public class JobServiceImpl implements JobService {
         }
 
         return databaseService.getScheduleForRole(fromDate, toDate)
-                .map(schedule -> {
+                .flatMap(schedule -> databaseService.getAllMachines().map(machines -> {
 
                     Map<Integer, ScheduleSummary> summary = schedule.scheduleSummary();
+                    Map<Integer, String> machineNames = machines.stream()
+                            .collect(Collectors.toMap(Machine::id, Machine::name));
 
                     LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>> groups = schedule.params().stream()
                             .sorted(Comparator.comparing(r -> {
@@ -263,13 +270,21 @@ public class JobServiceImpl implements JobService {
                                     Collectors.toList()
                             ));
 
-                    return new ScheduleParamsForRole(groups, schedule.scheduleSummary());
-                });
+                    return new ScheduleParamsForRole(groups, schedule.scheduleSummary(), machineNames);
+                }));
     }
 
     private boolean isPhaseRunInput(Integer input) {
         // Input can be null if the phase does have any params (yet)
         return input != null && input == ConfigurationServiceImpl.INPUT_PHASE_RUN;
+    }
+
+    private String getMachineName(Integer machineId, Map<Integer, String> machineNames) {
+        if (machineId == null) {
+            return null;
+        }
+
+        return machineNames.getOrDefault(machineId, "Machine " + machineId);
     }
 
     private boolean isForRole(String config, String role) {
@@ -391,7 +406,15 @@ public class JobServiceImpl implements JobService {
                         completion.operationId()))
                 .fold(j -> {
                     if (completion.rpi() != null) {
-                        return addRpi(j, completion.rpi()).map(_ -> j).toOptional();
+                        return addRpi(j, completion.rpi()).fold(
+                                _ -> databaseService.getJobWithOnePart(
+                                        j.id(),
+                                        j.part().jobPartId(),
+                                        null,
+                                        j.activePhase()
+                                ),
+                                OptionalResult::failure
+                        );
                     }
                     return OptionalResult.of(j);
                 }, OptionalResult::failure, OptionalResult::empty);
@@ -405,7 +428,16 @@ public class JobServiceImpl implements JobService {
     @Override
     public OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, String rpi) {
         return databaseService.getJobWithOnePart(jobId, jobPartId, null, null)
-                .flatMap(j -> addRpi(j, rpi).toOptional());
+                .flatMap(j -> addRpi(j, rpi).fold(
+                        _ -> databaseService.getJobWithOnePart(jobId, jobPartId, null, null),
+                        OptionalResult::failure
+                ));
+    }
+
+    @Override
+    public OptionalResult<JobWithOnePart> createPallet(int jobId, int jobPartId, String pallet) {
+        return databaseService.createPallet(jobId, pallet, this::evaluator)
+                .flatMapOptional(_ -> databaseService.getJobWithOnePart(jobId, jobPartId, null, null));
     }
 
     @Override

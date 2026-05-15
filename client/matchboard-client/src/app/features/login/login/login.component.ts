@@ -84,8 +84,6 @@ export interface LoginResult {
             <label>RPI</label>
             <input
               type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
               autocomplete="off"
               autocorrect="off"
               autocapitalize="off"
@@ -234,7 +232,7 @@ export class LoginComponent {
     if (!this.rpi()) return true;
 
     const value = this.rpiNumber().trim();
-    return /^\d+$/.test(value);
+    return value.length > 0;
   });
 
   readonly canSubmit = computed(() => {
@@ -365,7 +363,7 @@ export class LoginComponent {
 
   onRpiNumberChange(value: string): void {
     this.optionsErrorMsg.set('');
-    this.rpiNumber.set(value.replace(/\D/g, ''));
+    this.rpiNumber.set(value);
   }
 
   onRpiNumberBlur(): void {
