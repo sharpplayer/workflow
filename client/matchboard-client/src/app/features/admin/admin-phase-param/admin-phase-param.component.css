@@ -111,6 +111,39 @@ button:disabled {
   line-height: 1;
 }
 
+.refresh-options-button {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  float: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-options-button mat-icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+}
+
+.refresh-options-button .spinning {
+  animation: refresh-spin 0.75s linear infinite;
+}
+
+@keyframes refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .field-with-error {
   display: flex;
   flex-direction: column;

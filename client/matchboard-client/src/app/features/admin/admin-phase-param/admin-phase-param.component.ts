@@ -158,6 +158,20 @@ export interface PhaseParamSelected {
                     +
                   </button>
                 }
+
+                @if (canRefreshOptions(param) && !readOnly()) {
+                  <button
+                    mat-icon-button
+                    class="refresh-options-button"
+                    type="button"
+                    aria-label="Refresh customers"
+                    title="Refresh customers"
+                    [disabled]="isRefreshingOptions(param.phaseParamId)"
+                    (click)="refreshOptions(param)"
+                  >
+                    <mat-icon [class.spinning]="isRefreshingOptions(param.phaseParamId)">sync</mat-icon>
+                  </button>
+                }
               </div>
             } @else if (param.type === 'string[]') {
               <mat-form-field appearance="fill" class="param-field">
@@ -274,6 +288,7 @@ export class AdminPhaseParamComponent {
   selectedParamForAdd = signal<PhaseParamData | null>(null);
 
   readonly editingCheckParams = signal<Record<number, boolean>>({});
+  readonly refreshingOptionParams = signal<Record<number, boolean>>({});
 
   errorMap = computed(() => {
     const map = new Map<number, string>();
@@ -391,6 +406,48 @@ export class AdminPhaseParamComponent {
     }
 
     console.error(`Add item modal not implemented for paramConfig: ${param.paramConfig}`);
+  }
+
+  canRefreshOptions(param: PhaseParamData): boolean {
+    return param.paramConfig?.toLowerCase() === 'customer';
+  }
+
+  isRefreshingOptions(paramId: number): boolean {
+    return this.refreshingOptionParams()[paramId] === true;
+  }
+
+  async refreshOptions(param: PhaseParamData): Promise<void> {
+    if (this.readOnly() || !this.canRefreshOptions(param) || this.isRefreshingOptions(param.phaseParamId)) {
+      return;
+    }
+
+    this.refreshingOptionParams.update(params => ({
+      ...params,
+      [param.phaseParamId]: true
+    }));
+
+    try {
+      const response = await this.configService.getList(param.paramConfig);
+
+      this.filteredParams.update(params =>
+        params.map(p =>
+          p.phaseParamId === param.phaseParamId
+            ? {
+                ...p,
+                options: [...response.value]
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error(`Failed to refresh ${param.paramConfig} options`, err);
+      await this.promptService.alert(`Failed to refresh ${param.key.toLowerCase()}`);
+    } finally {
+      this.refreshingOptionParams.update(params => ({
+        ...params,
+        [param.phaseParamId]: false
+      }));
+    }
   }
 
   closeCarrierModal(): void {
