@@ -999,6 +999,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             JOB_PART_PARAMS.ID,
                             JOB_PART_PARAMS.JOB_PART_PHASE_ID,
                             JOB_PART_PARAMS.MACHINE_ID,
+                            JOB_PART_PARAMS.VALUE,
                             JOB_PART_PHASES.JOB_PART_ID,
                             JOB_PART_PHASES.STATUS,
                             JOB_PART_PHASES.PHASE_NUMBER,
@@ -1024,6 +1025,18 @@ public class DatabaseServiceImpl implements DatabaseService {
                 throw new IllegalArgumentException(
                         "All signOffParams keys must belong to the same job_part_phase_id");
             }
+
+            rows.stream()
+                    .filter(row -> {
+                        String value = row.get(JOB_PART_PARAMS.VALUE);
+                        return value != null && !value.trim().isEmpty();
+                    })
+                    .findFirst()
+                    .ifPresent(row -> {
+                        throw new DataException(
+                                "Cannot sign off parameter " + row.get(JOB_PART_PARAMS.ID)
+                                        + " because it already has a value");
+                    });
 
             boolean startNextPhase;
             if (operationId != null) {
@@ -1627,6 +1640,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     OffsetDateTime now = OffsetDateTime.now();
                     DSLContext innerDsl = connection.dsl();
                     long jobNumber = getNextJobNumber(innerDsl);
+                    validateCrossJobPhases(innerDsl, job.parts());
 
                     Integer jobId = innerDsl.insertInto(JOB)
                             .set(JOB.NUMBER, jobNumber)
@@ -1722,6 +1736,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                 outerDsl.transactionResult(connection -> {
                     final OffsetDateTime now = OffsetDateTime.now();
                     DSLContext innerDsl = connection.dsl();
+                    validateCrossJobPhases(innerDsl, job.parts());
 
                     var existingJob = innerDsl.selectFrom(JOB)
                             .where(JOB.ID.eq(job.jobId()))
@@ -1849,6 +1864,74 @@ public class DatabaseServiceImpl implements DatabaseService {
                             job.carrier(),
                             job.callOff(), jobParts, jobStatus, job.paymentConfirmed());
                 }));
+    }
+
+    private static void validateCrossJobPhases(DSLContext innerDsl, List<CreateJobPart> parts) {
+        if (parts == null || parts.size() <= 1) {
+            return;
+        }
+
+        Set<Integer> crossJobPhaseIds = getCrossJobPhaseIds(innerDsl, parts);
+        if (crossJobPhaseIds.isEmpty()) {
+            return;
+        }
+
+        int partNumber = 1;
+        for (CreateJobPart part : parts) {
+            List<Integer> partPhaseIds = part.phases().stream()
+                    .map(CreateJobPartPhase::phaseId)
+                    .toList();
+
+            for (Integer crossJobPhaseId : crossJobPhaseIds) {
+                long count = partPhaseIds.stream()
+                        .filter(phaseId -> Objects.equals(phaseId, crossJobPhaseId))
+                        .count();
+
+                if (count == 0) {
+                    String phaseName = getPhaseName(innerDsl, crossJobPhaseId);
+                    throw new DataException(
+                            "Cross job phase '" + phaseName + "' must exist on every job part");
+                }
+
+                if (count > 1) {
+                    String phaseName = getPhaseName(innerDsl, crossJobPhaseId);
+                    throw new DataException(
+                            "Cross job phase '" + phaseName + "' appears more than once on part "
+                                    + partNumber);
+                }
+            }
+
+            partNumber++;
+        }
+    }
+
+    private static Set<Integer> getCrossJobPhaseIds(DSLContext innerDsl, List<CreateJobPart> parts) {
+        Set<Integer> candidatePhaseIds = parts.stream()
+                .filter(Objects::nonNull)
+                .flatMap(part -> part.phases().stream())
+                .map(CreateJobPartPhase::phaseId)
+                .collect(Collectors.toSet());
+
+        if (candidatePhaseIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(innerDsl
+                .select(PHASE.ID)
+                .from(PHASE)
+                .where(PHASE.ID.in(candidatePhaseIds))
+                .and(PHASE.USAGE.bitAnd(ProductServiceImpl.USAGE_CROSS_JOB).gt(0))
+                .fetch(PHASE.ID));
+    }
+
+    private static String getPhaseName(DSLContext innerDsl, int phaseId) {
+        String phaseName = innerDsl
+                .select(PHASE.DESCRIPTION)
+                .from(PHASE)
+                .where(PHASE.ID.eq(phaseId))
+                .fetchOne(PHASE.DESCRIPTION);
+
+        return phaseName == null ? String.valueOf(phaseId) : phaseName;
     }
 
     private Map<UUID, JobPartParam> addParams(DSLContext innerDsl, int phaseId,

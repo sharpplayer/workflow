@@ -279,6 +279,7 @@ export class AdminPhaseComponent implements OnInit {
   readonly USAGE_PER_MACHINE = 8;
   readonly USAGE_PER_PRODUCT_PACK = 16;
   readonly USAGE_PER_RPI_LEFT_RIGHT = 32;
+  readonly USAGE_CROSS_JOB = 64;
 
   protected productService = inject(ProductService);
   protected configService = inject(ConfigService);
@@ -314,7 +315,8 @@ export class AdminPhaseComponent implements OnInit {
     { label: 'Call Off Stock Phase', value: this.USAGE_TO_CALL_OFF },
     { label: 'Per RPI Phase', value: this.USAGE_PER_RPI },
     { label: 'Per Product Pack Phase', value: this.USAGE_PER_PRODUCT_PACK },
-    { label: 'Per RPI Left/Right Phase', value: this.USAGE_PER_RPI_LEFT_RIGHT }
+    { label: 'Per RPI Left/Right Phase', value: this.USAGE_PER_RPI_LEFT_RIGHT },
+    { label: 'Cross Job Phase', value: this.USAGE_CROSS_JOB }
   ];
 
   ngOnInit(): void {
