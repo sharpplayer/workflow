@@ -24,6 +24,8 @@ export interface ScheduledJobPhase {
   phaseNumber: number;
   specialInstruction: string;
   phaseStatus: number;
+  plannedStartAt: string | null;
+  actualStartAt: string | null;
 }
 
 export interface SchedulableJobPart {
@@ -39,6 +41,9 @@ export interface SchedulableJobPart {
   width: number;
   length: number;
   thickness: number;
+  edge: string;
+  pitch: string;
+  profile: string;
   partStatus: JobStatus;
   jobStatus: JobStatus;
   partNo: number;

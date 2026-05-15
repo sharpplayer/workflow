@@ -122,7 +122,7 @@ public class JobController {
 
     @PostMapping("/jobs/{jobId}/part/{jobPartId}/rpi/{rpi}")
     public ResponseEntity<?> createRpi(@PathVariable int jobId, @PathVariable int jobPartId,
-            @PathVariable int rpi) {
+            @PathVariable String rpi) {
         return jobService.createRpi(jobId, jobPartId, rpi)
                 .fold(ResponseEntity::ok, ExceptionHandler::toResponse,
                         () -> ResponseEntity.noContent().build());

@@ -63,3 +63,12 @@ Ctrl-Shift-P Dev Containers Run...
 
 In the prompt:
 ng serve --host 0.0.0.0 --poll 2000
+
+## Connecting from tablet
+- Ensure server IP is reserved in router
+- Make 443 and 8090 (for cert download) in going ports accessible on firewall (private only)
+- Copy-Item C:\Matchboard\certs\web\matchboard-local-ca.pem C:\Matchboard\certs\web\matchboard-local-ca.crt
+- cd C:\Matchboard\certs\web
+  python -m http.server 8090
+- On tablet  http://192.168.0.49:8090/matchboard-local-ca.crt
+- In Android System settings, search CA Certificate and install downloaded cert

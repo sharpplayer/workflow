@@ -35,13 +35,13 @@ import uk.co.matchboard.app.model.sage.SageProduct;
 public class ProductServiceImpl implements ProductService {
 
     public static final int EXAMPLE_QUANTITY = 100;
-    public static final Long EXAMPLE_PACK = 1L;
+    public static final String EXAMPLE_PACK = "1";
     public static final Product EXAMPLE_PRODUCT = new Product(0, "prod", "sage", 1234, 567, 8,
             "pitch", "edge", "finish",
             "profile", "material", "owner", 12,
             List.of(new ProductMachine(1, "machine1", 60, 10),
                     new ProductMachine(2, "machine2", 120, 10),
-                    new ProductMachine(3, "machine3", 180, 10)), 80, true);
+                    new ProductMachine(3, "machine3", 180, 10)), 80, false, true);
 
     public static final Integer USAGE_FROM_CALL_OFF = 1;
     public static final Integer USAGE_TO_CALL_OFF = 2;
@@ -308,6 +308,7 @@ public class ProductServiceImpl implements ProductService {
                             rackType,
                             productMachines,
                             packSize,
+                            BOOLEANS.contains(product.freeIssue()),
                             BOOLEANS.contains(product.enabled())
                     ));
                 }

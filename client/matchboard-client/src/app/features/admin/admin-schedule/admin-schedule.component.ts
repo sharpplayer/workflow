@@ -282,7 +282,7 @@ interface MachineEntry {
                 [class.selected-job]="isSelectedJob(job)"
                 [style.top.px]="job.topPx"
                 [style.height.px]="job.heightPx"
-                (mousedown)="startDrag($event, job)"
+                (pointerdown)="startDrag($event, job)"
                 (click)="selectJob(job)"
               >
                 @if (job.setupMinutes > 0) {
@@ -297,7 +297,7 @@ interface MachineEntry {
                     {{ jobRef(job.jobNumber) }} - {{ job.partNo }} of {{ job.jobParts }}
                     (Step {{ job.stepNumber }} of {{ job.steps }})
                     <span class="job-dims">
-                      {{ job.length }}x{{ job.width }}x{{ job.thickness }}
+                      {{ formatProductSetupInfo(job) }}
                     </span>
                     Quantity {{ job.quantity }}
                   </div>
@@ -338,7 +338,7 @@ interface MachineEntry {
                     class="bucket-job"
                     [class.dragging]="dragStateSig()?.uid === job.uid"
                     [class.invalid-sequence]="job.isInvalidSequence"
-                    (mousedown)="startBucketDrag($event, job)"
+                    (pointerdown)="startBucketDrag($event, job)"
                     (click)="selectJob(job)"
                   >
                     <div class="bucket-job__title one-line">
@@ -346,7 +346,7 @@ interface MachineEntry {
                       (Step {{ job.stepNumber }} of {{ job.steps }})
                     </div>
                     <div class="bucket-job__meta one-line">
-                      {{ job.length }}x{{ job.width }}x{{ job.thickness }}
+                      {{ formatProductSetupInfo(job) }}
                       <span class="job-sep">·</span>
                       Quantity {{ job.quantity }}
                     </div>
@@ -947,7 +947,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     return Math.max(0, Math.min(y - markerHeight / 2, maxTop));
   }
 
-  startDrag(event: MouseEvent, job: ScheduledJob): void {
+  startDrag(event: PointerEvent, job: ScheduledJob): void {
     event.preventDefault();
     event.stopPropagation();
 
@@ -975,7 +975,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     });
   }
 
-  startBucketDrag(event: MouseEvent, job: ScheduledJob): void {
+  startBucketDrag(event: PointerEvent, job: ScheduledJob): void {
     event.preventDefault();
     event.stopPropagation();
 
@@ -1003,8 +1003,8 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     });
   }
 
-  @HostListener('document:mousemove', ['$event'])
-  onMove(event: MouseEvent): void {
+  @HostListener('document:pointermove', ['$event'])
+  onMove(event: PointerEvent): void {
     const drag = this.dragStateSig();
     const snapshot = this.draggedJobsByMachineSig();
 
@@ -1110,8 +1110,8 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     this.draggedJobsByMachineSig.set({ ...snapshot });
   }
 
-  @HostListener('document:mouseup', ['$event'])
-  onUp(event: MouseEvent): void {
+  @HostListener('document:pointerup', ['$event'])
+  onUp(event: PointerEvent): void {
     const drag = this.dragStateSig();
     const snapshot = this.draggedJobsByMachineSig();
 
@@ -1162,15 +1162,15 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     }
   }
 
-  private getBucketMachineIdAtPointer(event: MouseEvent): number | null {
+  private getBucketMachineIdAtPointer(event: PointerEvent): number | null {
     return this.getMachineIdAtPointer(event, '.machine-bucket');
   }
 
-  private getLaneMachineIdAtPointer(event: MouseEvent): number | null {
+  private getLaneMachineIdAtPointer(event: PointerEvent): number | null {
     return this.getMachineIdAtPointer(event, '.machine-lane');
   }
 
-  private getMachineIdAtPointer(event: MouseEvent, selector: string): number | null {
+  private getMachineIdAtPointer(event: PointerEvent, selector: string): number | null {
     const element = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
     const target = element?.closest(selector) as HTMLElement | null;
     const machineId = Number(target?.dataset?.['machineId']);
@@ -1178,7 +1178,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     return Number.isInteger(machineId) ? machineId : null;
   }
 
-  private getClockMinuteAtPointer(event: MouseEvent, machineId: number): number | null {
+  private getClockMinuteAtPointer(event: PointerEvent, machineId: number): number | null {
     const lane = this.elementRef.nativeElement.querySelector(
       `.machine-lane[data-machine-id="${machineId}"]`
     ) as HTMLElement | null;
@@ -1493,20 +1493,69 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     });
   }
 
-  private getMachineSetupTime(machineId: number): number {
+  private getMaxMachineSetupTime(machineId: number): number {
     const machine = this.machines().find(m => m.id === machineId);
-    return machine?.setupTimeSeconds ?? 0;
+    if (!machine) {
+      return 0;
+    }
+
+    return Math.max(
+      machine.thicknessSetup,
+      machine.edgeSetup,
+      machine.pitchSetup,
+      machine.profileSetup,
+      machine.majorProfileSetup
+    );
   }
 
-  private hasDimensionChange(
+  private getSetupTimeSeconds(
     previous: SchedulableJobPart | ScheduledJob,
-    current: SchedulableJobPart | ScheduledJob
-  ): boolean {
-    return (
-      previous.width !== current.width ||
-      previous.length !== current.length ||
+    current: SchedulableJobPart | ScheduledJob,
+    machineId: number
+  ): number {
+    const machine = this.machines().find(m => m.id === machineId);
+    if (!machine) {
+      return 0;
+    }
+
+    const setupTimes = [
+      this.normaliseSetupValue(previous.edge) !== this.normaliseSetupValue(current.edge)
+        ? machine.edgeSetup
+        : 0,
+      this.normaliseSetupValue(previous.pitch) !== this.normaliseSetupValue(current.pitch)
+        ? machine.pitchSetup
+        : 0,
       previous.thickness !== current.thickness
+        ? machine.thicknessSetup
+        : 0,
+      this.normaliseSetupValue(previous.profile) !== this.normaliseSetupValue(current.profile)
+        ? this.isFlexiboardChange(previous.profile, current.profile)
+          ? machine.majorProfileSetup
+          : machine.profileSetup
+        : 0
+    ];
+
+    return Math.max(...setupTimes);
+  }
+
+  private normaliseSetupValue(value: string | null | undefined): string {
+    return (value ?? '').trim().toUpperCase();
+  }
+
+  private isFlexiboardChange(previousProfile: string | null | undefined, currentProfile: string | null | undefined): boolean {
+    return (
+      this.normaliseSetupValue(previousProfile) === 'FLEXIBOARD' ||
+      this.normaliseSetupValue(currentProfile) === 'FLEXIBOARD'
     );
+  }
+
+  formatProductSetupInfo(job: SchedulableJobPart | ScheduledJob): string {
+    return [
+      job.edge || '-',
+      job.pitch || '-',
+      job.thickness,
+      job.profile || '-'
+    ].join(' / ');
   }
 
   private secondsToWholeMinutes(seconds: number): number {
@@ -1545,7 +1594,7 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
     const packMinutes = this.getPackMinutes(job);
 
     if (!previousJobOnMachine) {
-      const setupMinutes = this.secondsToWholeMinutes(this.getMachineSetupTime(machineId));
+      const setupMinutes = this.secondsToWholeMinutes(this.getMaxMachineSetupTime(machineId));
 
       return {
         effectiveDuration: setupMinutes + plannedMinutes + packMinutes,
@@ -1553,10 +1602,9 @@ export class AdminScheduleComponent implements OnChanges, OnDestroy {
       };
     }
 
-    const needsSetup = this.hasDimensionChange(previousJobOnMachine, job);
-    const setupMinutes = needsSetup
-      ? this.secondsToWholeMinutes(this.getMachineSetupTime(machineId))
-      : 0;
+    const setupMinutes = this.secondsToWholeMinutes(
+      this.getSetupTimeSeconds(previousJobOnMachine, job, machineId)
+    );
 
     return {
       effectiveDuration: setupMinutes + plannedMinutes + packMinutes,

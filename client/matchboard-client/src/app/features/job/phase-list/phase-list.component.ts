@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { JobService, JobStatus, JobStatusLabel, ScheduledJobPhase } from '../../../core/services/job.service';
 
 @Component({
@@ -16,6 +16,9 @@ template: `
       <col style="width: 100px">
       <col style="width: 200px">
       <col style="width: 100px">
+      @if (showRequiredByColumn()) {
+        <col style="width: 110px">
+      }
     </colgroup>
     <thead>
       <tr>
@@ -28,6 +31,9 @@ template: `
         <th>Phase Number</th>
         <th>Special Instruction</th>
         <th>Status</th>
+        @if (showRequiredByColumn()) {
+          <th>Required By</th>
+        }
       </tr>
     </thead>
     <tbody>
@@ -51,11 +57,14 @@ template: `
             <td>{{ phase.phaseNumber }}</td>
             <td>{{ phase.specialInstruction }}</td>
             <td>{{ statusLabel(phase.phaseStatus) }}</td>
+            @if (showRequiredByColumn()) {
+              <td>{{ requiredBy(phase) }}</td>
+            }
           </tr>
         }
       } @else {
         <tr>
-          <td colspan="9">
+          <td [attr.colspan]="emptyColspan()">
             No scheduled phases found.
           </td>
         </tr>
@@ -73,6 +82,9 @@ export class PhaseListComponent {
   private readonly jobService = inject(JobService);
 
   phases = signal<ScheduledJobPhase[]>([]);
+  showRequiredByColumn = computed(() =>
+    this.phases().some(phase => this.shouldShowRequiredBy(phase))
+  );
 
   constructor() {
     effect(async () => {
@@ -99,5 +111,42 @@ export class PhaseListComponent {
 
   selectPhase(phase: ScheduledJobPhase): void {
     this.phaseSelected.emit(phase);
+  }
+
+  requiredBy(phase: ScheduledJobPhase): string {
+    if (!this.shouldShowRequiredBy(phase)) {
+      return '';
+    }
+
+    return this.formatTime(phase.plannedStartAt);
+  }
+
+  emptyColspan(): number {
+    return this.showRequiredByColumn() ? 10 : 9;
+  }
+
+  private shouldShowRequiredBy(phase: ScheduledJobPhase): boolean {
+    return !!phase.plannedStartAt && !phase.actualStartAt;
+  }
+
+  private formatTime(value: string | null): string {
+    if (!value) {
+      return '';
+    }
+
+    const match = value.match(/T(\d{2}:\d{2})/);
+    if (match) {
+      return match[1];
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 }

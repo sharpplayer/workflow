@@ -17,7 +17,7 @@ import { StatusLine } from "../../../core/components/status-line/status-line.com
       <app-login
         [authError]="authError()"
         [showCancel]="false"
-        (loginSubmit)="onLoginSubmit($event)",>
+        (loginSubmit)="onLoginSubmit($event)">
       </app-login>
     </div>
 

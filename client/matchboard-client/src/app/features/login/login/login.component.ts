@@ -55,6 +55,10 @@ export interface LoginResult {
             (ngModelChange)="onUsernameChange($event)"
             name="username"
             placeholder="Username"
+            autocomplete="username"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
             (blur)="onUsernameBlur()"
             [disabled]="false"
           />
@@ -166,14 +170,18 @@ export class LoginComponent {
   readonly rpiNumber = signal('');
   readonly optionsErrorMsg = signal('');
 
-  readonly presetUsername = computed(() => (this.username() ?? '').trim());
+  private normalizeUsername(value: string): string {
+    return value.trim().toUpperCase();
+  }
+
+  readonly presetUsername = computed(() => this.normalizeUsername(this.username() ?? ''));
   readonly usernameProvided = computed(() => !!this.presetUsername());
   readonly displayUsername = computed(() =>
     this.typedUsername() || this.presetUsername()
   );
 
   readonly effectiveUsername = computed(() =>
-    (this.typedUsername() || this.presetUsername()).trim()
+    this.normalizeUsername(this.typedUsername() || this.presetUsername())
   );
 
   readonly isPin = computed(() => this.mode() === 'pin');
@@ -303,7 +311,7 @@ export class LoginComponent {
   }
 
   onUsernameBlur(): void {
-    this.typedUsername.set(this.typedUsername().trim());
+    this.typedUsername.set(this.normalizeUsername(this.typedUsername()));
   }
 
   onCredentialChange(value: string): void {

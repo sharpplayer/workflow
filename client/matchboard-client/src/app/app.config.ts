@@ -7,12 +7,14 @@ import { DeviceService } from './core/services/device.service';
 
 export const API_CONFIG = {
   host: window.location.hostname,
-  port: '8080',
+  port: window.location.port === '4200' ? '8080' : window.location.port,
   protocol: window.location.protocol
 };
 
 // Build full URL
-export const API_BASE_URL = `${API_CONFIG.protocol}//${API_CONFIG.host}:${API_CONFIG.port}`;
+export const API_BASE_URL = window.location.port === '4200'
+  ? `${API_CONFIG.protocol}//${API_CONFIG.host}:${API_CONFIG.port}`
+  : window.location.origin;
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -20,10 +22,13 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(),
     provideAppInitializer(async () => {
       const deviceService = inject(DeviceService);
+      window.matchboardDebug?.('Registering device', { apiBaseUrl: API_BASE_URL });
       try {
         await deviceService.registerDevice();
+        window.matchboardDebug?.('Device registration completed');
       } catch (err) {
         console.error('Device registration failed', err);
+        window.matchboardDebug?.('Device registration failed', err);
       }
     }),
   ],

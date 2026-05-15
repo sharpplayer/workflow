@@ -49,7 +49,7 @@ public interface JobService {
 
     Result<JobActivityViews> getJobActivity();
 
-    OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi);
+    OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, String rpi);
 
     Result<ConfigValuePair> createPhoto(int jobNumber, int jobPart, MultipartFile photo,
             int paramId, int phase);

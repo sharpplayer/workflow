@@ -5,6 +5,7 @@
   "mounts": [
     "source=${localWorkspaceFolder},target=/app,type=bind"
   ],
+  "runArgs": ["-p", "0.0.0.0:4200:4200"],
   "postCreateCommand": "npm install -g @angular/cli@21",
   "forwardPorts": [4200]
 }

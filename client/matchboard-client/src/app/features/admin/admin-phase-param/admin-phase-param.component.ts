@@ -149,11 +149,13 @@ export interface PhaseParamSelected {
                 @if (param.editable && !readOnly()) {
                   <button
                     mat-icon-button
+                    class="add-item-button"
                     type="button"
                     aria-label="Add item"
+                    title="Add carrier"
                     (click)="addItem(param)"
                   >
-                    <mat-icon>add</mat-icon>
+                    +
                   </button>
                 }
               </div>

@@ -4,6 +4,7 @@ table {
   margin-top: 1rem;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   table-layout: fixed; /* key for consistent sizing */
+  font-family: inherit;
 }
 
 /* Header styling */
@@ -92,6 +93,22 @@ button:hover {
 
 button:disabled {
   background-color: #959698;
+}
+
+.add-item-button {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  float: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .field-with-error {

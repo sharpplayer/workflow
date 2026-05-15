@@ -19,7 +19,7 @@ INSERT INTO users (username,
                    roles,
                    enabled,
                    password_reset)
-VALUES ('admin',
+VALUES ('ADMIN',
         '$argon2id$v=19$m=65536,t=3,p=1$Nv2kuq0FFx6RfSsWpF4EsQ$Bk3t0/iCjdaTPNuFqsP8vIboF3lgD1wgIxrWL5tLHjg',
         NULL,
         ARRAY['ADMIN'],

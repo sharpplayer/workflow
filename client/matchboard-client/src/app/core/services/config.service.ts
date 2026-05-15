@@ -17,7 +17,11 @@ interface ConfigResponse {
 export interface MachineInput {
     id: number;
     name: string;
-    setupTimeSeconds: number;
+    thicknessSetup: number;
+    edgeSetup: number;
+    pitchSetup: number;
+    profileSetup: number;
+    majorProfileSetup: number;
 }
 
 interface MachineConfigResponse {

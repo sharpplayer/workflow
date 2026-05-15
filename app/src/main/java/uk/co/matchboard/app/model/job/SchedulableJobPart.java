@@ -6,6 +6,7 @@ public record SchedulableJobPart(int jobPartId, int jobId, long jobNumber, Strin
                                  String oldName,
                                  int machineId, int quantity,
                                  int stepNumber, int length, int width, int thickness,
+                                 String edge, String pitch, String profile,
                                  int partStatus, int jobStatus,
                                  int partNo, int jobParts, OffsetDateTime dueDate,
                                  int timeOnMachineSeconds, int timeForPacksSeconds,

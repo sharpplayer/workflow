@@ -68,6 +68,12 @@ public class JobServiceImpl implements JobService {
 
     }
 
+    private record ScheduleParamsForRole(
+            LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>> groups,
+            Map<Integer, ScheduleSummary> scheduleSummary) {
+
+    }
+
     private final DatabaseService databaseService;
 
     private final ConfigurationService configurationService;
@@ -141,13 +147,14 @@ public class JobServiceImpl implements JobService {
     @Override
     public Result<ScheduledJobPhases> getSchedule(String date, String role) {
         return getScheduleParamsFor(date).map(
-                params -> params.values().stream().filter(group -> group.stream().anyMatch(r ->
+                params -> params.groups().values().stream().filter(group -> group.stream().anyMatch(r ->
                                 r.paramConfig() != null
                                         && isForRole(r.paramConfig(), role)
                                         && isPhaseRunInput(r.paramInput())
                         ))
                         .map(group -> {
                             ScheduledJobPartParam r = group.getFirst();
+                            ScheduleSummary s = params.scheduleSummary().get(r.jobPartId());
                             return new ScheduledJobPhase(
                                     r.jobId(),
                                     r.jobNumber(),
@@ -162,7 +169,9 @@ public class JobServiceImpl implements JobService {
                                     r.jobPartPhaseId(),
                                     r.phaseNumber(),
                                     r.specialInstruction(),
-                                    r.phaseStatus()
+                                    r.phaseStatus(),
+                                    s == null ? null : s.minPlannedTime(),
+                                    s == null ? null : s.minActualStartTime()
                             );
                         })
                         .toList()).map(ScheduledJobPhases::new);
@@ -213,7 +222,7 @@ public class JobServiceImpl implements JobService {
         return date == null ? Result.of(null) : TryUtils.tryCatch(() -> LocalDate.parse(date));
     }
 
-    private Result<LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>>> getScheduleParamsFor(
+    private Result<ScheduleParamsForRole> getScheduleParamsFor(
             String date) {
         LocalDate fromDate = null;
         LocalDate toDate;
@@ -229,7 +238,7 @@ public class JobServiceImpl implements JobService {
 
                     Map<Integer, ScheduleSummary> summary = schedule.scheduleSummary();
 
-                    return schedule.params().stream()
+                    LinkedHashMap<PartPhaseKey, List<ScheduledJobPartParam>> groups = schedule.params().stream()
                             .sorted(Comparator.comparing(r -> {
                                 ScheduleSummary s = summary.get(r.jobPartId());
 
@@ -253,6 +262,8 @@ public class JobServiceImpl implements JobService {
                                     LinkedHashMap::new,
                                     Collectors.toList()
                             ));
+
+                    return new ScheduleParamsForRole(groups, schedule.scheduleSummary());
                 });
     }
 
@@ -299,7 +310,7 @@ public class JobServiceImpl implements JobService {
             Integer lastJobId = null;
             boolean phaseRequiredSignOff = false;
             boolean jobStarted = false;
-            for (Entry<PartPhaseKey, List<ScheduledJobPartParam>> entry : params.entrySet()) {
+            for (Entry<PartPhaseKey, List<ScheduledJobPartParam>> entry : params.groups().entrySet()) {
                 if (lastJobId == null || lastJobId != entry.getKey().jobId()) {
                     lastJobId = entry.getKey().jobId();
                     phaseRequiredSignOff = false;
@@ -384,13 +395,6 @@ public class JobServiceImpl implements JobService {
                     }
                     return OptionalResult.of(j);
                 }, OptionalResult::failure, OptionalResult::empty);
-//                // Next job here bumps all the states up
-//                .flatMap(j -> {
-//                    if (j.completedPhase() != null) {
-//                        return nextJob(completion.role()).map(_ -> j);
-//                    }
-//                    return OptionalResult.of(j);
-//                });
     }
 
     @Override
@@ -399,7 +403,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, int rpi) {
+    public OptionalResult<JobWithOnePart> createRpi(int jobId, int jobPartId, String rpi) {
         return databaseService.getJobWithOnePart(jobId, jobPartId, null, null)
                 .flatMap(j -> addRpi(j, rpi).toOptional());
     }
@@ -449,7 +453,7 @@ public class JobServiceImpl implements JobService {
         );
     }
 
-    private Result<JobWithOnePart> addRpi(JobWithOnePart jobWithOnePart, int rpi) {
+    private Result<JobWithOnePart> addRpi(JobWithOnePart jobWithOnePart, String rpi) {
         // Phases with RPI usage need params duplicated per rpi
         return databaseService.createRpi(jobWithOnePart, rpi).map(_ -> jobWithOnePart);
     }

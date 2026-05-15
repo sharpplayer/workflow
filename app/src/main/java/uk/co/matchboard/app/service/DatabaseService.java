@@ -132,7 +132,7 @@ public interface DatabaseService {
 
     Result<List<WastageView>> getWastage(int jobPhaseId);
 
-    Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, long rpi);
+    Result<Boolean> createRpi(JobWithOnePart jobWithOnePart, String rpi);
 
     OptionalResult<String> getParamValue(int paramId);
 

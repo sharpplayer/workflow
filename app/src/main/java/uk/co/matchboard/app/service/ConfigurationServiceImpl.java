@@ -145,8 +145,21 @@ public class ConfigurationServiceImpl implements ConfigurationService {
         return value.toString();
     }
 
-    private int getPackQuantity(int quantity, int packSize, Long pack) {
-        return (int) Math.max(0, Math.min(packSize, quantity - (pack - 1) * packSize));
+    private int getPackQuantity(int quantity, int packSize, String pack) {
+        int newPack = parsePackOrZero(pack);
+        return Math.max(0, Math.min(packSize, quantity - (newPack - 1) * packSize));
+    }
+
+    private int parsePackOrZero(String pack) {
+        if (pack == null || pack.isBlank()) {
+            return 0;
+        }
+
+        try {
+            return Integer.parseInt(pack.trim());
+        } catch (NumberFormatException _) {
+            return 0;
+        }
     }
 
     @Override

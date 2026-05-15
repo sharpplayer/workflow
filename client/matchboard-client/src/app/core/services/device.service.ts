@@ -1,6 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { API_BASE_URL } from '../../app.config';
 
 export interface SessionView {
@@ -28,7 +28,7 @@ export class DeviceService {
         `${API_BASE_URL}/api/device`,
         {},
         { withCredentials: true }
-      )
+      ).pipe(timeout(10000))
     );
 
     this.statusSignal.set(status);
@@ -40,7 +40,7 @@ export class DeviceService {
       this.http.get<DeviceStatus>(
         `${API_BASE_URL}/api/device`,
         { withCredentials: true }
-      )
+      ).pipe(timeout(10000))
     );
 
     this.statusSignal.set(status);

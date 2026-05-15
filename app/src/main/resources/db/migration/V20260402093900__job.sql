@@ -67,7 +67,7 @@ CREATE TABLE job_part_params
     value             TEXT,
     status            INTEGER     NOT NULL,
     machine_id        INTEGER,
-    pack              BIGINT,
+    pack              TEXT,
     "order"           INTEGER     NOT NULL,
     valued_at         TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

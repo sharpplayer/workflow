@@ -20,6 +20,7 @@ public record SageProduct(
         String finish,
         String machinery,
         String packSize,
+        String freeIssue,
         String enabled
 ) {
 
@@ -55,6 +56,7 @@ public record SageProduct(
                             getRequired.apply(part, row, headerMapping.get("finish")),
                             getRequired.apply(part, row, headerMapping.get("machinery")),
                             getRequired.apply(part, row, headerMapping.get("packsize")),
+                            getRequired.apply(part, row, headerMapping.get("freeissue")),
                             getRequired.apply(part, row, headerMapping.get("enabled")));
                 }
         );

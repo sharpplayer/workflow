@@ -4,6 +4,6 @@ import java.util.UUID;
 
 public record CreateJobPartParam(int paramId, int phaseNumber, String config, String value,
                                  int jobPartPhaseId, UUID tempKey,
-                                 Integer machineId, String name, Long pack, Integer input, Integer order) {
+                                 Integer machineId, String name, String pack, Integer input, Integer order) {
 
 }

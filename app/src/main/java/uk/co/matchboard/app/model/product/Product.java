@@ -5,7 +5,7 @@ import java.util.List;
 public record Product(int id, String name, String oldName, int width,
                       int length, int thickness, String pitch, String edge, String finish,
                       String profile, String material, String owner,
-                      int rackType, List<ProductMachine> machinery, int packSize, boolean enabled) {
+                      int rackType, List<ProductMachine> machinery, int packSize, boolean freeIssue, boolean enabled) {
 
     public boolean equalsApartFromId(Product e) {
         if (this == e) {
@@ -29,6 +29,7 @@ public record Product(int id, String name, String oldName, int width,
                 && rackType == e.rackType
                 && machineryEqualsWithoutId(machinery, e.machinery)
                 && packSize == e.packSize
+                && freeIssue == e.freeIssue
                 && enabled == e.enabled;
     }
 
@@ -71,6 +72,7 @@ public record Product(int id, String name, String oldName, int width,
                 rackType,
                 machinery,
                 packSize,
+                freeIssue,
                 enabled
         );
     }
