@@ -541,6 +541,7 @@ public class DatabaseServiceImpl implements DatabaseService {
 
         Table<Record1<String>> packs = values(packRows).as("packs", "pack");
         Field<String> packValue = field(name("packs", "pack"), String.class);
+        Condition phaseAppliesToProductMachine = phaseAppliesToProductMachine(machineIds);
 
         dsl.insertInto(JOB_PART_PARAMS,
                         JOB_PART_PARAMS.JOB_PART_PHASE_ID,
@@ -574,6 +575,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 .and(PHASE.ENABLED.isTrue())
                                 .and(PHASE.USAGE.bitAnd(ProductServiceImpl.USAGE_PER_RPI).gt(0))
                                 .and(leftRightCondition)
+                                .and(phaseAppliesToProductMachine)
                                 .and(PHASE.USAGE.bitAnd(ProductServiceImpl.USAGE_PER_MACHINE).eq(0))
                                 .andNotExists(
                                         dsl.selectOne()
@@ -645,6 +647,16 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 )
                 )
                 .execute();
+    }
+
+    private static Condition phaseAppliesToProductMachine(List<Integer> machineIds) {
+        Integer[] productMachineIds = machineIds.toArray(Integer[]::new);
+
+        return condition(
+                "coalesce(cardinality({0}), 0) = 0 or {0} && {1}",
+                PHASE.MACHINE_IDS,
+                val(productMachineIds)
+        );
     }
 
     private static RpiPacks getRpiPacks(String rawRpi) {

@@ -141,6 +141,8 @@ public class ConfigurationServiceImpl implements ConfigurationService {
     private String convertToString(Object value) {
         if (value instanceof List list) {
             return list.stream().collect(Collectors.joining(" → ")).toString();
+        } else if (value instanceof Boolean b) {
+            return b ? "YES" : "NO";
         }
         return value.toString();
     }

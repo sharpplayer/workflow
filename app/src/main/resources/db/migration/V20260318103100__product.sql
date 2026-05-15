@@ -130,7 +130,7 @@ VALUES ('Material Logistics', (1 | 2), '{}', TRUE),
 INSERT INTO phase_param (phase_id, name, config, input, "order")
 SELECT p.id, v.name, v.config, v.input, v."order"
 FROM phase p
-         JOIN (VALUES ('Material Logistics', 'Free Issue', 'PRODUCT(freeIssue)', 3, 1),
+         JOIN (VALUES ('Material Logistics', 'Free Issue', 'PRODUCT(freeIssue)', 1, 1),
                       ('Material Logistics', 'Material', 'PRODUCT(material)', 1, 2),
                       ('Material Logistics', 'From Location', 'string', 1, 3),
                       ('Material Logistics', 'To Location', 'string', 3, 4),

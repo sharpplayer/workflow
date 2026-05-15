@@ -7,13 +7,11 @@ import { JobService, JobStatus, JobStatusLabel, ScheduledJobPhase } from '../../
 template: `
   <table>
     <colgroup>
-      <col style="width: 50px">
       <col style="width: 100px">
       <col style="width: 100px">
       <col style="width: 200px">
       <col style="width: 100px">
       <col style="width: 150px">
-      <col style="width: 100px">
       <col style="width: 200px">
       <col style="width: 100px">
       @if (showRequiredByColumn()) {
@@ -22,13 +20,11 @@ template: `
     </colgroup>
     <thead>
       <tr>
-        <th></th>
         <th>Job Ref</th>
         <th>Part</th>
         <th>Product</th>
         <th>Quantity</th>
         <th>Phase</th>
-        <th>Phase Number</th>
         <th>Special Instruction</th>
         <th>Status</th>
         @if (showRequiredByColumn()) {
@@ -46,7 +42,6 @@ template: `
             (keydown.enter)="selectPhase(phase)"
             (keydown.space)="selectPhase(phase); $event.preventDefault()"
           >
-            <td>{{ i + 1 }}</td>
             <td>{{ getJobRef(phase.jobNumber) }}</td>
             <td>{{ phase.partNumber }} of {{ phase.jobParts }}</td>
             <td class="nowrap">
@@ -54,7 +49,6 @@ template: `
             </td>
             <td>{{ phase.quantity }}</td>
             <td>{{ phase.phaseDescription }}</td>
-            <td>{{ phase.phaseNumber }}</td>
             <td>{{ phase.specialInstruction }}</td>
             <td>{{ statusLabel(phase.phaseStatus) }}</td>
             @if (showRequiredByColumn()) {
@@ -122,11 +116,13 @@ export class PhaseListComponent {
   }
 
   emptyColspan(): number {
-    return this.showRequiredByColumn() ? 10 : 9;
+    return this.showRequiredByColumn() ? 8 : 7;
   }
 
   private shouldShowRequiredBy(phase: ScheduledJobPhase): boolean {
-    return !!phase.plannedStartAt && !phase.actualStartAt;
+    return !!phase.plannedStartAt
+      && !phase.actualStartAt
+      && phase.phaseStatus !== JobStatus.COMPLETED;
   }
 
   private formatTime(value: string | null): string {
