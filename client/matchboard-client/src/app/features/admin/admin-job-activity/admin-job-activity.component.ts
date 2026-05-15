@@ -17,8 +17,8 @@ import {
         <table>
           <thead>
             <tr>
-              <th>Scheduled</th>
-              <th>Job Number</th>
+              <th>Due</th>
+              <th>Job Ref</th>
               <th>Part</th>
               <th>Status</th>
               <th>
@@ -49,8 +49,8 @@ import {
             } @else {
               @for (item of activity(); track item.operationId) {
                 <tr>
-              <td>{{ item.scheduledForDate | date: 'dd/MM/yyyy' }}</td>
-              <td>{{ item.jobNumber }}</td>
+              <td>{{ item.dueDate | date: 'dd/MM/yyyy' }}</td>
+              <td>{{ getJobRef(item.jobNumber) }}</td>
               <td>{{ item.partNumber }} of {{ item.jobParts }}</td>
               <td>
                 <span class="timing-status" [ngClass]="getTimingStatusClass(item)">
@@ -132,6 +132,10 @@ export class AdminJobActivityComponent implements OnInit {
 
   getStatus(status: JobStatus): string {
     return JobStatusLabel[status];
+  }
+
+  getJobRef(jobNumber: number): string {
+    return this.jobService.getJobRef(jobNumber);
   }
 
   getTimingStatusClass(item: JobActivityView): string {

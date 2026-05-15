@@ -7,6 +7,7 @@ public record JobActivityView(
         int operationId,
         int jobId,
         long jobNumber,
+        OffsetDateTime dueDate,
         int jobPartId,
         int partNumber,
         int jobParts,

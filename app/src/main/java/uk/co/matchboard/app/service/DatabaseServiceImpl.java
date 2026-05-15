@@ -2123,6 +2123,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             min(JOB_PART_OPERATION.ID),
                             JOB.ID,
                             JOB.NUMBER,
+                            JOB.DUE,
                             JOB_PART.ID,
                             JOB_PART.PART_NUMBER,
                             JOB.PARTS,
@@ -2148,6 +2149,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     .groupBy(
                             JOB.ID,
                             JOB.NUMBER,
+                            JOB.DUE,
                             JOB_PART.ID,
                             JOB_PART.PART_NUMBER,
                             JOB.PARTS,
@@ -2163,6 +2165,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                             record.get(min(JOB_PART_OPERATION.ID)),
                             record.get(JOB.ID),
                             record.get(JOB.NUMBER),
+                            record.get(JOB.DUE),
                             record.get(JOB_PART.ID),
                             record.get(JOB_PART.PART_NUMBER),
                             record.get(JOB.PARTS),

@@ -201,6 +201,7 @@ export interface JobActivityView {
   operationId: number;
   jobId: number;
   jobNumber: number;
+  dueDate: string;
   jobPartId: number;
   partNumber: number;
   jobParts: number;
